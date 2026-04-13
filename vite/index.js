@@ -6,7 +6,14 @@ export function createVitePlugins(Env, mode) {
   if (mode !== 'test') {
     console.log('Env:', Env)
   }
-  const vitePlugins = [react(), babel({ presets: [reactCompilerPreset()] })]
+  const vitePlugins = [
+    react({
+      babel: {
+        plugins: ['babel-plugin-react-scoped-css'],
+      },
+    }),
+    babel({ presets: [reactCompilerPreset()] }),
+  ]
   vitePlugins.push(createAutoImport())
   return vitePlugins
 }

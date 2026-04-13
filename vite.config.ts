@@ -1,4 +1,3 @@
-import path from 'path'
 import { defineConfig, loadEnv } from 'vite'
 import { createVitePlugins } from './vite'
 
@@ -33,13 +32,7 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
     },
     resolve: {
-      // https://cn.vitejs.dev/config/#resolve-alias
-      alias: {
-        // '~' 代表项目根目录
-        '~': path.resolve(__dirname, './'),
-        // '@' 代表 src 目录
-        '@': path.resolve(__dirname, './src'),
-      },
+      tsconfigPaths: true,
     },
     test: {
       globals: true,

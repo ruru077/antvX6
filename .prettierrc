@@ -6,7 +6,6 @@
   "useTabs": false,
   "semi": false,
   "proseWrap": "never",
-  "objectWrap": "collapse",
   "arrowParens": "always",
   "bracketSameLine": false,
   "overrides": [

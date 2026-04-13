@@ -4,7 +4,12 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "esnext",
+    "paths": {
+      "@/*": ["./src/*"],
+      "~/*": ["./*"]
+    },
     "types": ["vite/client"],
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",
