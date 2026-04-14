@@ -25,10 +25,6 @@ const router = createBrowserRouter([
         path: '/edit',
         lazy: () => import('@/views/DiagramModel'),
       },
-      {
-        path: '/scoped-css-demo',
-        lazy: () => import('@/views/ScopedCssDemo.tsx'),
-      },
     ],
   },
 ])

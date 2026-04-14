@@ -1,7 +1,6 @@
 import { router } from '@/router'
-import '@/styles/ScopedCssDemo.scoped.scss'
+import '@/styles/global.scss'
 import { RouterProvider } from 'react-router/dom'
-
 function App() {
   return (
     <>
