@@ -18,3 +18,282 @@
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+// ── Layout ─────────────────────────────────────────────────────────
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  background: #374151;
+  flex-shrink: 0;
+  gap: 16px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e0e6ea;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  user-select: none;
+}
+
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.header-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #9ca3af;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color 0.15s, background-color 0.15s;
+
+  &:hover {
+    color: #e0e6ea;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &.active {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.13);
+  }
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+// ── X6 Stencil — kitchen-sink visual overrides ─────────────────────
+
+.x6-widget-stencil {
+  // X6 renders the stencil with position:absolute — pin it inside its
+  // parent .stencil-container (which has position:relative)
+  position: absolute !important;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  font-family: 'Open Sans', sans-serif;
+  overflow: hidden;
+
+  // ── Title bar (kitchen-sink "STENCIL" header) ───────────────────
+  // X6 puts the title LAST in DOM; use order:-1 to float it to top
+  .x6-widget-stencil-title {
+    display: flex !important;
+    order: -1;
+    align-items: center;
+    height: 40px;
+    padding: 0 8px 0 10px;
+    background: #ffffff;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    // Disable X6's click-to-collapse-panel; buttons re-enable their own events
+    pointer-events: none;
+    cursor: default;
+  }
+
+  // Hide X6's default widget-level collapse icon
+  &.collapsable>.x6-widget-stencil-title::before {
+    display: none !important;
+  }
+
+  // ── Expand / collapse ALL groups — injected control group ────────
+  .stencil-ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 6px;
+    pointer-events: auto;
+    flex-shrink: 0;
+  }
+
+  .stencil-ctrl-btn {
+    display: block;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 13px 13px;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+
+    &:hover {
+      background-color: #e8effa;
+      border-color: #9ca3af;
+    }
+  }
+
+  .stencil-ctrl-expand {
+    background-image: url('../assets/stencil/icon-expand.svg');
+    background-size: 8px 13px;
+  }
+
+  .stencil-ctrl-collapse {
+    background-image: url('../assets/stencil/icon-collapse.svg');
+    background-size: 8px 10px;
+  }
+
+  // ── Search box ──────────────────────────────────────────────────
+  .x6-widget-stencil-search {
+    padding: 8px 10px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    order: 0;
+
+    input {
+      margin: 0;
+      width: 100%;
+      height: 30px;
+      padding: 0 10px 0 30px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+      color: #374151;
+      background: #f9fafb url('../assets/stencil/icon-search.svg') no-repeat 9px center;
+      background-size: 16px 16px;
+      box-sizing: border-box;
+      transition: border-color 0.15s, box-shadow 0.15s;
+
+      &::placeholder {
+        color: #9ca3af;
+      }
+
+      &:focus {
+        border-color: #4f46e5;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+      }
+      &:hover{
+        background-color: #f0f1f3;
+      }
+    }
+  }
+
+  // ── Scrollable groups container ──────────────────────────────────
+  .x6-widget-stencil-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    order: 1;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 4px;
+    }
+  }
+
+  // ── Group ────────────────────────────────────────────────────────
+  .x6-widget-stencil-group {
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  // Group expand/collapse icons — assets
+  .x6-widget-stencil-group.collapsable>.x6-widget-stencil-group-title::before {
+    // icon-opened: down-pointing filled triangle (group expanded)
+    background-image: url('../assets/stencil/icon-opened.svg') !important;
+    background-size: 9px 8px !important;
+    background-position: center !important;
+  }
+
+  .x6-widget-stencil-group.collapsable.collapsed>.x6-widget-stencil-group-title::before {
+    // icon-closed: right-pointing filled triangle (group collapsed)
+    background-image: url('../assets/stencil/icon-closed.svg') !important;
+    background-size: 8px 9px !important;
+    background-position: center !important;
+  }
+
+  // Group header — kitchen-sink lavender accent (#E2E9F4)
+  .x6-widget-stencil-group-title {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 32px;
+    // 36px left: room for icon (position:absolute left:8px)
+    padding: 0 12px 0 36px;
+    background: #e2e9f4;
+    border-bottom: 1px solid #d1d5db;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    user-select: none;
+    box-sizing: border-box;
+    margin-top: 0 !important;
+    transition: background 0.15s;
+
+    &:hover {
+      background: #d9e2f2;
+    }
+  }
+
+  // Shape canvas area
+  .x6-widget-stencil-group-content {
+    padding: 10px 8px;
+    background: #ffffff;
+
+    svg {
+      display: block;
+    }
+  }
+
+  // "Not found" placeholder
+  &.not-found::after {
+    font-size: 12px;
+    color: #9ca3af;
+  }
+}

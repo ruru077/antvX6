@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { reactScopedCssPlugin } from 'rollup-plugin-react-scoped-css'
 
 /**
- * 支持路径别名的 React Scoped CSS Vite 插件。
+ * React Scoped CSS 功能，支持别名路径解析
  * @param {Record<string, string>} aliases - 别名映射，例如 { '@/': 'src/' }
  */
 export function createScopedCssPlugin(aliases = { '@/': 'src/' }) {

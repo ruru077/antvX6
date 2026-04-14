@@ -1,53 +1,90 @@
-import { NavLink, Outlet, useNavigation } from 'react-router'
+import { NavLink, Outlet } from 'react-router'
 
-/**
- * 根布局：包含顶部导航栏、全局 loading 条和页面内容插槽。
- * useNavigation 检测路由跳转 / 数据加载状态，实现 NProgress 效果。
- */
-export default function RootLayout() {
-  const navigation = useNavigation()
-  const isPending = navigation.state !== 'idle'
-
+function RootLayout() {
   return (
     <div className="layout">
-      {/* 全局进度条：路由切换或 loader 加载时可见 */}
-      {isPending && <div className="nprogress-bar" />}
-
-      <nav className="nav">
-        <span className="nav-brand">⚡ AntV Link</span>
-
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          编辑
-        </NavLink>
-
-        <NavLink
-          to="/login"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          模型
-        </NavLink>
-
-        <NavLink
-          to="/scoped-css-demo"
-          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-        >
-          Scoped CSS 示例
-        </NavLink>
-        {/* 全局加载状态指示器 */}
-        {isPending && (
-          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            加载中…
-          </span>
-        )}
-      </nav>
-
+      <header className="app-header">
+        <div className="app-header-brand">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 22 22"
+            fill="none"
+            style={{ flexShrink: 0 }}
+          >
+            <circle
+              cx="11"
+              cy="11"
+              r="10"
+              stroke="#60a5fa"
+              strokeWidth="1.5"
+              fill="none"
+            />
+            <circle cx="11" cy="11" r="4" fill="#60a5fa" />
+            <line
+              x1="11"
+              y1="1"
+              x2="11"
+              y2="5"
+              stroke="#60a5fa"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <line
+              x1="11"
+              y1="17"
+              x2="11"
+              y2="21"
+              stroke="#60a5fa"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <line
+              x1="1"
+              y1="11"
+              x2="5"
+              y2="11"
+              stroke="#60a5fa"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <line
+              x1="17"
+              y1="11"
+              x2="21"
+              y2="11"
+              stroke="#60a5fa"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span>AntV Link</span>
+        </div>
+        <nav className="app-header-nav">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `header-nav-link${isActive ? ' active' : ''}`
+            }
+          >
+            编辑
+          </NavLink>
+          <NavLink
+            to="/model"
+            className={({ isActive }) =>
+              `header-nav-link${isActive ? ' active' : ''}`
+            }
+          >
+            模型
+          </NavLink>
+        </nav>
+      </header>
       <main className="app-main">
         <Outlet />
       </main>
     </div>
   )
 }
+
+export default RootLayout
