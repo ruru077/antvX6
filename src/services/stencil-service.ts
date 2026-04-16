@@ -1,85 +1,79 @@
-import { Graph, Node, Stencil } from '@antv/x6'
-import type { NodeConfig } from '../config/stencil'
-import {
-  advancedShapeConfigs,
-  basicShapeConfigs,
-  stencilGroups,
-} from '../config/stencil'
+import type { BlockDefinition } from '@/api/blocks'
+import { fetchBlocks, parseBlockData, parseMarkupData } from '@/api/blocks'
+import { Graph, Stencil } from '@antv/x6'
+// 节点固定尺寸 & 间距常量
+const NODE_SIZE = 60
+const NODE_GAP = 30 // 节点之间的间距
+const LABEL_H = 22 // 标签文字高度（refY 132% 时约 20px）
+const SIDE_PAD = 8 // 左右两侧边距
 
-export class StencilService {
-  private stencil!: Stencil
-  private stencilContainer: HTMLElement
+function graphWidthForCols(cols: number): number {
+  return SIDE_PAD * 2 + cols * (NODE_SIZE + NODE_GAP) - NODE_GAP
+}
 
-  constructor(stencilContainer: HTMLElement) {
-    this.stencilContainer = stencilContainer
+export function createStencilService(stencilContainer: HTMLElement) {
+  let stencil: Stencil | undefined
+  let graph: Graph | undefined
+  let resizeObserver: ResizeObserver | undefined
+  let activeColumns = 2
+  const registeredShapes = new Set<string>()
+
+  function create(g: Graph): void {
+    graph = g
+    activeColumns = resolveColumns()
+    stencil = buildStencil(activeColumns)
+    stencilContainer.appendChild(stencil.container)
+    injectCustomHeader()
+    watchResize()
+    loadDynamicShapes()
   }
 
-  create(graph: Graph): void {
-    this.stencil = new Stencil({
+  function dispose(): void {
+    resizeObserver?.disconnect()
+    stencil?.dispose()
+
+    resizeObserver = undefined
+    stencil = undefined
+    graph = undefined
+  }
+
+  // ── Private functions ──────────────────────────────────────────
+
+  function resolveColumns(): number {
+    const w = stencilContainer.offsetWidth
+    const cols = Math.floor(
+      (w - SIDE_PAD * 2 + NODE_GAP) / (NODE_SIZE + NODE_GAP),
+    )
+    return Math.max(1, Math.min(cols, 5))
+  }
+
+  function buildStencil(columns: number): Stencil {
+    return new Stencil({
       title: 'Stencil',
-      target: graph,
-      collapsable: true,
-      stencilGraphWidth: 216,
+      target: graph!,
+      collapsable: false,
+      stencilGraphWidth: graphWidthForCols(columns),
       stencilGraphHeight: 0,
-      groups: stencilGroups,
+      groups: [{ name: 'blocks', title: 'Blocks', collapsable: true }],
       search(cell, keyword) {
         return cell.shape.indexOf(keyword) !== -1
       },
       placeholder: 'Search shapes...',
       notFoundText: 'No shapes found',
       layoutOptions: {
-        columns: 4,
-        columnWidth: 46,
-        rowHeight: 'auto',
-        dx: 6,
-        dy: 10,
-        marginX: 6,
-        marginY: 8,
+        columns,
+        columnWidth: NODE_SIZE + NODE_GAP,
+        rowHeight: NODE_SIZE + NODE_GAP + LABEL_H,
+        dx: 0,
+        dy: 0,
+        marginX: SIDE_PAD,
+        marginY: SIDE_PAD,
       },
     })
-
-    this.stencilContainer.appendChild(this.stencil.container)
-    this.injectGroupControls()
   }
 
-  private injectGroupControls(): void {
-    const titleEl = this.stencilContainer.querySelector<HTMLElement>(
-      '.x6-widget-stencil-title',
-    )
-    if (!titleEl) return
-
-    const originalText = titleEl.textContent?.trim() || 'Stencil'
-    titleEl.textContent = ''
-
-    const ctrlGroup = document.createElement('div')
-    ctrlGroup.className = 'stencil-ctrl-group'
-    ctrlGroup.innerHTML =
-      '<button class="stencil-ctrl-btn stencil-ctrl-expand" title="Expand all groups"></button>' +
-      '<button class="stencil-ctrl-btn stencil-ctrl-collapse" title="Collapse all groups"></button>'
-
-    const labelSpan = document.createElement('span')
-    labelSpan.className = 'stencil-title-label'
-    labelSpan.textContent = originalText.toUpperCase()
-
-    titleEl.appendChild(ctrlGroup)
-    titleEl.appendChild(labelSpan)
-
-    ctrlGroup
-      .querySelector('.stencil-ctrl-expand')
-      ?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        this.setAllGroupsCollapsed(false)
-      })
-    ctrlGroup
-      .querySelector('.stencil-ctrl-collapse')
-      ?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        this.setAllGroupsCollapsed(true)
-      })
-  }
-
-  private setAllGroupsCollapsed(collapse: boolean): void {
-    const groups = this.stencilContainer.querySelectorAll<HTMLElement>(
+  function setAllGroupsCollapsed(collapse: boolean): void {
+    const groups = stencilContainer.querySelectorAll<HTMLElement>(
       '.x6-widget-stencil-group.collapsable',
     )
     groups.forEach((groupEl) => {
@@ -92,26 +86,117 @@ export class StencilService {
     })
   }
 
-  setShapes(graph: Graph): void {
-    const createNode = (cfg: NodeConfig): Node => {
-      const { path, ...rest } = cfg
-      const options: Record<string, unknown> = { ...rest }
-      if (path !== undefined) {
-        options.path = path
-      }
-      return graph.createNode(options)
-    }
+  function injectCustomHeader(): void {
+    // Remove any previously injected header to avoid duplicates on rebuild
+    stencilContainer.querySelector('.stencil-header')?.remove()
 
-    const basicNodes = basicShapeConfigs.map(createNode)
-    const advancedNodes = advancedShapeConfigs.map(createNode)
+    const header = document.createElement('div')
+    header.className = 'stencil-header'
 
-    this.stencil.load(basicNodes, 'basic')
-    this.stencil.load(advancedNodes, 'advanced')
+    const ctrlGroup = document.createElement('div')
+    ctrlGroup.className = 'stencil-ctrl-group'
+    ctrlGroup.innerHTML =
+      '<button class="stencil-ctrl-btn stencil-ctrl-expand" title="Expand all groups"></button>' +
+      '<button class="stencil-ctrl-btn stencil-ctrl-collapse" title="Collapse all groups"></button>'
+
+    const label = document.createElement('span')
+    label.className = 'stencil-title-label'
+    label.textContent = 'STENCIL'
+
+    header.appendChild(ctrlGroup)
+    header.appendChild(label)
+
+    ctrlGroup
+      .querySelector('.stencil-ctrl-expand')
+      ?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        setAllGroupsCollapsed(false)
+      })
+    ctrlGroup
+      .querySelector('.stencil-ctrl-collapse')
+      ?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        setAllGroupsCollapsed(true)
+      })
+
+    stencilContainer.prepend(header)
   }
 
-  dispose(): void {
-    if (this.stencil) {
-      this.stencil.dispose()
+  function rebuildStencil(): void {
+    stencil?.dispose()
+    stencil = buildStencil(activeColumns)
+    stencilContainer.appendChild(stencil.container)
+    injectCustomHeader()
+    loadDynamicShapes()
+  }
+
+  function watchResize(): void {
+    resizeObserver = new ResizeObserver(() => {
+      const cols = resolveColumns()
+      if (cols !== activeColumns) {
+        activeColumns = cols
+        rebuildStencil()
+      }
+    })
+    resizeObserver.observe(stencilContainer)
+  }
+
+  function registerBlockShape(block: BlockDefinition): void {
+    if (registeredShapes.has(block.type)) return
+
+    const blockData = parseBlockData(block.data)
+    const attrs = (blockData.defaults.attrs || {}) as Record<string, unknown>
+
+    const newAttrs: Record<string, unknown> = {
+      ...attrs,
     }
+
+    if (attrs.image && typeof attrs.image === 'object') {
+      newAttrs.image = {
+        ...(attrs.image as Record<string, unknown>),
+        xlinkHref: `data:image/png;base64,${block.icon}`,
+      }
+    }
+
+    Graph.registerNode(block.type, {
+      width: 100,
+      height: 100,
+      markup: blockData.protoProps.markup,
+      // 数据来自可信的 API 来源，已通过 parseBlockData 验证
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      attrs: newAttrs as any,
+    })
+
+    registeredShapes.add(block.type)
+  }
+
+  async function loadDynamicShapes(): Promise<void> {
+    if (!graph || !stencil) return
+    try {
+      const blocks = await fetchBlocks()
+      const nodes = blocks
+        .filter((block) => {
+          registerBlockShape(block)
+          return registeredShapes.has(block.type)
+        })
+        .map((block) => {
+          const markupData = parseMarkupData(block.markup)
+          return graph!.createNode({
+            shape: block.type,
+            width: NODE_SIZE,
+            height: NODE_SIZE,
+            attrs: markupData.attrs,
+            ports: markupData.ports,
+          })
+        })
+      stencil.load(nodes, 'blocks')
+    } catch (error) {
+      console.error('Failed to load dynamic shapes:', error)
+    }
+  }
+
+  return {
+    create,
+    dispose,
   }
 }

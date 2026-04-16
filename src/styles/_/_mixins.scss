@@ -1,0 +1,31 @@
+/**
+  * @description 屏幕响应式断点
+  */
+
+/// 横屏手机 <768px
+@mixin mobile-landscape {
+  @media screen and (min-width: #{$bp-mobile-landscape}) and (max-width: #{$bp-tablet - 1px}) and (orientation: landscape) {
+    @content;
+  }
+}
+
+/// 普通笔记本电脑和及平板 1024px > screen ≥ 768px
+@mixin tablet {
+  @media screen and (min-width: #{$bp-tablet}) {
+    @content;
+  }
+}
+
+/// 桌面电脑 1200px > screen ≥ 1024px
+@mixin desktop {
+  @media screen and (min-width: #{$bp-desktop}) and (max-width: #{$bp-large - 1px}) {
+    @content;
+  }
+}
+
+/// 高分辨大屏 (≥ 1200px)
+@mixin large {
+  @media screen and (min-width: #{$bp-large}) {
+    @content;
+  }
+}

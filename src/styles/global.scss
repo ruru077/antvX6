@@ -1,22 +1,12 @@
+@import './_/_variables';
+@import './_/_mixins';
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
-
-:root {
-  --color-primary: #1677ff;
-  --color-danger: #ff4d4f;
-  --color-success: #52c41a;
-  --color-text: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-bg: #f5f7fa;
-  --color-surface: #ffffff;
-  --color-border: #e5e7eb;
-  --radius: 8px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 html,
@@ -43,12 +33,16 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  height: 52px;
+  height: 45px;
   padding: 0 16px;
-  background: #374151;
+  background: $surface-header;
   flex-shrink: 0;
   gap: 16px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: $shadow-md;
+
+  @include tablet {
+    height: 48px;
+  }
 }
 
 .app-header-brand {
@@ -57,10 +51,14 @@ body {
   gap: 8px;
   font-size: 15px;
   font-weight: 700;
-  color: #e0e6ea;
+  color: $text-inverse;
   letter-spacing: 0.02em;
   text-decoration: none;
   user-select: none;
+
+  @include tablet {
+    font-size: 16px;
+  }
 }
 
 .app-header-nav {
@@ -74,15 +72,23 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 5px 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: #9ca3af;
+  color: $text-inverse-muted;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: $radius-md;
   transition: color 0.15s, background-color 0.15s;
 
+  @include tablet {
+    font-size: 14px;
+  }
+
+  @include large {
+    font-size: 14px;
+  }
+
   &:hover {
-    color: #e0e6ea;
+    color: $text-inverse;
     background: rgba(255, 255, 255, 0.08);
   }
 
@@ -102,80 +108,27 @@ body {
 // ── X6 Stencil — kitchen-sink visual overrides ─────────────────────
 
 .x6-widget-stencil {
-  // X6 renders the stencil with position:absolute — pin it inside its
-  // parent .stencil-container (which has position:relative)
+  // X6 renders the stencil with position:absolute
+  // top offset = var(--stencil-header-h) defined on .stencil-container
   position: absolute !important;
-  inset: 0;
+  top: var(--stencil-header-h, 40px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: #eef2f7;
   font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
   overflow: hidden;
 
-  // ── Title bar (kitchen-sink "STENCIL" header) ───────────────────
-  // X6 puts the title LAST in DOM; use order:-1 to float it to top
+  @media (min-width: 1200px) {
+    font-size: 15px;
+  }
+
+  // X6's own title — completely hidden; we use .stencil-header instead
   .x6-widget-stencil-title {
-    display: flex !important;
-    order: -1;
-    align-items: center;
-    height: 40px;
-    padding: 0 8px 0 10px;
-    background: #ffffff;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #6b7280;
-    // Disable X6's click-to-collapse-panel; buttons re-enable their own events
-    pointer-events: none;
-    cursor: default;
-  }
-
-  // Hide X6's default widget-level collapse icon
-  &.collapsable>.x6-widget-stencil-title::before {
     display: none !important;
-  }
-
-  // ── Expand / collapse ALL groups — injected control group ────────
-  .stencil-ctrl-group {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-right: 6px;
-    pointer-events: auto;
-    flex-shrink: 0;
-  }
-
-  .stencil-ctrl-btn {
-    display: block;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background-color: transparent;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 13px 13px;
-    cursor: pointer !important;
-    pointer-events: auto !important;
-
-    &:hover {
-      background-color: #e8effa;
-      border-color: #9ca3af;
-    }
-  }
-
-  .stencil-ctrl-expand {
-    background-image: url('../assets/stencil/icon-expand.svg');
-    background-size: 8px 13px;
-  }
-
-  .stencil-ctrl-collapse {
-    background-image: url('../assets/stencil/icon-collapse.svg');
-    background-size: 8px 10px;
   }
 
   // ── Search box ──────────────────────────────────────────────────
@@ -184,34 +137,43 @@ body {
     flex-shrink: 0;
     box-sizing: border-box;
     order: 0;
+    background: $surface-base;
+    border-bottom: 1px solid $border-subtle;
 
     input {
       margin: 0;
       width: 100%;
       height: 30px;
       padding: 0 10px 0 30px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-size: 12.5px;
+      border: 1px solid $border-default;
+      border-radius: $radius-md;
+      font-size: 14px;
       font-family: inherit;
       outline: none;
-      color: #374151;
-      background: #f9fafb url('../assets/stencil/icon-search.svg') no-repeat 9px center;
-      background-size: 16px 16px;
+      color: $text-primary;
+      background: $surface-sunken url('../assets/stencil/icon-search.svg') no-repeat 9px center;
+      background-size: 14px 14px;
       box-sizing: border-box;
       transition: border-color 0.15s, box-shadow 0.15s;
 
+      @media (min-width: 768px) {
+        height: 32px;
+        font-size: 14px;
+      }
+
       &::placeholder {
-        color: #9ca3af;
+        color: $text-tertiary;
       }
 
       &:focus {
-        border-color: #4f46e5;
-        background-color: #ffffff;
-        box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+        border-color: $color-primary;
+        background-color: $surface-base;
+        box-shadow: 0 0 0 2px $color-primary-light;
       }
-      &:hover{
-        background-color: #f0f1f3;
+
+      &:hover:not(:focus) {
+        border-color: $border-strong;
+        background-color: $surface-base;
       }
     }
   }
@@ -222,6 +184,8 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     order: 1;
+    top: 46px !important;
+    background: #eef2f7;
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -232,14 +196,18 @@ body {
     }
 
     &::-webkit-scrollbar-thumb {
-      background: #d1d5db;
-      border-radius: 4px;
+      background: $border-strong;
+      border-radius: $radius-sm;
+
+      &:hover {
+        background: $text-tertiary;
+      }
     }
   }
 
   // ── Group ────────────────────────────────────────────────────────
   .x6-widget-stencil-group {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid $border-default;
   }
 
   // Group expand/collapse icons — assets
@@ -257,7 +225,7 @@ body {
     background-position: center !important;
   }
 
-  // Group header — kitchen-sink lavender accent (#E2E9F4)
+  // Group header — design token accent
   .x6-widget-stencil-group-title {
     position: relative;
     display: flex;
@@ -265,26 +233,32 @@ body {
     height: 32px;
     // 36px left: room for icon (position:absolute left:8px)
     padding: 0 12px 0 36px;
-    background: #e2e9f4;
-    border-bottom: 1px solid #d1d5db;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: #4b5563;
+    background: $color-primary-light;
+    border-bottom: 1px solid $color-primary-border;
+    font-size: 14px;
+    font-weight: 700;
+    color: $color-primary-active;
     cursor: pointer;
     user-select: none;
     box-sizing: border-box;
     margin-top: 0 !important;
     transition: background 0.15s;
+    letter-spacing: 0.03em;
+
+    @media (min-width: 768px) {
+      height: 34px;
+      font-size: 14px;
+    }
 
     &:hover {
-      background: #d9e2f2;
+      background: darken($color-primary-light, 4%);
     }
   }
 
   // Shape canvas area
   .x6-widget-stencil-group-content {
     padding: 10px 8px;
-    background: #ffffff;
+    background: #eef2f7;
 
     svg {
       display: block;
@@ -293,7 +267,77 @@ body {
 
   // "Not found" placeholder
   &.not-found::after {
-    font-size: 12px;
-    color: #9ca3af;
+    font-size: 14px;
+    color: $text-tertiary;
   }
+}
+
+// ── Stencil custom header (injected by stencil-service, lives in .stencil-container) ──
+
+.stencil-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--stencil-header-h, 40px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 10px;
+  background: $surface-base;
+  border-bottom: 1px solid $border-default;
+  box-sizing: border-box;
+  box-shadow: $shadow-sm;
+  gap: 6px;
+}
+
+.stencil-title-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: $text-secondary;
+  user-select: none;
+
+  @media (min-width: 768px) {
+    font-size: 14px;
+  }
+}
+
+.stencil-ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.stencil-ctrl-btn {
+  display: block;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid $border-strong;
+  border-radius: $radius-sm;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 13px 13px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background-color: $color-primary-light;
+    border-color: $color-primary-border;
+  }
+}
+
+.stencil-ctrl-expand {
+  background-image: url('../assets/stencil/icon-expand.svg');
+  background-size: 8px 13px;
+}
+
+.stencil-ctrl-collapse {
+  background-image: url('../assets/stencil/icon-collapse.svg');
+  background-size: 8px 10px;
 }
