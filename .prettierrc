@@ -17,7 +17,16 @@
     }
   ],
   "plugins": [
-    "prettier-plugin-organize-imports",
+    "@trivago/prettier-plugin-sort-imports",
     "prettier-plugin-packagejson"
-  ]
+  ],
+  "importOrder": [
+    "<THIRD_PARTY_MODULES>",
+    "^@/(?!.*\\.s?css$)",
+    "^[./](?!.*\\.s?css$)",
+    "^.+\\.s?css$",
+    "^@/.*\\.s?css$"
+  ],
+  "importOrderSeparation": false,
+  "importOrderSortSpecifiers": true
 }

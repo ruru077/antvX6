@@ -1,0 +1,78 @@
+$primary-color: #1677ff;
+$nav-height: 48px;
+$toolbar-height: 40px;
+$radius-md: 8px;
+
+// 版心
+.diagram-wrapper {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+  background-color: rgb(247, 247, 252);
+
+  .x6-graph-scroller {
+    scrollbar-width: none;
+
+    .x6-graph-scroller-background {
+      background-color: rgb(239, 239, 244) !important;
+    }
+  }
+
+  // 右侧区域
+  .diagram-canvas-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    margin-left: 8px;
+  }
+
+  // 顶部工具栏
+  .paper-toolbar {
+    display: flex;
+    align-items: center;
+    height: $toolbar-height;
+    padding: 0 8px;
+    margin-bottom: 8px;
+    background-color: #ffffff;
+    border: 1px solid #f0f0f0;
+    border-radius: $radius-md;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+  }
+
+  // 画布容器
+  .paper-container {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+
+    .paper {
+      flex: 1;
+      overflow: hidden;
+      border: 1px solid #f0f0f0;
+      background-color: #ffffff;
+      border-radius: $radius-md;
+
+      .x6-widget-paper {
+        border-radius: inherit;
+      }
+    }
+
+    .x6-widget-selection-box {
+      border: 2px dashed #239edd;
+    }
+
+    .x6-widget-selection-inner {
+      border: 1px solid #239edd;
+    }
+
+    .x6-widget-transform{
+      border: none;
+    }
+  }
+}

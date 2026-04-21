@@ -1,202 +1,173 @@
-import type { BlockDefinition } from '@/api/blocks'
-import { fetchBlocks, parseBlockData, parseMarkupData } from '@/api/blocks'
 import { Graph, Stencil } from '@antv/x6'
-// 节点固定尺寸 & 间距常量
-const NODE_SIZE = 60
-const NODE_GAP = 30 // 节点之间的间距
-const LABEL_H = 22 // 标签文字高度（refY 132% 时约 20px）
-const SIDE_PAD = 8 // 左右两侧边距
+import { port } from './../../../X6/src/registry/attr/port'
 
-function graphWidthForCols(cols: number): number {
-  return SIDE_PAD * 2 + cols * (NODE_SIZE + NODE_GAP) - NODE_GAP
-}
-
-export function createStencilService(stencilContainer: HTMLElement) {
-  let stencil: Stencil | undefined
-  let graph: Graph | undefined
-  let resizeObserver: ResizeObserver | undefined
+/**
+ * Stencil入口
+ * @param stencilContainer
+ * @returns
+ */
+function createStencilService(stencilContainer: HTMLElement) {
+  let stencil!: Stencil
+  let graph!: Graph
+  let resizeObserver!: ResizeObserver
   let activeColumns = 2
-  const registeredShapes = new Set<string>()
-
+  const commonAttrs = {
+    body: {
+      fill: '#fff',
+      stroke: '#8f8f8f',
+      strokeWidth: 1,
+    },
+  }
+  /**
+   * 挂载Stencil
+   * @param g 全局Graph实例
+   */
   function create(g: Graph): void {
     graph = g
-    activeColumns = resolveColumns()
-    stencil = buildStencil(activeColumns)
-    stencilContainer.appendChild(stencil.container)
-    injectCustomHeader()
-    watchResize()
-    loadDynamicShapes()
-  }
+    stencil = createStencil(activeColumns)
+    const n1 = graph.createNode({
+      shape: 'rect',
+      x: 40,
+      y: 40,
+      width: 80,
+      height: 40,
+      label: 'rect',
+      attrs: commonAttrs,
+      ports: {
+        items: [
+          {
+            id: 'port1',
+            group: 'in',
+          },
+          {
+            id: 'port2',
+            group: 'out',
+          },
+        ],
+        groups: {
+          in: {
+            position: 'left',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+          out: {
+            position: 'right',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+        },
+      },
+    })
 
+    const n2 = graph.createNode({
+      shape: 'circle',
+      x: 180,
+      y: 40,
+      width: 40,
+      height: 40,
+      label: 'circle',
+      attrs: commonAttrs,
+    })
+
+    const n3 = graph.createNode({
+      shape: 'ellipse',
+      x: 280,
+      y: 40,
+      width: 80,
+      height: 40,
+      label: 'ellipse',
+      attrs: commonAttrs,
+    })
+
+    const n4 = graph.createNode({
+      shape: 'path',
+      x: 420,
+      y: 40,
+      width: 40,
+      height: 40,
+      // https://www.svgrepo.com/svg/13653/like
+      path: 'M24.85,10.126c2.018-4.783,6.628-8.125,11.99-8.125c7.223,0,12.425,6.179,13.079,13.543c0,0,0.353,1.828-0.424,5.119c-1.058,4.482-3.545,8.464-6.898,11.503L24.85,48L7.402,32.165c-3.353-3.038-5.84-7.021-6.898-11.503c-0.777-3.291-0.424-5.119-0.424-5.119C0.734,8.179,5.936,2,13.159,2C18.522,2,22.832,5.343,24.85,10.126z',
+      attrs: commonAttrs,
+      label: 'path',
+    })
+
+    stencil.load([n1, n2], 'group1')
+    stencil.load([n3, n4], 'group2')
+    stencilContainer.appendChild(stencil.container)
+  }
   function dispose(): void {
     resizeObserver?.disconnect()
-    stencil?.dispose()
-
-    resizeObserver = undefined
-    stencil = undefined
-    graph = undefined
+    stencil.dispose()
   }
 
-  // ── Private functions ──────────────────────────────────────────
-
-  function resolveColumns(): number {
-    const w = stencilContainer.offsetWidth
-    const cols = Math.floor(
-      (w - SIDE_PAD * 2 + NODE_GAP) / (NODE_SIZE + NODE_GAP),
-    )
-    return Math.max(1, Math.min(cols, 5))
-  }
-
-  function buildStencil(columns: number): Stencil {
+  // ── Private functions 业务修改────────────────────────────────
+  function createStencil(columns: number): Stencil {
     return new Stencil({
-      title: 'Stencil',
-      target: graph!,
-      collapsable: false,
-      stencilGraphWidth: graphWidthForCols(columns),
+      target: graph,
+      // 模板画布宽度。
+      stencilGraphWidth: 200,
+      // 模板画布高度，设置为 0 则自动根据内容调整高度。
       stencilGraphHeight: 0,
-      groups: [{ name: 'blocks', title: 'Blocks', collapsable: true }],
+      groups: [
+        {
+          name: 'group1',
+          title: 'Group(Collapsable)',
+        },
+        {
+          name: 'group2',
+          title: 'Group',
+          collapsable: false,
+        },
+      ],
       search(cell, keyword) {
         return cell.shape.indexOf(keyword) !== -1
       },
-      placeholder: 'Search shapes...',
-      notFoundText: 'No shapes found',
-      layoutOptions: {
-        columns,
-        columnWidth: NODE_SIZE + NODE_GAP,
-        rowHeight: NODE_SIZE + NODE_GAP + LABEL_H,
-        dx: 0,
-        dy: 0,
-        marginX: SIDE_PAD,
-        marginY: SIDE_PAD,
-      },
+      placeholder: 'TO_BLOCK_NAME',
+      stencilGraphPadding: 10,
+      notFoundText: 'NOT FOUND',
+      // layoutOptions: {
+      //   columns,
+      //   columnWidth: NODE_SIZE + NODE_GAP,
+      //   rowHeight: NODE_SIZE + NODE_GAP + LABEL_H,
+      //   dx: 0,
+      //   dy: 0,
+      //   marginX: SIDE_PAD,
+      //   marginY: SIDE_PAD,
+      // },
     })
   }
 
-  function setAllGroupsCollapsed(collapse: boolean): void {
-    const groups = stencilContainer.querySelectorAll<HTMLElement>(
-      '.x6-widget-stencil-group.collapsable',
-    )
-    groups.forEach((groupEl) => {
-      const isCollapsed = groupEl.classList.contains('collapsed')
-      if ((collapse && !isCollapsed) || (!collapse && isCollapsed)) {
-        groupEl
-          .querySelector<HTMLElement>('.x6-widget-stencil-group-title')
-          ?.click()
-      }
-    })
+  function UpdateStencil(): void {
+    stencil!.dispose()
+    stencil = createStencil(activeColumns)
   }
 
-  function injectCustomHeader(): void {
-    // Remove any previously injected header to avoid duplicates on rebuild
-    stencilContainer.querySelector('.stencil-header')?.remove()
-
-    const header = document.createElement('div')
-    header.className = 'stencil-header'
-
-    const ctrlGroup = document.createElement('div')
-    ctrlGroup.className = 'stencil-ctrl-group'
-    ctrlGroup.innerHTML =
-      '<button class="stencil-ctrl-btn stencil-ctrl-expand" title="Expand all groups"></button>' +
-      '<button class="stencil-ctrl-btn stencil-ctrl-collapse" title="Collapse all groups"></button>'
-
-    const label = document.createElement('span')
-    label.className = 'stencil-title-label'
-    label.textContent = 'STENCIL'
-
-    header.appendChild(ctrlGroup)
-    header.appendChild(label)
-
-    ctrlGroup
-      .querySelector('.stencil-ctrl-expand')
-      ?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        setAllGroupsCollapsed(false)
-      })
-    ctrlGroup
-      .querySelector('.stencil-ctrl-collapse')
-      ?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        setAllGroupsCollapsed(true)
-      })
-
-    stencilContainer.prepend(header)
+  function collapseAll(): void {
+    stencil?.collapseGroups()
   }
 
-  function rebuildStencil(): void {
-    stencil?.dispose()
-    stencil = buildStencil(activeColumns)
-    stencilContainer.appendChild(stencil.container)
-    injectCustomHeader()
-    loadDynamicShapes()
-  }
-
-  function watchResize(): void {
-    resizeObserver = new ResizeObserver(() => {
-      const cols = resolveColumns()
-      if (cols !== activeColumns) {
-        activeColumns = cols
-        rebuildStencil()
-      }
-    })
-    resizeObserver.observe(stencilContainer)
-  }
-
-  function registerBlockShape(block: BlockDefinition): void {
-    if (registeredShapes.has(block.type)) return
-
-    const blockData = parseBlockData(block.data)
-    const attrs = (blockData.defaults.attrs || {}) as Record<string, unknown>
-
-    const newAttrs: Record<string, unknown> = {
-      ...attrs,
-    }
-
-    if (attrs.image && typeof attrs.image === 'object') {
-      newAttrs.image = {
-        ...(attrs.image as Record<string, unknown>),
-        xlinkHref: `data:image/png;base64,${block.icon}`,
-      }
-    }
-
-    Graph.registerNode(block.type, {
-      width: 100,
-      height: 100,
-      markup: blockData.protoProps.markup,
-      // 数据来自可信的 API 来源，已通过 parseBlockData 验证
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      attrs: newAttrs as any,
-    })
-
-    registeredShapes.add(block.type)
-  }
-
-  async function loadDynamicShapes(): Promise<void> {
-    if (!graph || !stencil) return
-    try {
-      const blocks = await fetchBlocks()
-      const nodes = blocks
-        .filter((block) => {
-          registerBlockShape(block)
-          return registeredShapes.has(block.type)
-        })
-        .map((block) => {
-          const markupData = parseMarkupData(block.markup)
-          return graph!.createNode({
-            shape: block.type,
-            width: NODE_SIZE,
-            height: NODE_SIZE,
-            attrs: markupData.attrs,
-            ports: markupData.ports,
-          })
-        })
-      stencil.load(nodes, 'blocks')
-    } catch (error) {
-      console.error('Failed to load dynamic shapes:', error)
-    }
+  function expandAll(): void {
+    stencil?.expandGroups()
   }
 
   return {
     create,
     dispose,
+    collapseAll,
+    expandAll,
   }
 }
+
+export { createStencilService }

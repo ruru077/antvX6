@@ -1,0 +1,147 @@
+$primary-color: #1677ff;
+$primary-color-hover: #f5f5f5;
+$primary-color-active: #e6f4ff;
+$radius-sm: 4px;
+$radius-lg: 12px;
+$radius-2xl: 24px;
+
+%toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: $primary-color-hover;
+    color: $primary-color;
+  }
+
+  &:active {
+    background: $primary-color-active;
+  }
+}
+
+.canvas-left-toolbar {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  border-radius: $radius-lg;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+
+  &.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) translateX(-10px);
+  }
+
+  .toolbar-btn {
+    @extend %toolbar-btn;
+  }
+
+  .toolbar-divider-h {
+    width: 18px;
+    height: 1px;
+    margin: 2px 0;
+    background: #e8e8e8;
+  }
+}
+
+.canvas-float-toolbar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 10px;
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  border-radius: $radius-2xl;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+
+  &.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(10px);
+  }
+
+  .toolbar-btn {
+    @extend %toolbar-btn;
+    width: 36px;
+    height: 36px;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 18px;
+    margin: 0 4px;
+    background: #e8e8e8;
+  }
+
+  .toolbar-zoom-label {
+    min-width: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+  }
+
+  .toolbar-btn.is-active {
+    color: $primary-color;
+    background: $primary-color-active;
+  }
+}
+
+.canvas-minimap {
+  position: absolute;
+  right: 14px;
+  bottom: 70px;
+  z-index: 10;
+  width: 200px;
+  height: 150px;
+  border: 1px solid #ebebeb;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+
+  &.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,298 @@
+$primary-color: #1677ff;
+$primary-color-hover: #f5f5f5;
+$radius-sm: 4px;
+$radius-md: 8px;
+
+.stencil-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: clamp(200px, 20%, 400px);
+  border: 1px solid #f0f0f0;
+  background-color: #ffffff;
+  border-radius: $radius-md;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.08);
+  transition: width 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+  padding: 10px 8px 8px 8px;
+
+  &--collapsed {
+    width: 40px;
+    padding-left: 0;
+    padding-right: 0;
+
+    .stencil,
+    .stencil-title {
+      display: none;
+    }
+
+    .stencil-header-left,
+    .stencil-visibility-btn {
+      display: none;
+    }
+
+    .stencil-header {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .stencil-header-actions {
+      width: 100%;
+      justify-content: center;
+      gap: 0;
+    }
+  }
+}
+
+.stencil-header {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  .stencil-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+  }
+
+  .stencil-title {
+    flex: 1;
+    padding-left: 1px;
+    text-align: left;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .stencil-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0 3px 0 0;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: #1e1e1e;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    &:hover {
+      background: $primary-color-hover;
+      color: $primary-color;
+    }
+  }
+
+  .stencil-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .stencil-visibility-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: #1e1e1e;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+
+    svg {
+      width: 20px;
+      height: 20px;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    &.is-active svg {
+      transform: rotate(0deg) scale(1);
+      opacity: 1;
+    }
+
+    &:not(.is-active) svg {
+      transform: rotate(-10deg) scale(0.94);
+      opacity: 0.92;
+      color: #a9a7a7;
+    }
+
+    &:hover {
+      background: $primary-color-hover;
+    }
+  }
+
+  .stencil-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: #1e1e1e;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    svg {
+      width: 24px;
+      height: 24px;
+      transition: transform 0.3s ease;
+    }
+
+    &--open svg {
+      transform: rotate(180deg);
+    }
+
+    &:hover {
+      background: $primary-color-hover;
+    }
+  }
+}
+
+.stencil {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+
+  .x6-widget-stencil {
+    background: transparent;
+
+    .x6-widget-stencil-search {
+      position: relative;
+      margin: 0;
+      padding: 8px 0 6px;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23aaa' stroke-width='1.5' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6.5' cy='6.5' r='4'/%3E%3Cline x1='10' y1='10' x2='14' y2='14' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-size: contain;
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      input {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 2px 0 30px !important;
+        height: 28px !important;
+        line-height: 28px !important;
+        font-size: 12px;
+        color: #333;
+        background: #f7f8fa !important;
+        border: 1px solid transparent !important;
+        border-radius: 6px !important;
+        outline: none;
+        transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+
+        &:hover {
+          background: #f0f2f7 !important;
+          border-color: #d5dcec !important;
+        }
+
+        &:focus {
+          background: #fff !important;
+          border-color: $primary-color !important;
+          box-shadow: 0 0 0 2px rgba($primary-color, 0.12);
+        }
+
+        &::-webkit-search-cancel-button {
+          appearance: none;
+          width: 14px;
+          height: 14px;
+          flex-shrink: 0;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23999' stroke-width='1.8' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='4' y1='4' x2='12' y2='12' stroke-linecap='round'/%3E%3Cline x1='12' y1='4' x2='4' y2='12' stroke-linecap='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-size: contain;
+          cursor: pointer;
+          margin-inline-end: 6px;
+          margin-inline-start: auto;
+          opacity: 0.6;
+          transition: opacity 0.15s;
+
+          &:hover {
+            opacity: 1;
+          }
+        }
+      }
+    }
+
+    .x6-widget-stencil-title {
+      display: none;
+    }
+
+    .x6-widget-stencil-content {
+      top: 0;
+    }
+
+    &.searchable .x6-widget-stencil-content {
+      top: 48px;
+    }
+
+    .x6-widget-stencil-group {
+      background: transparent;
+      margin-bottom: 4px;
+      border-radius: $radius-sm;
+
+      >.x6-widget-stencil-group-title {
+        background: rgb(226, 233, 244) !important;
+        padding-left: 24px !important;
+        border-radius: $radius-sm;
+        transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+
+        &::before {
+          content: '';
+          position: absolute;
+          left: 9px;
+          top: 50%;
+          width: 5px;
+          height: 5px;
+          border-right: 1.5px solid #6b7280;
+          border-bottom: 1.5px solid #6b7280;
+          transform: translateY(-70%) rotate(45deg);
+          transition: transform 0.2s ease, border-color 0.15s;
+        }
+
+        &:hover {
+          background: rgb(208, 218, 238) !important;
+          color: #374151;
+          box-shadow: inset -3px 0 0 $primary-color;
+
+          &::before {
+            border-color: $primary-color;
+          }
+        }
+      }
+
+      &.collapsed>.x6-widget-stencil-group-title {
+        border-radius: $radius-sm;
+
+        &::before {
+          transform: translateY(-50%) rotate(-45deg);
+        }
+      }
+    }
+  }
+}
