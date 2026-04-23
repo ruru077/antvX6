@@ -34,41 +34,6 @@ $radius-2xl: 24px;
   }
 }
 
-.canvas-left-toolbar {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  background: #ffffff;
-  border: 1px solid #ebebeb;
-  border-radius: $radius-lg;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  transition: opacity 0.24s ease, transform 0.24s ease;
-
-  &.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-50%) translateX(-10px);
-  }
-
-  .toolbar-btn {
-    @extend %toolbar-btn;
-  }
-
-  .toolbar-divider-h {
-    width: 18px;
-    height: 1px;
-    margin: 2px 0;
-    background: #e8e8e8;
-  }
-}
-
 .canvas-float-toolbar {
   position: absolute;
   bottom: 14px;

@@ -72,15 +72,51 @@ function createStencilService(stencilContainer: HTMLElement) {
     })
 
     const n2 = graph.createNode({
-      shape: 'circle',
-      x: 180,
+      shape: 'rect',
+      x: 40,
       y: 40,
-      width: 40,
+      width: 80,
       height: 40,
-      label: 'circle',
+      label: 'Subsystem',
+      data: { kind: 'subsystem', name: 'Subsystem' },
       attrs: commonAttrs,
+      ports: {
+        items: [
+          {
+            id: 'port1',
+            group: 'in',
+          },
+          {
+            id: 'port2',
+            group: 'out',
+          },
+        ],
+        groups: {
+          in: {
+            position: 'left',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+          out: {
+            position: 'right',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+        },
+      },
     })
-
     const n3 = graph.createNode({
       shape: 'ellipse',
       x: 280,

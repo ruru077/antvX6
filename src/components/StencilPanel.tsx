@@ -1,19 +1,19 @@
 import { type Graph } from '@antv/x6'
 import { Tooltip } from 'antd'
 import { createStencilService } from '@/services/stencil-service'
+import { useGraphStore } from '@/store/graphStore'
 import './StencilPanel.scss'
 
 type StencilPanelProps = {
-  graph: Graph | null
   toolbarsVisible: boolean
   setToolbarsVisible: (updater: (value: boolean) => boolean) => void
 }
 
 function StencilPanel({
-  graph,
   toolbarsVisible,
   setToolbarsVisible,
 }: StencilPanelProps) {
+  const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
   const stencilServiceRef = useRef<ReturnType<
     typeof createStencilService

@@ -10,21 +10,32 @@ import {
   Transform,
   routerPresets,
 } from '@antv/x6'
+import CanvasLeftToolbar from '@/components/CanvasLeftToolbar'
 import CanvasToolbars from '@/components/CanvasToolbars'
+import PaperToolbar from '@/components/PaperToolbar'
 import StencilPanel from '@/components/StencilPanel'
+import SubsystemNavBar from '@/components/SubsystemNavBar'
+import { useGraphListener } from '@/hooks/useGraphSync'
+import { useGraphStore } from '@/store/graphStore'
+import { useSubsystemStore } from '@/store/subsystemStore'
 import '@/styles/BlockDiagram.spoced.scss'
 
 /**
  * @description 图编辑入口
  * @returns
  */
-function BlockDiagram() {
+function BlockDiagram({ modelName }: { modelName?: string }) {
   const paperContainerRef = useRef<HTMLDivElement>(null)
-  const [graph, setGraph] = useState<Graph | null>(null)
+  const setGraph = useGraphStore((s) => s.setGraph)
+  const setZoom = useGraphStore((s) => s.setZoom)
+  const graph = useGraphStore((s) => s.graph)
   // 初始化配置
-  const [zoom, setZoom] = useState(100)
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
+  const [navPanelVisible, setNavPanelVisible] = useState(true)
+  const currentPathIds = useSubsystemStore((s) => s.currentPathIds)
 
+  // 监听 graph 事件（数据同步、交互等）
+  useGraphListener(graph)
   useEffect(() => {
     if (!paperContainerRef.current) return
 
@@ -183,24 +194,37 @@ function BlockDiagram() {
 
     return () => {
       g.dispose()
+      setGraph(null)
     }
-  }, [])
+  }, [setGraph, setZoom])
 
   return (
-    // 版心
     <div className="diagram-wrapper">
       <StencilPanel
-        graph={graph}
         toolbarsVisible={toolbarsVisible}
         setToolbarsVisible={setToolbarsVisible}
       />
       {/* 画布区域 */}
       <div className="diagram-canvas-area">
-        <div className="paper-toolbar">{/* TODO: paper toolbar */}</div>
-        <div className="paper-container">
-          <div ref={paperContainerRef} className="paper"></div>
-          {/* 悬浮工具栏 */}
-          <CanvasToolbars graph={graph} zoom={zoom} visible={toolbarsVisible} />
+        <div className="paper-toolbar">
+          {/* PaperToolbar */}
+          <PaperToolbar modelName={'OpenLoop'} />
+        </div>
+        <div className="diagram-body">
+          {/* 左侧工具栏 */}
+          <CanvasLeftToolbar
+            navPanelVisible={navPanelVisible}
+            onToggleNavPanel={() => setNavPanelVisible((v) => !v)}
+          />
+          <div className="diagram-canvas-right">
+            {/* 子系统导航栏 */}
+            <SubsystemNavBar visible={navPanelVisible} />
+            <div className="paper-container">
+              <div ref={paperContainerRef} className="paper"></div>
+              {/* 悬浮工具栏 */}
+              <CanvasToolbars visible={toolbarsVisible} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

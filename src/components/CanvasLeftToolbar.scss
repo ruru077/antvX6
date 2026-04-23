@@ -1,0 +1,54 @@
+$primary-color: #1677ff;
+$primary-color-hover: #f5f5f5;
+$primary-color-active: #e6f4ff;
+$radius-md: 8px;
+
+.canvas-left-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+  flex-shrink: 0;
+  padding: 6px 2px;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  border-radius: $radius-md 0 0 $radius-md;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      background: $primary-color-hover;
+      color: $primary-color;
+    }
+
+    &:active {
+      background: $primary-color-active;
+    }
+
+    &.is-active {
+      color: $primary-color;
+      background: $primary-color-active;
+    }
+  }
+}

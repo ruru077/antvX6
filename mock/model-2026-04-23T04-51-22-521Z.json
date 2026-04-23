@@ -1,0 +1,378 @@
+{
+  "currentGraphId": "root",
+  "root": {
+    "id": "root",
+    "name": "root",
+    "deep": 0,
+    "parentId": null,
+    "childrenIds": ["e727483d-8d54-41ba-b474-f25a0b7eaff1"],
+    "graphJson": {
+      "cells": [
+        {
+          "position": {
+            "x": 140,
+            "y": 80
+          },
+          "size": {
+            "width": 100,
+            "height": 40
+          },
+          "attrs": {
+            "text": {
+              "text": "Hello"
+            },
+            "body": {
+              "stroke": "#8f8f8f",
+              "strokeWidth": 1,
+              "fill": "#fff",
+              "rx": 6,
+              "ry": 6
+            }
+          },
+          "visible": true,
+          "shape": "rect",
+          "id": "d4342501-0e3b-434a-ae73-b8393cc87d3d",
+          "zIndex": 1
+        },
+        {
+          "position": {
+            "x": 340,
+            "y": 80
+          },
+          "size": {
+            "width": 100,
+            "height": 40
+          },
+          "attrs": {
+            "text": {
+              "text": "World"
+            },
+            "body": {
+              "stroke": "#8f8f8f",
+              "strokeWidth": 1,
+              "fill": "#fff",
+              "rx": 6,
+              "ry": 6
+            }
+          },
+          "visible": true,
+          "shape": "rect",
+          "id": "0bae879c-bc96-4d92-8eb9-cf5795100644",
+          "zIndex": 2
+        },
+        {
+          "shape": "edge",
+          "attrs": {
+            "line": {
+              "stroke": "#8f8f8f",
+              "strokeWidth": 1
+            }
+          },
+          "id": "9e8dd8c0-e98e-4499-a648-f85c28a6c536",
+          "zIndex": 3,
+          "source": {
+            "cell": "d4342501-0e3b-434a-ae73-b8393cc87d3d"
+          },
+          "target": {
+            "cell": "0bae879c-bc96-4d92-8eb9-cf5795100644"
+          }
+        },
+        {
+          "position": {
+            "x": -359,
+            "y": 120
+          },
+          "size": {
+            "width": 72,
+            "height": 40
+          },
+          "attrs": {
+            "body": {
+              "fill": "#ffffff",
+              "stroke": "#5f95ff",
+              "strokeWidth": 1,
+              "rx": 4,
+              "ry": 4
+            },
+            "label": {
+              "text": "SubNode",
+              "fill": "#1f2937",
+              "fontSize": 12
+            }
+          },
+          "visible": true,
+          "shape": "rect",
+          "id": "e727483d-8d54-41ba-b474-f25a0b7eaff1",
+          "data": {
+            "kind": "subsystem",
+            "name": "SubNode"
+          },
+          "zIndex": 4,
+          "ports": {
+            "groups": {
+              "left": {
+                "position": "left",
+                "attrs": {
+                  "circle": {
+                    "r": 4,
+                    "magnet": true,
+                    "stroke": "#5f95ff",
+                    "strokeWidth": 1,
+                    "fill": "#ffffff"
+                  }
+                }
+              },
+              "right": {
+                "position": "right",
+                "attrs": {
+                  "circle": {
+                    "r": 4,
+                    "magnet": true,
+                    "stroke": "#5f95ff",
+                    "strokeWidth": 1,
+                    "fill": "#ffffff"
+                  }
+                }
+              }
+            },
+            "items": [
+              {
+                "group": "left",
+                "id": "07a3538c-beee-4609-a302-761615ba66c6"
+              },
+              {
+                "group": "right",
+                "id": "b21206bc-da05-4a82-8869-7e31b35a33ec"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "subGraphs": {
+    "e727483d-8d54-41ba-b474-f25a0b7eaff1": {
+      "id": "e727483d-8d54-41ba-b474-f25a0b7eaff1",
+      "name": "SubNode",
+      "deep": 1,
+      "parentId": "root",
+      "childrenIds": ["0116f5fc-effd-43b2-a430-66c1f818be4d"],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -680,
+              "y": -80
+            },
+            "size": {
+              "width": 72,
+              "height": 40
+            },
+            "attrs": {
+              "body": {
+                "fill": "#ffffff",
+                "stroke": "#5f95ff",
+                "strokeWidth": 1,
+                "rx": 4,
+                "ry": 4
+              },
+              "label": {
+                "text": "Rect",
+                "fill": "#1f2937",
+                "fontSize": 12
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "db999384-f43d-4333-8c22-662a4968b05d",
+            "zIndex": 1,
+            "ports": {
+              "groups": {
+                "left": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                },
+                "right": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                }
+              },
+              "items": [
+                {
+                  "group": "left",
+                  "id": "c3098a67-edd2-4868-99f8-e06746b7cd59"
+                },
+                {
+                  "group": "right",
+                  "id": "ef8d17a5-aee0-4097-bf0f-7cb6452ffe5c"
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": -700,
+              "y": 0
+            },
+            "size": {
+              "width": 72,
+              "height": 40
+            },
+            "attrs": {
+              "body": {
+                "fill": "#ffffff",
+                "stroke": "#5f95ff",
+                "strokeWidth": 1,
+                "rx": 4,
+                "ry": 4
+              },
+              "label": {
+                "text": "SubNode",
+                "fill": "#1f2937",
+                "fontSize": 12
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "0116f5fc-effd-43b2-a430-66c1f818be4d",
+            "data": {
+              "kind": "subsystem",
+              "name": "SubNode"
+            },
+            "zIndex": 2,
+            "ports": {
+              "groups": {
+                "left": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                },
+                "right": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                }
+              },
+              "items": [
+                {
+                  "group": "left",
+                  "id": "07a3538c-beee-4609-a302-761615ba66c6"
+                },
+                {
+                  "group": "right",
+                  "id": "b21206bc-da05-4a82-8869-7e31b35a33ec"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "0116f5fc-effd-43b2-a430-66c1f818be4d": {
+      "id": "0116f5fc-effd-43b2-a430-66c1f818be4d",
+      "name": "SubNode",
+      "deep": 2,
+      "parentId": "e727483d-8d54-41ba-b474-f25a0b7eaff1",
+      "childrenIds": [],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -670,
+              "y": -50
+            },
+            "size": {
+              "width": 48,
+              "height": 48
+            },
+            "attrs": {
+              "body": {
+                "fill": "#ffffff",
+                "stroke": "#5f95ff",
+                "strokeWidth": 1
+              },
+              "label": {
+                "text": "sum",
+                "fill": "#1f2937",
+                "fontSize": 12,
+                "fontWeight": 600
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "9560192b-204d-40dc-aebb-b0004f230682",
+            "zIndex": 1,
+            "ports": {
+              "groups": {
+                "left": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                },
+                "bottom": {
+                  "position": "bottom",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#5f95ff",
+                      "strokeWidth": 1,
+                      "fill": "#ffffff"
+                    }
+                  }
+                }
+              },
+              "items": [
+                {
+                  "group": "left",
+                  "id": "3ace4078-19b9-4a22-a3b7-3ed3f79c9ea1"
+                },
+                {
+                  "group": "bottom",
+                  "id": "fa87722f-139e-4b75-a1ae-22cdee7e7f8a"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

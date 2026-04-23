@@ -2,15 +2,16 @@ import type { Graph } from '@antv/x6'
 import { Dropdown } from 'antd'
 import { Tooltip } from 'antd'
 import { createMinimapService } from '@/services/minimap-service'
+import { useGraphStore } from '@/store/graphStore'
 import './CanvasToolbars.scss'
 
 type CanvasToolbarsProps = {
-  graph: Graph | null
-  zoom: number
   visible: boolean
 }
 
-function CanvasToolbars({ graph, zoom, visible }: CanvasToolbarsProps) {
+function CanvasToolbars({ visible }: CanvasToolbarsProps) {
+  const graph = useGraphStore((s) => s.graph)
+  const zoom = useGraphStore((s) => s.zoom)
   const getExportViewBox = () => {
     if (!graph) return null
 
@@ -102,95 +103,6 @@ function CanvasToolbars({ graph, zoom, visible }: CanvasToolbarsProps) {
 
   return (
     <>
-      <div className={`canvas-left-toolbar${visible ? '' : ' is-hidden'}`}>
-        <Tooltip title="选择" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path
-                d="M3 2l10 6-5 1.5L6 14z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </Tooltip>
-        <Tooltip title="手型平移" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path
-                d="M6 2v6M10 4v4M4 7v3M8 6v4M12 7v3"
-                strokeLinecap="round"
-              />
-              <path
-                d="M4 10c0 2 8 2 8 0"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </Tooltip>
-        <span className="toolbar-divider-h" />
-        <Tooltip title="矩形" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <rect x="2" y="4" width="12" height="8" rx="1" />
-            </svg>
-          </button>
-        </Tooltip>
-        <Tooltip title="圆形" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <circle cx="8" cy="8" r="5" />
-            </svg>
-          </button>
-        </Tooltip>
-        <Tooltip title="菱形" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <polygon points="8,2 14,8 8,14 2,8" />
-            </svg>
-          </button>
-        </Tooltip>
-        <Tooltip title="文本" mouseEnterDelay={0.2} placement="right">
-          <button className="toolbar-btn">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <line x1="3" y1="4" x2="13" y2="4" strokeLinecap="round" />
-              <line x1="8" y1="4" x2="8" y2="13" strokeLinecap="round" />
-            </svg>
-          </button>
-        </Tooltip>
-      </div>
-
       <div className={`canvas-float-toolbar${visible ? '' : ' is-hidden'}`}>
         <Tooltip
           title={isFullscreen ? '退出全屏' : '全屏'}
@@ -302,7 +214,7 @@ function CanvasToolbars({ graph, zoom, visible }: CanvasToolbarsProps) {
             </button>
           </Tooltip>
         </Dropdown>
-        <span className="toolbar-divider" />
+        {/* <span className="toolbar-divider" /> */}
         <Tooltip
           title={minimapVisible ? '隐藏小地图' : '小地图'}
           mouseEnterDelay={0.2}

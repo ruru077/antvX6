@@ -44,6 +44,22 @@ $radius-md: 8px;
     flex-shrink: 0;
   }
 
+  // 画布区域主体（T 字型布局：左侧工具栏 + 画布列）
+  .diagram-body {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  // 画布列：导航横条 + paper，宽度独占剩余空间
+  .diagram-canvas-right {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
   // 画布容器
   .paper-container {
     position: relative;
@@ -71,7 +87,7 @@ $radius-md: 8px;
       border: 1px solid #239edd;
     }
 
-    .x6-widget-transform{
+    .x6-widget-transform {
       border: none;
     }
   }

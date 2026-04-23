@@ -1,0 +1,83 @@
+$primary-color: #1677ff;
+$primary-color-hover: #f5f5f5;
+$primary-color-active: #e6f4ff;
+$radius-sm: 4px;
+
+%pt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #e8e8e8;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: #555;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: $primary-color-hover;
+    border-color: #d9d9d9;
+    color: #333;
+  }
+
+  &:active {
+    background: $primary-color-active;
+  }
+}
+
+.paper-toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+
+  .pt-btn {
+    @extend %pt-btn;
+  }
+
+  // 仿真按钮 — 蓝色主色调
+  .pt-btn-simulate {
+    @extend %pt-btn;
+    color: $primary-color;
+    border-color: $primary-color;
+
+    &:hover {
+      background: $primary-color-active;
+      border-color: $primary-color;
+      color: $primary-color;
+    }
+  }
+
+  .pt-divider {
+    width: 1px;
+    height: 18px;
+    background: #e8e8e8;
+    margin: 0 2px;
+  }
+
+  .pt-spacer {
+    flex: 1;
+  }
+
+  .pt-model-name {
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+    padding: 0 6px;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
