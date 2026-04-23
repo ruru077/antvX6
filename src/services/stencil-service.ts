@@ -1,5 +1,4 @@
 import { Graph, Stencil } from '@antv/x6'
-import { port } from './../../../X6/src/registry/attr/port'
 
 /**
  * Stencil入口
@@ -78,7 +77,133 @@ function createStencilService(stencilContainer: HTMLElement) {
       width: 80,
       height: 40,
       label: 'Subsystem',
-      data: { kind: 'subsystem', name: 'Subsystem' },
+      data: {
+        type: 'SubsystemBlock',
+        graphJson: {
+          cells: [
+            {
+              position: {
+                x: -550,
+                y: -40,
+              },
+              size: {
+                width: 80,
+                height: 40,
+              },
+              attrs: {
+                text: {
+                  text: 'rect',
+                },
+                body: {
+                  fill: '#fff',
+                  stroke: '#8f8f8f',
+                  strokeWidth: 1,
+                },
+              },
+              visible: true,
+              shape: 'rect',
+              id: 'fe48fea6-133e-4a59-8c2e-e2b76bf20b8c',
+              ports: {
+                items: [
+                  {
+                    id: 'port1',
+                    group: 'in',
+                  },
+                  {
+                    id: 'port2',
+                    group: 'out',
+                  },
+                ],
+                groups: {
+                  in: {
+                    position: 'left',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                  out: {
+                    position: 'right',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                },
+              },
+              zIndex: 1,
+            },
+            {
+              position: {
+                x: -350,
+                y: -100,
+              },
+              size: {
+                width: 80,
+                height: 40,
+              },
+              attrs: {
+                text: {
+                  text: 'rect',
+                },
+                body: {
+                  fill: '#fff',
+                  stroke: '#8f8f8f',
+                  strokeWidth: 1,
+                },
+              },
+              visible: true,
+              shape: 'rect',
+              id: 'ce417968-de03-47c3-823b-d6e04c8e5d61',
+              ports: {
+                items: [
+                  {
+                    id: 'port1',
+                    group: 'in',
+                  },
+                  {
+                    id: 'port2',
+                    group: 'out',
+                  },
+                ],
+                groups: {
+                  in: {
+                    position: 'left',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                  out: {
+                    position: 'right',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                },
+              },
+              zIndex: 2,
+            },
+          ],
+        },
+      },
       attrs: commonAttrs,
       ports: {
         items: [
