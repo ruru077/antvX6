@@ -20,6 +20,7 @@ export function useGraphListener(graph: Graph | null) {
     })
 
     graph.on('node:added', ({ node, options }) => {
+      if (options?.ignoreSync) return
       if (node.getData()?.type === 'SubsystemBlock') {
         syncSubGraph(node, 'add')
       }

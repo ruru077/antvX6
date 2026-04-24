@@ -9,9 +9,8 @@ $radius-md: 8px;
   flex-shrink: 0;
   overflow: hidden;
   transition: height 0.2s ease, margin-bottom 0.2s ease;
-  background: #ffffff;
-  border-radius: $radius-md $radius-md 0 0;
-  border: 0 solid #f0f0f0;
+  background: rgb(239, 239, 244);
+  border-radius: 0 $radius-md 0 0;
 
   &.is-visible {
     height: 32px;

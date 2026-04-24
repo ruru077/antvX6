@@ -1,5 +1,5 @@
 import type { Cell, Graph, Node } from '@antv/x6'
-import { StringExt } from '@antv/x6'
+import { Model, StringExt } from '@antv/x6'
 import { create } from 'zustand'
 import { useGraphStore } from './graphStore'
 
@@ -53,39 +53,60 @@ interface EntryGraphModel {
 }
 
 // ─── private ────────────────────────────────────────────────────────────────
+interface CreateSubGraphItemOptions {
+  /** 指定 id，仅 GraphJSON 重载生效；Node 重载始终使用 node.id */
+  id?: string
+  /** 覆盖默认名称 */
+  name?: string
+  /** 初始子系统 id 集合，默认空集 */
+  childrenIds?: Set<string>
+}
+
 /**
  * 子系统封装的Block同步函数
  * @arg subGraphNode 子系统节点
- * @arg graphJson 框选的节点边数据
+ * @arg graphJson 需要转化为子系统的Graph JSON数据
+ * @param options : CreateSubGraphItemOptions
  * @returns subGraphItem
  */
-function createSubGraphItem(subGraphNode: Node): subGraphItem
-function createSubGraphItem(graphJson: GraphJSON): subGraphItem
-function createSubGraphItem(arg: Node | GraphJSON): subGraphItem {
+function createSubGraphItem(
+  subGraphNode: Node,
+  options?: CreateSubGraphItemOptions,
+): subGraphItem
+function createSubGraphItem(
+  graphJson: GraphJSON,
+  options?: CreateSubGraphItemOptions,
+): subGraphItem
+function createSubGraphItem(
+  arg: Node | GraphJSON,
+  options: CreateSubGraphItemOptions = {},
+): subGraphItem {
   const { currentGraphId, subGraphs } = useSubsystemStore.getState()
-  const graph = useGraphStore.getState().graph
   const deep = subGraphs[currentGraphId].deep + 1
-
+  // 默认值
+  const {
+    id = StringExt.uuid(),
+    name = 'New Subsystem',
+    childrenIds = new Set<string>(),
+  } = options
+  // Node
   if ('isNode' in arg && arg.isNode()) {
-    // 传入的是 Node
     return {
       id: arg.id,
       name: arg.attr<string>('text/text') || 'Subsystem',
       deep,
       parentId: currentGraphId,
-      childrenIds: new Set<string>([]),
+      childrenIds,
       graphJson: { ...arg.getData().graphJson },
     }
   }
-
-  // 传入的是 GraphJSON
-  const id = StringExt.uuid()
+  // GraphJSON
   return {
-    id,
-    name: 'New Subsystem',
+    id: id,
+    name: name,
     deep,
     parentId: currentGraphId,
-    childrenIds: new Set<string>([]),
+    childrenIds,
     graphJson: arg,
   }
 }
@@ -211,19 +232,6 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
         },
       })
     }
-    // TODO: 子系统更新
-    // else if (action === 'update') {
-    //   const targetItem = subGraphs[subGraphNode.id]
-    //   set({
-    //     subGraphs: {
-    //       ...subGraphs,
-    //       [subGraphNode.id]: {
-    //         ...targetItem,
-    //         ...createSubGraphItem(subGraphNode),
-    //       },
-    //     },
-    //   })
-    // }
   },
   changeGraphView: (subGraphId) => {
     const { subGraphs, syncGraph } = get()
@@ -242,42 +250,79 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
   mergeToSubsystem: (cells) => {
     const { currentGraphId, subGraphs } = get()
     const graph = useGraphStore.getState().graph
-    if (!graph || cells.length === 0) return
+    if (!graph) return
 
     // 1. 获取包围盒位置，作为新子系统节点的位置
     const bbox = graph.getCellsBBox(cells)
     const x = bbox ? bbox.x : 40
     const y = bbox ? bbox.y : 40
 
-    // 2. 将选中的 cell 转为 graphJson
-    const graphJson: GraphJSON = {
-      cells: cells.map((cell) => cell.toJSON()),
+    const graphJson: GraphJSON = Model.toJSON(cells)
+
+    // 2. 找出被合并 cells 中属于子系统的节点
+    const mergedSubsystemIds = new Set(
+      cells
+        .filter(
+          (cell) => cell.isNode() && cell.getData()?.type === 'SubsystemBlock',
+        )
+        .map((cell) => cell.id),
+    )
+
+    // 3. 生成新 subGraphItem（childrenIds 初始化为被合并的子系统 id 集合）
+    const subGraphItem = createSubGraphItem(graphJson, {
+      childrenIds: mergedSubsystemIds,
+    })
+    // 5. 构建更新后的 subGraphs
+    const nextSubGraphs = { ...subGraphs }
+
+    // 5a. 被合并的子系统：deep +1，parentId 指向新节点
+    for (const subsystemId of mergedSubsystemIds) {
+      const preSubGraphItem = subGraphs[subsystemId]
+      nextSubGraphs[subsystemId] = {
+        ...preSubGraphItem,
+        deep: preSubGraphItem.deep + 1,
+        parentId: subGraphItem.id,
+      }
     }
 
-    // 3. 构建 subGraphItem 内部数据对象
-    const subGraphItem = createSubGraphItem(graphJson)
+    // 5b. 当前层：从 childrenIds 移除被合并的子系统，加入新子系统
+    const currentItem = subGraphs[currentGraphId]
+    nextSubGraphs[currentGraphId] = {
+      ...currentItem,
+      childrenIds: new Set([
+        ...Array.from(currentItem.childrenIds).filter(
+          (id) => !mergedSubsystemIds.has(id),
+        ),
+        subGraphItem.id,
+      ]),
+    }
 
-    // 4. 清理画布选中项
+    // 5c. 注册新子系统
+    nextSubGraphs[subGraphItem.id] = subGraphItem
+
+    set({ subGraphs: nextSubGraphs })
+
+    // 6. 清理画布选中项，移除框选图元
     graph.cleanSelection()
+    graph.removeCells(cells, { ignoreSync: true })
 
-    // 5. 移除画布中现有的框选图元
-    graph.removeCells(cells)
-
-    // 6. 添加代表此子系统的统一新节点，其中 data 初始化时带上我们刚生成的 id 和 graphJson
-    // 此处 addNode 将触发 useGraphListener 的 add 同步分支，此时它会自动从 target 的 data 中恢复出子图信息
-    graph.addNode({
-      id: subGraphItem.id,
-      shape: 'rect', // 或您的图元定义, 这里同 stencil-service 里的
-      x,
-      y,
-      width: 80,
-      height: 40,
-      label: 'New Subsystem',
-      data: {
-        type: 'SubsystemBlock',
-        graphJson,
+    // 7. 添加代表新子系统的节点
+    graph.addNode(
+      {
+        id: subGraphItem.id,
+        shape: 'rect',
+        x,
+        y,
+        width: 80,
+        height: 40,
+        label: 'New Subsystem',
+        data: {
+          type: 'SubsystemBlock',
+          graphJson,
+        },
       },
-    })
+      { ignoreSync: true },
+    )
   },
 }))
 

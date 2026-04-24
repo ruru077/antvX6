@@ -91,47 +91,32 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
         // showEdgeSelectionBox: true,
         modifiers: 'shift',
         content(selection, el) {
-          if (selection.length > 0) {
-            setTimeout(() => {
-              const btn = el.querySelector(
-                '.btn-create-subsystem',
-              ) as HTMLButtonElement
-              if (btn) {
-                // 阻止鼠标按下事件冒泡，防止 X6 拦截或取消选中
-                btn.onmousedown = (e) => e.stopPropagation()
-                btn.onmouseup = (e) => e.stopPropagation()
-                btn.onpointerdown = (e) => e.stopPropagation()
-                btn.onpointerup = (e) => e.stopPropagation()
-
-                btn.onclick = (e) => {
-                  e.stopPropagation()
-                  console.log('merge to subsystem')
-                  const cells = g.getSelectedCells()
-                  if (cells.length > 0) {
-                    useSubsystemStore.getState().mergeToSubsystem(cells)
-                  }
-                }
-              }
-            }, 0)
-
-            return `
-              <button class="btn-create-subsystem" style="
-                position: absolute;
-                bottom: -36px;
-                left: 50%;
-                transform: translateX(-50%);
-                padding: 4px 12px;
-                background: #1890ff;
-                color: #fff;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                white-space: nowrap;
-                pointer-events: auto;
-              ">转为子系统</button>
-            `
+          const btn = document.createElement('button')
+          btn.className = 'btn-create-subsystem'
+          Object.assign(btn.style, {
+            position: 'absolute',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '4px 12px',
+            background: '#1890ff',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'auto',
+          })
+          btn.textContent = '转为子系统'
+          btn.onmousedown = (e) => e.stopPropagation()
+          btn.onclick = (e) => {
+            e.stopPropagation()
+            const cells = g.getSelectedCells()
+            useSubsystemStore.getState().mergeToSubsystem(cells)
           }
+          el.innerHTML = ''
+          el.appendChild(btn)
+          // return `${JSON.stringify(g.getSelectedCells(), null, 2)}`
           return ''
         },
       }),
@@ -235,10 +220,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
 
   return (
     <div className="diagram-wrapper">
-      <StencilPanel
-        toolbarsVisible={toolbarsVisible}
-        setToolbarsVisible={setToolbarsVisible}
-      />
+      <StencilPanel />
       {/* 画布区域 */}
       <div className="diagram-canvas-area">
         <div className="paper-toolbar">
@@ -250,6 +232,8 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
           <CanvasLeftToolbar
             navPanelVisible={navPanelVisible}
             onToggleNavPanel={() => setNavPanelVisible((v) => !v)}
+            toolbarsVisible={toolbarsVisible}
+            onToggleToolbars={() => setToolbarsVisible((v) => !v)}
           />
           <div className="diagram-canvas-right">
             {/* 子系统导航栏 */}

@@ -4,15 +4,9 @@ import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
 import './StencilPanel.scss'
 
-type StencilPanelProps = {
-  toolbarsVisible: boolean
-  setToolbarsVisible: (updater: (value: boolean) => boolean) => void
-}
+type StencilPanelProps = Record<string, never>
 
-function StencilPanel({
-  toolbarsVisible,
-  setToolbarsVisible,
-}: StencilPanelProps) {
+function StencilPanel(_props: StencilPanelProps) {
   const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
   const stencilServiceRef = useRef<ReturnType<
@@ -33,7 +27,6 @@ function StencilPanel({
 
   const handleExpandAll = () => stencilServiceRef.current?.expandAll()
   const handleCollapseAll = () => stencilServiceRef.current?.collapseAll()
-  const handleToggleToolbars = () => setToolbarsVisible((value) => !value)
   const handleToggleCollapsed = () => setCollapsed((value) => !value)
 
   return (
@@ -99,59 +92,6 @@ function StencilPanel({
         )}
         <span className="stencil-title">123456</span>
         <div className="stencil-header-actions">
-          {!collapsed && (
-            <Tooltip
-              title={toolbarsVisible ? '隐藏工具栏' : '显示工具栏'}
-              mouseEnterDelay={0.2}
-              placement="bottom"
-            >
-              <button
-                className={`stencil-visibility-btn${toolbarsVisible ? ' is-active' : ''}`}
-                onClick={handleToggleToolbars}
-              >
-                {toolbarsVisible ? (
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 32 32"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M17.3333 2.66667L4 18.6667H16L14.6667 29.3333L28 13.3333H16L17.3333 2.66667Z"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 32 32"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <g clipPath="url(#clip0_5_165)">
-                      <path
-                        d="M16.5466 9L17.3333 2.66666L14.0933 6.56M24.76 17.2133L28 13.3333H20.88M10.6666 10.6667L3.99998 18.6667H16L14.6666 29.3333L21.3333 21.3333M1.33331 1.33333L30.6666 30.6667"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                    <defs>
-                      <clipPath id="clip0_5_165">
-                        <rect width="32" height="32" fill="white" />
-                      </clipPath>
-                    </defs>
-                  </svg>
-                )}
-              </button>
-            </Tooltip>
-          )}
           <Tooltip
             title={collapsed ? '展开' : '收起'}
             mouseEnterDelay={0.2}
