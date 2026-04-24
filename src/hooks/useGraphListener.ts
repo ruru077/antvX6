@@ -8,21 +8,23 @@ import { useSubsystemStore } from '@/store/subsystemStore'
 export function useGraphListener(graph: Graph | null) {
   const syncGraph = useSubsystemStore((s) => s.syncGraph)
   const syncSubGraph = useSubsystemStore((s) => s.syncSubGraph)
-  function enterSubsystem(subGraphId: string) {
-    const { subGraphs } = useSubsystemStore.getState()
-    syncGraph(graph.toJSON())
-    graph.clearCells()
-    graph.fromJSON(subGraphs[subGraphId].graphJson)
-  }
+  const enterSubGraph = useSubsystemStore((s) => s.enterSubGraph)
+  // function enterSubsystem(subGraphId: string) {
+  //   const { subGraphs } = useSubsystemStore.getState()
+  //   syncGraph(graph.toJSON())
+  //   enterSubGraph(subGraphId)
+  //   graph.clearCells()
+  //   graph.fromJSON(subGraphs[subGraphId].graphJson)
+  // }
   useEffect(() => {
     if (!graph) return
 
-    graph.on('node:dblclick', ({ node }) => {
-      // #1 进入子系统
-      if (node.getData()?.type === 'SubsystemBlock') {
-        enterSubsystem(node.id)
-      }
-    })
+    // graph.on('node:dblclick', ({ node }) => {
+    //   // #1 进入子系统
+    //   if (node.getData()?.type === 'SubsystemBlock') {
+    //     enterSubsystem(node.id)
+    //   }
+    // })
 
     graph.on('node:added', ({ node }) => {
       if (node.getData()?.type === 'SubsystemBlock') {
