@@ -8,32 +8,31 @@ import { useSubsystemStore } from '@/store/subsystemStore'
 export function useGraphListener(graph: Graph | null) {
   const syncGraph = useSubsystemStore((s) => s.syncGraph)
   const syncSubGraph = useSubsystemStore((s) => s.syncSubGraph)
-  const enterSubGraph = useSubsystemStore((s) => s.enterSubGraph)
-  // function enterSubsystem(subGraphId: string) {
-  //   const { subGraphs } = useSubsystemStore.getState()
-  //   syncGraph(graph.toJSON())
-  //   enterSubGraph(subGraphId)
-  //   graph.clearCells()
-  //   graph.fromJSON(subGraphs[subGraphId].graphJson)
-  // }
+  const changeGraphView = useSubsystemStore((s) => s.changeGraphView)
   useEffect(() => {
     if (!graph) return
 
-    // graph.on('node:dblclick', ({ node }) => {
-    //   // #1 进入子系统
-    //   if (node.getData()?.type === 'SubsystemBlock') {
-    //     enterSubsystem(node.id)
-    //   }
-    // })
-
-    graph.on('node:added', ({ node }) => {
+    graph.on('node:dblclick', ({ node }) => {
+      // #1 进入子系统
       if (node.getData()?.type === 'SubsystemBlock') {
-        syncSubGraph(node)
+        changeGraphView(node.id)
+      }
+    })
+
+    graph.on('node:added', ({ node, options }) => {
+      if (node.getData()?.type === 'SubsystemBlock') {
+        syncSubGraph(node, 'add')
+      }
+    })
+    graph.on('node:removed', ({ node, options }) => {
+      if (options?.ignoreSync) return
+      if (node.getData()?.type === 'SubsystemBlock') {
+        syncSubGraph(node, 'delete')
       }
     })
     graph.on('cell:click', ({ cell }) => {
       console.log(cell.id)
     })
     return () => {}
-  }, [graph])
+  }, [graph, syncSubGraph, changeGraphView])
 }

@@ -91,13 +91,48 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
         // showEdgeSelectionBox: true,
         modifiers: 'shift',
         content(selection, el) {
-          return JSON.stringify(
-            g
-              .getSelectedCells()
-              .map((c) => ({ id: c.id, type: c.isEdge() ? 'edge' : 'node' })),
-            null,
-            2,
-          )
+          if (selection.length > 0) {
+            setTimeout(() => {
+              const btn = el.querySelector(
+                '.btn-create-subsystem',
+              ) as HTMLButtonElement
+              if (btn) {
+                // 阻止鼠标按下事件冒泡，防止 X6 拦截或取消选中
+                btn.onmousedown = (e) => e.stopPropagation()
+                btn.onmouseup = (e) => e.stopPropagation()
+                btn.onpointerdown = (e) => e.stopPropagation()
+                btn.onpointerup = (e) => e.stopPropagation()
+
+                btn.onclick = (e) => {
+                  e.stopPropagation()
+                  console.log('merge to subsystem')
+                  const cells = g.getSelectedCells()
+                  if (cells.length > 0) {
+                    useSubsystemStore.getState().mergeToSubsystem(cells)
+                  }
+                }
+              }
+            }, 0)
+
+            return `
+              <button class="btn-create-subsystem" style="
+                position: absolute;
+                bottom: -36px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 4px 12px;
+                background: #1890ff;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                white-space: nowrap;
+                pointer-events: auto;
+              ">转为子系统</button>
+            `
+          }
+          return ''
         },
       }),
     )
