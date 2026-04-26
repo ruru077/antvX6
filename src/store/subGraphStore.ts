@@ -1,5 +1,6 @@
-import type { Cell, Graph, Node } from '@antv/x6'
+import type { Cell, Graph, History, Node } from '@antv/x6'
 import { Model, StringExt } from '@antv/x6'
+import type { HistoryCommands } from '@antv/x6/lib/plugin/history/type'
 import { create } from 'zustand'
 import { useGraphStore } from './graphStore'
 
@@ -8,7 +9,7 @@ const ROOT_ID = 'root'
 /**
  * @description 子系统全局数据 Store
  */
-interface SubsystemStore {
+interface SubGraphStore {
   // 当前所在的Graph ID
   currentGraphId: string
   // 从根Graph到当前Graph的路径ID列表
@@ -65,6 +66,7 @@ interface CreateSubGraphItemOptions {
 /**
  * 子系统封装的Block同步函数
  * @arg subGraphNode 子系统节点
+ * 框选元素合并子系统
  * @arg graphJson 需要转化为子系统的Graph JSON数据
  * @param options : CreateSubGraphItemOptions
  * @returns subGraphItem
@@ -81,7 +83,7 @@ function createSubGraphItem(
   arg: Node | GraphJSON,
   options: CreateSubGraphItemOptions = {},
 ): subGraphItem {
-  const { currentGraphId, subGraphs } = useSubsystemStore.getState()
+  const { currentGraphId, subGraphs } = useSubGraphStore.getState()
   const deep = subGraphs[currentGraphId].deep + 1
   // 默认值
   const {
@@ -128,8 +130,14 @@ function buildPaths(
   }
   return pathIds
 }
+// ─── 各图层独立 Undo/Redo 历史栈───
+const layerHistoryStacks = new Map<
+  string,
+  { undoStack: HistoryCommands[]; redoStack: HistoryCommands[] }
+>()
+
 // ─── store ───────────────────────────────────────────────────────────────────
-const useSubsystemStore = create<SubsystemStore>((set, get) => ({
+const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   currentGraphId: ROOT_ID,
   currentPathIds: [ROOT_ID],
   rootId: ROOT_ID,
@@ -174,6 +182,11 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
         },
       ]),
     )
+
+    // 清除所有图层的历史栈快照（旧 Cell 引用已失效）
+    layerHistoryStacks.clear()
+    const graph = useGraphStore.getState().graph
+    graph?.cleanHistory()
 
     set({
       currentGraphId: model.currentGraphId,
@@ -234,13 +247,41 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
     }
   },
   changeGraphView: (subGraphId) => {
-    const { subGraphs, syncGraph } = get()
+    const { currentGraphId, subGraphs, syncGraph } = get()
     const graph = useGraphStore.getState().graph
     if (!graph) return
 
+    // 保存当前图层的历史栈
+    /**
+     * @description History 的 undoStack/redoStack 为protected属性
+     * console.log(history)
+     */
+    const history = graph.getPlugin<History>('history')
+    if (history) {
+      layerHistoryStacks.set(currentGraphId, {
+        undoStack: [...history['undoStack']],
+        redoStack: [...history['redoStack']],
+      })
+    }
+
     syncGraph(graph.toJSON())
-    graph.clearCells({ ignoreSync: true })
+
+    // 切换期间禁用 history，防止 fromJSON 产生的 cell:added 污染历史栈
+    graph.disableHistory()
     graph.fromJSON(subGraphs[subGraphId].graphJson)
+    graph.enableHistory()
+
+    // 恢复目标图层的历史栈（首次进入则为空栈）
+    if (history) {
+      const saved = layerHistoryStacks.get(subGraphId) ?? {
+        undoStack: [],
+        redoStack: [],
+      }
+      history['undoStack'] = saved.undoStack
+      history['redoStack'] = saved.redoStack
+      graph.trigger('history:change', { cmds: null, options: {} })
+    }
+
     graph.centerContent()
     set({
       currentGraphId: subGraphId,
@@ -254,8 +295,7 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
 
     // 1. 获取包围盒位置，作为新子系统节点的位置
     const bbox = graph.getCellsBBox(cells)
-    const x = bbox ? bbox.x : 40
-    const y = bbox ? bbox.y : 40
+    const { x, y, width, height } = bbox
 
     const graphJson: GraphJSON = Model.toJSON(cells)
 
@@ -313,8 +353,8 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
         shape: 'rect',
         x,
         y,
-        width: 80,
-        height: 40,
+        width,
+        height,
         label: 'New Subsystem',
         data: {
           type: 'SubsystemBlock',
@@ -327,4 +367,4 @@ const useSubsystemStore = create<SubsystemStore>((set, get) => ({
 }))
 
 export type { EntryGraphModel, subGraphItem, GraphJSON }
-export { useSubsystemStore }
+export { useSubGraphStore }
