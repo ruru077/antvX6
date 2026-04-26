@@ -17,7 +17,7 @@ import StencilPanel from '@/components/StencilPanel'
 import SubsystemNavBar from '@/components/SubsystemNavBar'
 import { useGraphListener } from '@/hooks/useGraphListener'
 import { useGraphStore } from '@/store/graphStore'
-import { useSubsystemStore } from '@/store/subsystemStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import '@/styles/BlockDiagram.spoced.scss'
 
 /**
@@ -32,7 +32,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   // 初始化配置
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
-  const currentPathIds = useSubsystemStore((s) => s.currentPathIds)
+  const currentPathIds = useSubGraphStore((s) => s.currentPathIds)
 
   // 监听 graph 事件（数据同步、交互等）
   useGraphListener(graph)
@@ -112,7 +112,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
           btn.onclick = (e) => {
             e.stopPropagation()
             const cells = g.getSelectedCells()
-            useSubsystemStore.getState().mergeToSubsystem(cells)
+            useSubGraphStore.getState().mergeToSubsystem(cells)
           }
           el.innerHTML = ''
           el.appendChild(btn)
@@ -173,7 +173,26 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
     })
     g.bindKey(['ctrl+v', 'meta+v'], () => {
       if (!g.isClipboardEmpty()) {
-        const cells = g.paste({ offset: 32 })
+        const { pasteTarget, setPasteTarget } = useGraphStore.getState()
+
+        let cells
+        if (pasteTarget) {
+          // 计算剪贴板内容左上角到目标位置的绝对偏移
+          const clipboardCells = g.getCellsInClipboard()
+          const nodes = clipboardCells.filter((c) => c.isNode())
+          let offset: { dx: number; dy: number }
+          if (nodes.length) {
+            const minX = Math.min(...nodes.map((n) => n.getPosition().x))
+            const minY = Math.min(...nodes.map((n) => n.getPosition().y))
+            offset = { dx: pasteTarget.x - minX, dy: pasteTarget.y - minY }
+            cells = g.paste({ offset })
+          }
+          // 仅生效一次，后续 Ctrl+V 恢复默认行为
+          setPasteTarget(null)
+        } else {
+          cells = g.paste({ offset: 32 })
+        }
+
         g.resetSelection(cells)
       }
       return false

@@ -1,14 +1,16 @@
 import type { Graph } from '@antv/x6'
-import { useSubsystemStore } from '@/store/subsystemStore'
+import { useGraphStore } from '@/store/graphStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 
 /**
  * 图形编辑器事件监听 hook
  * @param graph - Graph 实例
  */
 export function useGraphListener(graph: Graph | null) {
-  const syncGraph = useSubsystemStore((s) => s.syncGraph)
-  const syncSubGraph = useSubsystemStore((s) => s.syncSubGraph)
-  const changeGraphView = useSubsystemStore((s) => s.changeGraphView)
+  const syncGraph = useSubGraphStore((s) => s.syncGraph)
+  const syncSubGraph = useSubGraphStore((s) => s.syncSubGraph)
+  const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
+  const setPasteTarget = useGraphStore((s) => s.setPasteTarget)
   useEffect(() => {
     if (!graph) return
 
@@ -21,19 +23,28 @@ export function useGraphListener(graph: Graph | null) {
 
     graph.on('node:added', ({ node, options }) => {
       if (options?.ignoreSync) return
+      // #2.1 子系统添加
       if (node.getData()?.type === 'SubsystemBlock') {
         syncSubGraph(node, 'add')
       }
     })
+
     graph.on('node:removed', ({ node, options }) => {
       if (options?.ignoreSync) return
+      // #2.2 子系统删除
       if (node.getData()?.type === 'SubsystemBlock') {
         syncSubGraph(node, 'delete')
       }
     })
+
+    graph.on('blank:click', ({ x, y }: { x: number; y: number }) => {
+      // #3 空白处点击，修改粘贴目标位置
+      setPasteTarget({ x, y })
+    })
+
     graph.on('cell:click', ({ cell }) => {
       console.log(cell.id)
     })
     return () => {}
-  }, [graph, syncSubGraph, changeGraphView])
+  }, [graph, syncSubGraph, changeGraphView, setPasteTarget])
 }
