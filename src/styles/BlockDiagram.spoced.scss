@@ -80,7 +80,9 @@ $radius-md: 8px;
     }
 
     .x6-widget-selection-box {
-      border: 2px dashed #239edd;
+      border: none !important;
+      box-shadow: none !important;
+      background: none !important;
     }
 
     .x6-widget-selection-inner {

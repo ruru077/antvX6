@@ -49,6 +49,18 @@ export function useGraphListener(graph: Graph | null) {
       console.log(history['undoStack'])
     })
 
+    graph.on('cell:selected', ({ cell }) => {
+      if (cell.isNode())
+        cell.attr('body/filter', {
+          name: 'outline',
+          args: { color: '#239edd', width: 2, margin: 0 },
+        })
+    })
+
+    graph.on('cell:unselected', ({ cell }) => {
+      if (cell.isNode()) cell.removeAttrs('body/filter')
+    })
+
     graph.on('cell:click', ({ cell, view, x, y }) => {
       // #3.2 cell点击，修改粘贴目标位置
       setPasteTarget({ x, y })

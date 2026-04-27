@@ -134,10 +134,10 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
     )
     g.use(
       new Transform({
-        rotating: {
-          enabled: true,
-          grid: 15,
-        },
+        // rotating: {
+        //   enabled: true,
+        //   grid: 15,
+        // },
         resizing: {
           enabled: true,
           minWidth: 20,
