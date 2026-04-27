@@ -1,4 +1,4 @@
-import type { Cell, Graph, History, Node } from '@antv/x6'
+import type { Cell, Edge, Graph, History, Node, Scroller } from '@antv/x6'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
@@ -47,6 +47,60 @@ export function useGraphListener(graph: Graph | null) {
       const history = graph.getPlugin<History>('history')
       if (!history) return
       console.log(history['undoStack'])
+    })
+
+    const threshold = 30
+    const autoPan = {
+      dx: 0,
+      dy: 0,
+      intervalId: null as number | null,
+    }
+
+    graph.on('edge:mousemove', ({ e, edge }) => {
+      const paperContainer = document.querySelector('.paper-container')
+      if (!paperContainer) return
+      const rect = paperContainer.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      autoPan.dx = 0
+      autoPan.dy = 0
+
+      if (x < threshold) autoPan.dx = -10
+      else if (x > rect.width - threshold) autoPan.dx = 10
+      if (y < threshold) autoPan.dy = -10
+      else if (y > rect.height - threshold) autoPan.dy = 10
+
+      if (
+        (autoPan.dx !== 0 || autoPan.dy !== 0) &&
+        autoPan.intervalId === null
+      ) {
+        autoPan.intervalId = setInterval(() => {
+          const scroller = graph.getPlugin<Scroller>('scroller')
+          if (!scroller) return
+          const pos = scroller.getScrollbarPosition()
+          scroller.setScrollbarPosition(
+            pos.left + autoPan.dx,
+            pos.top + autoPan.dy,
+          )
+          // client -> local：节点/边的坐标都在 local 坐标系
+          const graphPos = graph.clientToLocal(e.clientX, e.clientY)
+          edge.setTarget({ x: graphPos.x, y: graphPos.y })
+        }, 50)
+      } else if (
+        autoPan.dx === 0 &&
+        autoPan.dy === 0 &&
+        autoPan.intervalId !== null
+      ) {
+        clearInterval(autoPan.intervalId)
+        autoPan.intervalId = null
+      }
+    })
+
+    graph.on('edge:mouseup', () => {
+      if (autoPan.intervalId !== null) {
+        clearInterval(autoPan.intervalId)
+        autoPan.intervalId = null
+      }
     })
 
     graph.on('cell:click', ({ cell, view, x, y }) => {
