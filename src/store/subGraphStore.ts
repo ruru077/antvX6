@@ -251,7 +251,6 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
     const graph = useGraphStore.getState().graph
     if (!graph) return
 
-    // 保存当前图层的历史栈
     /**
      * @description History 的 undoStack/redoStack 为protected属性
      * console.log(history)

@@ -1,4 +1,4 @@
-import type { Graph } from '@antv/x6'
+import type { Cell, Graph, History, Node } from '@antv/x6'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
@@ -18,6 +18,7 @@ export function useGraphListener(graph: Graph | null) {
       // #1 进入子系统
       if (node.getData()?.type === 'SubsystemBlock') {
         changeGraphView(node.id)
+        setPasteTarget({ x: 0, y: 30 })
       }
     })
 
@@ -38,12 +39,20 @@ export function useGraphListener(graph: Graph | null) {
     })
 
     graph.on('blank:click', ({ x, y }: { x: number; y: number }) => {
-      // #3 空白处点击，修改粘贴目标位置
+      // #3.1 空白处点击，修改粘贴目标位置
       setPasteTarget({ x, y })
     })
 
-    graph.on('cell:click', ({ cell }) => {
-      console.log(cell.id)
+    graph.on('history:change', ({ cmds }) => {
+      const history = graph.getPlugin<History>('history')
+      if (!history) return
+      console.log(history['undoStack'])
+    })
+
+    graph.on('cell:click', ({ cell, view, x, y }) => {
+      // #3.2 cell点击，修改粘贴目标位置
+      setPasteTarget({ x, y })
+      console.log(cell, x, y)
     })
     return () => {}
   }, [graph, syncSubGraph, changeGraphView, setPasteTarget])
