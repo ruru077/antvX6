@@ -1,4 +1,4 @@
-import { useSubsystemStore } from '@/store/subsystemStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import './SubsystemNavBar.scss'
 
 type SubsystemNavBarProps = {
@@ -6,9 +6,9 @@ type SubsystemNavBarProps = {
 }
 
 function SubsystemNavBar({ visible }: SubsystemNavBarProps) {
-  const currentPathIds = useSubsystemStore((s) => s.currentPathIds)
-  const subGraphs = useSubsystemStore((s) => s.subGraphs)
-  const changeGraphView = useSubsystemStore((s) => s.changeGraphView)
+  const currentPathIds = useSubGraphStore((s) => s.currentPathIds)
+  const subGraphs = useSubGraphStore((s) => s.subGraphs)
+  const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
 
   return (
     <div className={`subsystem-navbar${visible ? ' is-visible' : ''}`}>

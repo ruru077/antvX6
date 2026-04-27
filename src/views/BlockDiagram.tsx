@@ -16,6 +16,7 @@ import PaperToolbar from '@/components/PaperToolbar'
 import StencilPanel from '@/components/StencilPanel'
 import SubsystemNavBar from '@/components/SubsystemNavBar'
 import { useGraphListener } from '@/hooks/useGraphListener'
+import { openAutoPan } from '@/plugin/openAutoPan'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import '@/styles/BlockDiagram.spoced.scss'
@@ -229,6 +230,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
       return false
     })
     g.centerContent()
+    openAutoPan(g)
     setGraph(g)
 
     return () => {

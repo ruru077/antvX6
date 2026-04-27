@@ -1,7 +1,7 @@
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { useGraphStore } from '@/store/graphStore'
-import { useSubsystemStore } from '@/store/subsystemStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import './PaperToolbar.scss'
 
 type PaperToolbarProps = {
@@ -75,10 +75,13 @@ const simulateMenuItems: MenuProps['items'] = [
 
 function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
   const graph = useGraphStore((s) => s.graph)
-  const exportEntryGraphModel = useSubsystemStore(
+  const exportEntryGraphModel = useSubGraphStore(
     (state) => state.exportEntryGraphModel,
   )
-  const syncGraph = useSubsystemStore((state) => state.syncGraph)
+  const syncGraph = useSubGraphStore((state) => state.syncGraph)
+  const exportGraphModelDTO = useSubGraphStore(
+    (state) => state.exportGraphModelDTO,
+  )
   return (
     <div className="paper-toolbar-inner">
       {/* 返回按钮 */}
@@ -124,7 +127,29 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
           保存
         </button>
       </Tooltip>
-
+      <Tooltip title="导出 DTO" mouseEnterDelay={0.3} placement="bottom">
+        <button
+          className="pt-btn"
+          onClick={() => {
+            if (!graph)
+              throw new Error('❌[PaperToolbar.tsx line:108]Graph为空')
+            syncGraph(graph.toJSON())
+            console.log(JSON.stringify(exportGraphModelDTO(), null, 2))
+          }}
+        >
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <rect x="2" y="2" width="12" height="12" rx="1.5" />
+            <rect x="5" y="2" width="6" height="4" rx="0.5" />
+            <rect x="4" y="8" width="8" height="5" rx="0.5" />
+          </svg>
+          DTO
+        </button>
+      </Tooltip>
       <span className="pt-divider" />
 
       {/* 仿真下拉按钮 */}
