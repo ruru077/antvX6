@@ -1,4 +1,4 @@
-import { Graph, Stencil } from '@antv/x6'
+import { Graph, Stencil, StringExt } from '@antv/x6'
 
 /**
  * Stencil入口
@@ -13,7 +13,7 @@ function createStencilService(stencilContainer: HTMLElement) {
   const commonAttrs = {
     body: {
       fill: '#fff',
-      stroke: '#8f8f8f',
+      stroke: 'black',
       strokeWidth: 1,
     },
   }
@@ -26,8 +26,6 @@ function createStencilService(stencilContainer: HTMLElement) {
     stencil = createStencil(activeColumns)
     const n1 = graph.createNode({
       shape: 'rect',
-      x: 40,
-      y: 40,
       width: 80,
       height: 40,
       label: 'rect',
@@ -35,11 +33,9 @@ function createStencilService(stencilContainer: HTMLElement) {
       ports: {
         items: [
           {
-            id: 'port1',
             group: 'in',
           },
           {
-            id: 'port2',
             group: 'out',
           },
         ],
@@ -72,139 +68,9 @@ function createStencilService(stencilContainer: HTMLElement) {
 
     const n2 = graph.createNode({
       shape: 'rect',
-      x: 40,
-      y: 40,
       width: 80,
       height: 40,
       label: 'Subsystem',
-      data: {
-        type: 'SubsystemBlock',
-        graphJson: {
-          cells: [
-            {
-              position: {
-                x: -550,
-                y: -40,
-              },
-              size: {
-                width: 80,
-                height: 40,
-              },
-              attrs: {
-                text: {
-                  text: 'rect',
-                },
-                body: {
-                  fill: '#fff',
-                  stroke: '#8f8f8f',
-                  strokeWidth: 1,
-                },
-              },
-              visible: true,
-              shape: 'rect',
-              id: 'fe48fea6-133e-4a59-8c2e-e2b76bf20b8c',
-              ports: {
-                items: [
-                  {
-                    id: 'port1',
-                    group: 'in',
-                  },
-                  {
-                    id: 'port2',
-                    group: 'out',
-                  },
-                ],
-                groups: {
-                  in: {
-                    position: 'left',
-                    attrs: {
-                      circle: {
-                        r: 4,
-                        magnet: true,
-                        stroke: '#31d0c6',
-                        strokeWidth: 2,
-                      },
-                    },
-                  },
-                  out: {
-                    position: 'right',
-                    attrs: {
-                      circle: {
-                        r: 4,
-                        magnet: true,
-                        stroke: '#31d0c6',
-                        strokeWidth: 2,
-                      },
-                    },
-                  },
-                },
-              },
-              zIndex: 1,
-            },
-            {
-              position: {
-                x: -350,
-                y: -100,
-              },
-              size: {
-                width: 80,
-                height: 40,
-              },
-              attrs: {
-                text: {
-                  text: 'rect',
-                },
-                body: {
-                  fill: '#fff',
-                  stroke: '#8f8f8f',
-                  strokeWidth: 1,
-                },
-              },
-              visible: true,
-              shape: 'rect',
-              id: 'ce417968-de03-47c3-823b-d6e04c8e5d61',
-              ports: {
-                items: [
-                  {
-                    id: 'port1',
-                    group: 'in',
-                  },
-                  {
-                    id: 'port2',
-                    group: 'out',
-                  },
-                ],
-                groups: {
-                  in: {
-                    position: 'left',
-                    attrs: {
-                      circle: {
-                        r: 4,
-                        magnet: true,
-                        stroke: '#31d0c6',
-                        strokeWidth: 2,
-                      },
-                    },
-                  },
-                  out: {
-                    position: 'right',
-                    attrs: {
-                      circle: {
-                        r: 4,
-                        magnet: true,
-                        stroke: '#31d0c6',
-                        strokeWidth: 2,
-                      },
-                    },
-                  },
-                },
-              },
-              zIndex: 2,
-            },
-          ],
-        },
-      },
-      attrs: commonAttrs,
       ports: {
         items: [
           {
@@ -241,9 +107,179 @@ function createStencilService(stencilContainer: HTMLElement) {
           },
         },
       },
+      data: {
+        type: 'SubsystemBlock',
+        graphJson: {
+          cells: [
+            {
+              position: {
+                x: -776,
+                y: -120,
+              },
+              size: {
+                width: 50,
+                height: 40,
+              },
+              attrs: {
+                text: {
+                  text: 'in',
+                },
+                body: {
+                  fill: '#fff',
+                  stroke: '#8f8f8f',
+                  strokeWidth: 1,
+                },
+              },
+              visible: true,
+              shape: 'circle',
+              id: '87e5c930-ce4e-48d0-a6f3-2b95633008ef',
+              data: { type: 'InPort' },
+              ports: {
+                items: [
+                  {
+                    id: 'port2',
+                    group: 'out',
+                  },
+                ],
+                groups: {
+                  out: {
+                    position: 'right',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                },
+              },
+              zIndex: 3,
+            },
+            {
+              position: {
+                x: -598,
+                y: -120,
+              },
+              size: {
+                width: 50,
+                height: 40,
+              },
+              attrs: {
+                text: {
+                  text: 'out',
+                },
+                body: {
+                  fill: '#fff',
+                  stroke: '#8f8f8f',
+                  strokeWidth: 1,
+                },
+              },
+              visible: true,
+              shape: 'circle',
+              id: '49fee7fd-2620-4efc-ac23-633af7ff5f96',
+              data: { type: 'OutPort' },
+              ports: {
+                items: [
+                  {
+                    id: 'port1',
+                    group: 'in',
+                  },
+                ],
+                groups: {
+                  in: {
+                    position: 'left',
+                    attrs: {
+                      circle: {
+                        r: 4,
+                        magnet: true,
+                        stroke: '#31d0c6',
+                        strokeWidth: 2,
+                      },
+                    },
+                  },
+                },
+              },
+              zIndex: 4,
+            },
+            {
+              shape: 'edge',
+              id: 'a682cc6c-68f1-45ee-9156-e5dd5fe7006a',
+              source: {
+                cell: '87e5c930-ce4e-48d0-a6f3-2b95633008ef',
+                port: 'port2',
+              },
+              target: {
+                cell: '49fee7fd-2620-4efc-ac23-633af7ff5f96',
+                port: 'port1',
+              },
+              zIndex: 5,
+            },
+          ],
+        },
+      },
+    })
+    const nn2 = graph.createNode({
+      shape: 'circle',
+      width: 50,
+      height: 40,
+      label: 'out',
+      attrs: commonAttrs,
+      data: { type: 'OutPort' },
+      ports: {
+        items: [
+          {
+            id: 'port1',
+            group: 'in',
+          },
+        ],
+        groups: {
+          in: {
+            position: 'left',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+        },
+      },
+    })
+    const nn = graph.createNode({
+      shape: 'circle',
+      width: 50,
+      height: 40,
+      label: 'in',
+      attrs: commonAttrs,
+      data: { type: 'InPort' },
+      ports: {
+        items: [
+          {
+            id: 'port2',
+            group: 'out',
+          },
+        ],
+        groups: {
+          out: {
+            position: 'right',
+            attrs: {
+              circle: {
+                r: 4,
+                magnet: true,
+                stroke: '#31d0c6',
+                strokeWidth: 2,
+              },
+            },
+          },
+        },
+      },
     })
     const n3 = graph.createNode({
-      shape: 'ellipse',
+      shape: 'circle',
       x: 280,
       y: 40,
       width: 80,
@@ -264,7 +300,7 @@ function createStencilService(stencilContainer: HTMLElement) {
       label: 'path',
     })
 
-    stencil.load([n1, n2], 'group1')
+    stencil.load([n1, n2, nn, nn2], 'group1')
     stencil.load([n3, n4], 'group2')
     stencilContainer.appendChild(stencil.container)
   }
@@ -298,6 +334,16 @@ function createStencilService(stencilContainer: HTMLElement) {
       placeholder: 'TO_BLOCK_NAME',
       stencilGraphPadding: 10,
       notFoundText: 'NOT FOUND',
+      getDropNode(node) {
+        const cloned = node.clone()
+        // 重新生成所有 port id，避免多个实例共享同一 portId
+        cloned.getPorts().forEach((port) => {
+          if (port.id) {
+            cloned.portProp(port.id, 'id', StringExt.uuid())
+          }
+        })
+        return cloned
+      },
       // layoutOptions: {
       //   columns,
       //   columnWidth: NODE_SIZE + NODE_GAP,
