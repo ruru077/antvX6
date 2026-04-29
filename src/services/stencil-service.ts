@@ -334,9 +334,8 @@ function createStencilService(stencilContainer: HTMLElement) {
       placeholder: 'TO_BLOCK_NAME',
       stencilGraphPadding: 10,
       notFoundText: 'NOT FOUND',
-      getDropNode(node) {
+      getDragNode(node) {
         const cloned = node.clone()
-        // 重新生成所有 port id，避免多个实例共享同一 portId
         cloned.getPorts().forEach((port) => {
           if (port.id) {
             cloned.portProp(port.id, 'id', StringExt.uuid())

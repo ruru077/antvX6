@@ -2,7 +2,7 @@ import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import './PaperToolbar.scss'
+import '@/styles/PaperToolbar.scss'
 
 type PaperToolbarProps = {
   modelName?: string
@@ -79,9 +79,9 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
     (state) => state.exportEntryGraphModel,
   )
   const syncGraph = useSubGraphStore((state) => state.syncGraph)
-  const exportGraphModelDTO = useSubGraphStore(
-    (state) => state.exportGraphModelDTO,
-  )
+  // const exportGraphModelDTO = useSubGraphStore(
+  //   (state) => state.exportGraphModelDTO,
+  // )
   return (
     <div className="paper-toolbar-inner">
       {/* 返回按钮 */}
@@ -108,8 +108,6 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
         <button
           className="pt-btn"
           onClick={() => {
-            if (!graph)
-              throw new Error('❌[PaperToolbar.tsx line:108]Graph为空')
             syncGraph(graph.toJSON())
             console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
           }}
@@ -131,10 +129,8 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
         <button
           className="pt-btn"
           onClick={() => {
-            if (!graph)
-              throw new Error('❌[PaperToolbar.tsx line:108]Graph为空')
             syncGraph(graph.toJSON())
-            console.log(JSON.stringify(exportGraphModelDTO(), null, 2))
+            // console.log(JSON.stringify(exportGraphModelDTO(), null, 2))
           }}
         >
           <svg
@@ -200,4 +196,4 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
   )
 }
 
-export default PaperToolbar
+export { PaperToolbar }

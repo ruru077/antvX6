@@ -1,5 +1,5 @@
 import { Tooltip } from 'antd'
-import './CanvasLeftToolbar.scss'
+import '@/styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
   navPanelVisible: boolean
@@ -89,4 +89,4 @@ function CanvasLeftToolbar({
   )
 }
 
-export default CanvasLeftToolbar
+export { CanvasLeftToolbar }

@@ -1,5 +1,5 @@
 import { useSubGraphStore } from '@/store/subGraphStore'
-import './SubsystemNavBar.scss'
+import '@/styles/SubsystemNavBar.scss'
 
 type SubsystemNavBarProps = {
   visible: boolean
@@ -38,4 +38,4 @@ function SubsystemNavBar({ visible }: SubsystemNavBarProps) {
   )
 }
 
-export default SubsystemNavBar
+export { SubsystemNavBar }

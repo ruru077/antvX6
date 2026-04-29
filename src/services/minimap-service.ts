@@ -1,6 +1,6 @@
 import { Graph, MiniMap } from '@antv/x6'
 
-export function createMinimapService() {
+function createMinimapService() {
   let minimap: MiniMap | undefined
   let resizeObserver: ResizeObserver | undefined
   let graph: Graph | undefined
@@ -47,3 +47,4 @@ export function createMinimapService() {
     dispose,
   }
 }
+export { createMinimapService }

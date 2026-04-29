@@ -1,16 +1,18 @@
-import type { Cell, Graph, History, Node } from '@antv/x6'
+import type { History } from '@antv/x6'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 /**
  * 图形编辑器事件监听 hook
- * @param graph - Graph 实例
+ * graph 直接从 store 订阅，无需外部传参
  */
-export function useGraphListener(graph: Graph | null) {
-  const syncGraph = useSubGraphStore((s) => s.syncGraph)
+
+function useGraphListener() {
+  const graph = useGraphStore((s) => s.graph)
   const syncSubGraph = useSubGraphStore((s) => s.syncSubGraph)
   const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
   const setPasteTarget = useGraphStore((s) => s.setPasteTarget)
+
   useEffect(() => {
     if (!graph) return
 
@@ -43,28 +45,41 @@ export function useGraphListener(graph: Graph | null) {
       setPasteTarget({ x, y })
     })
 
-    graph.on('history:change', ({ cmds }) => {
+    graph.on('history:change', () => {
       const history = graph.getPlugin<History>('history')
       if (!history) return
       console.log(history['undoStack'])
     })
 
-    graph.on('cell:selected', ({ cell }) => {
-      if (cell.isNode())
-        cell.attr('body/filter', {
-          name: 'outline',
-          args: { color: '#239edd', width: 2, margin: 0 },
-        })
-    })
+    // graph.on('cell:unselected', ({ cell }) => {
+    //   if (cell.isNode()) cell.removeAttrs('body/filter')
+    // })
 
-    graph.on('cell:unselected', ({ cell }) => {
-      if (cell.isNode()) cell.removeAttrs('body/filter')
-    })
-
-    graph.on('cell:click', ({ cell, view, x, y }) => {
+    graph.on('cell:click', ({ cell, x, y }) => {
       // #3.2 cell点击，修改粘贴目标位置
       setPasteTarget({ x, y })
-      console.log(cell, x, y)
+      if (cell.isNode()) {
+        cell.attr('body/filter', {
+          name: 'outline',
+          args: { color: '#77caeb', width: 2, margin: 0 },
+        })
+      } else if (cell.isEdge()) {
+        cell.attr('line/filter', {
+          name: 'outline',
+          args: { color: '#77caeb', width: 2, margin: 0 },
+        })
+      }
     })
+
+    return () => {
+      graph.off('node:dblclick')
+      graph.off('node:added')
+      graph.off('node:removed')
+      graph.off('blank:click')
+      graph.off('history:change')
+      graph.off('cell:click')
+    }
   }, [graph, syncSubGraph, changeGraphView, setPasteTarget])
 }
+
+export { useGraphListener }

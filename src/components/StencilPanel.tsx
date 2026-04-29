@@ -2,7 +2,7 @@ import { type Graph } from '@antv/x6'
 import { Tooltip } from 'antd'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
-import './StencilPanel.scss'
+import '@/styles/StencilPanel.scss'
 
 type StencilPanelProps = Record<string, never>
 
@@ -122,4 +122,4 @@ function StencilPanel(_props: StencilPanelProps) {
   )
 }
 
-export default StencilPanel
+export { StencilPanel }

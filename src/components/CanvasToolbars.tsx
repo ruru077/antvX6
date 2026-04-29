@@ -3,7 +3,7 @@ import { Dropdown } from 'antd'
 import { Tooltip } from 'antd'
 import { createMinimapService } from '@/services/minimap-service'
 import { useGraphStore } from '@/store/graphStore'
-import './CanvasToolbars.scss'
+import '@/styles/CanvasToolbars.scss'
 
 type CanvasToolbarsProps = {
   visible: boolean
@@ -13,8 +13,6 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
   const graph = useGraphStore((s) => s.graph)
   const zoom = useGraphStore((s) => s.zoom)
   const getExportViewBox = () => {
-    if (!graph) return null
-
     const bbox = graph.getContentBBox()
     const padding = 16
     return {
@@ -34,8 +32,6 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
     })
   const handleCenter = () => graph?.centerContent()
   const handleExportSVG = () => {
-    if (!graph) return
-
     graph.exportSVG('diagram', {
       copyStyles: false,
       preserveDimensions: true,
@@ -239,4 +235,4 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
   )
 }
 
-export default CanvasToolbars
+export { CanvasToolbars }
