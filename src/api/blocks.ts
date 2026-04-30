@@ -1,35 +1,6 @@
-import type { CellAttrs } from '@antv/x6'
-import type {
-  PortMetadata as PortItemMetadata,
-  Metadata as PortMetadata,
-} from '@antv/x6/es/model/port'
+import type { BlockResponse, ParsedBlock } from '~/types/vo/block'
 
-export interface BlockDefinition {
-  id: number
-  type: string
-  data: string
-  markup: string
-  icon: string
-}
-
-export interface ParsedBlockData {
-  type: string
-  defaults: Record<string, unknown>
-  protoProps: {
-    markup: Array<{
-      tagName: string
-      selector: string
-    }>
-  }
-}
-
-export interface ParsedMarkupData {
-  type: string
-  attrs: CellAttrs
-  ports: Partial<PortMetadata> | PortItemMetadata[]
-}
-
-export async function fetchBlocks(): Promise<BlockDefinition[]> {
+async function fetchBlocks(): Promise<BlockResponse[]> {
   try {
     const response = await fetch('http://localhost:8080/blocks')
     if (!response.ok) {
@@ -42,10 +13,8 @@ export async function fetchBlocks(): Promise<BlockDefinition[]> {
   }
 }
 
-export function parseBlockData(dataStr: string): ParsedBlockData {
-  return JSON.parse(dataStr)
+function parseBlock(blockVo: string): ParsedBlock {
+  return JSON.parse(blockVo)
 }
 
-export function parseMarkupData(markupStr: string): ParsedMarkupData {
-  return JSON.parse(markupStr)
-}
+export { fetchBlocks, parseBlock }
