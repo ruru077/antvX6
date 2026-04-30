@@ -60,6 +60,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       },
       grid: { visible: true, size: 10, type: 'dot' },
       mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'] },
+      panning: false,
       virtual: true,
     })
 

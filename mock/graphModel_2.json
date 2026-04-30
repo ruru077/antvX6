@@ -1,0 +1,381 @@
+{
+  "currentGraphId": "root",
+  "rootId": "root",
+  "subGraphs": {
+    "root": {
+      "id": "root",
+      "name": "root",
+      "deep": 0,
+      "parentId": null,
+      "childrenIds": ["366618f1-36b9-4c02-a528-78291ab41521"],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -610,
+              "y": -50
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "Subsystem"
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "366618f1-36b9-4c02-a528-78291ab41521",
+            "data": {
+              "type": "SubsystemBlock",
+              "graphJson": {
+                "cells": [
+                  {
+                    "position": {
+                      "x": -776,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "in"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                    "data": {
+                      "type": "InPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port2",
+                          "group": "out"
+                        }
+                      ],
+                      "groups": {
+                        "out": {
+                          "position": "right",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 3
+                  },
+                  {
+                    "position": {
+                      "x": -598,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "out"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                    "data": {
+                      "type": "OutPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port1",
+                          "group": "in"
+                        }
+                      ],
+                      "groups": {
+                        "in": {
+                          "position": "left",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 4
+                  },
+                  {
+                    "shape": "edge",
+                    "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+                    "source": {
+                      "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                      "port": "port2"
+                    },
+                    "target": {
+                      "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                      "port": "port1"
+                    },
+                    "zIndex": 5
+                  }
+                ]
+              }
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "732efae6-3b4b-41f2-88e9-b7953f5376e7",
+                  "group": "in"
+                },
+                {
+                  "id": "42d6fb72-af16-429c-9dc9-3dc9ea26b2e9",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 1
+          },
+          {
+            "position": {
+              "x": -260,
+              "y": -40
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "rect"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "black",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "9e83fde9-bfce-4465-b34a-c4225eeabf2b",
+            "ports": {
+              "items": [
+                {
+                  "group": "in",
+                  "id": "ace5cfcc-790a-4c75-9764-93c824588bb2"
+                },
+                {
+                  "group": "out",
+                  "id": "c5dc77dc-044b-4e71-bcd4-36b5be52c3e5"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 2
+          },
+          {
+            "shape": "edge",
+            "id": "e4b8d8e6-d0d6-4d70-8c9e-d759b292e92b",
+            "source": {
+              "cell": "366618f1-36b9-4c02-a528-78291ab41521",
+              "port": "42d6fb72-af16-429c-9dc9-3dc9ea26b2e9"
+            },
+            "target": {
+              "cell": "9e83fde9-bfce-4465-b34a-c4225eeabf2b",
+              "port": "ace5cfcc-790a-4c75-9764-93c824588bb2"
+            },
+            "zIndex": 3
+          }
+        ]
+      }
+    },
+    "366618f1-36b9-4c02-a528-78291ab41521": {
+      "id": "366618f1-36b9-4c02-a528-78291ab41521",
+      "name": "Subsystem",
+      "deep": 1,
+      "parentId": "root",
+      "childrenIds": [],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -776,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "in"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+            "data": {
+              "type": "InPort"
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "port2",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 3
+          },
+          {
+            "position": {
+              "x": -598,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "out"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+            "data": {
+              "type": "OutPort"
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "port1",
+                  "group": "in"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 4
+          },
+          {
+            "shape": "edge",
+            "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+            "source": {
+              "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+              "port": "port2"
+            },
+            "target": {
+              "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+              "port": "port1"
+            },
+            "zIndex": 5
+          }
+        ]
+      }
+    }
+  }
+}

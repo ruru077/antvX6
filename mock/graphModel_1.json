@@ -1,0 +1,169 @@
+{
+  "currentGraphId": "root",
+  "rootId": "root",
+  "subGraphs": {
+    "root": {
+      "id": "root",
+      "name": "root",
+      "deep": 0,
+      "parentId": null,
+      "childrenIds": [],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -740,
+              "y": -70
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "rect"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "black",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "97ff6be0-b532-4dbb-b267-08683d496a40",
+            "ports": {
+              "items": [
+                {
+                  "group": "in",
+                  "id": "e36128e1-6b4f-40ce-98e4-d4102f88b4e3"
+                },
+                {
+                  "group": "out",
+                  "id": "3b892b27-e52a-4cd1-8c33-1bab146ad7c4"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 1
+          },
+          {
+            "position": {
+              "x": -490,
+              "y": 20
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "rect"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "black",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "fb3ea620-7c99-46e7-b776-4e1c3a7dd6ff",
+            "ports": {
+              "items": [
+                {
+                  "group": "in",
+                  "id": "0e1a2099-d647-4b6c-b02e-5d2cdef6f961"
+                },
+                {
+                  "group": "out",
+                  "id": "b5eebe0d-b7f5-4e0e-bf9d-8836ab01af6b"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 2
+          },
+          {
+            "shape": "edge",
+            "attrs": {
+              "line": {
+                "filter": {
+                  "name": "outline",
+                  "args": {
+                    "color": "#77caeb",
+                    "width": 2,
+                    "margin": 0
+                  },
+                  "attrs": {
+                    "filterUnits": "userSpaceOnUse",
+                    "x": -9999,
+                    "y": -9999,
+                    "width": 19998,
+                    "height": 19998
+                  }
+                }
+              }
+            },
+            "id": "286788ee-941d-4432-a1e6-127f563c584c",
+            "source": {
+              "cell": "97ff6be0-b532-4dbb-b267-08683d496a40",
+              "port": "3b892b27-e52a-4cd1-8c33-1bab146ad7c4"
+            },
+            "target": {
+              "cell": "fb3ea620-7c99-46e7-b776-4e1c3a7dd6ff",
+              "port": "0e1a2099-d647-4b6c-b02e-5d2cdef6f961"
+            },
+            "zIndex": 3
+          }
+        ]
+      }
+    }
+  }
+}
