@@ -28,7 +28,7 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
   const handleFit = () =>
     graph?.zoomToFit({
       padding: 16,
-      useCellGeometry: false, // TODO 2期
+      useCellGeometry: true,
     })
   const handleCenter = () => graph?.centerContent()
   const handleExportSVG = () => {

@@ -46,14 +46,15 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           args: {
             step: 15,
             padding: 30,
-            draggingRouter: function (_from, _to, options) {
-              return routerPresets.orth.call(
-                this,
-                [],
-                { padding: options.padding },
-                this,
-              )
-            },
+            // TODO: draggingRouter 稳定性
+            // draggingRouter: function (_from, _to, options) {
+            //   return routerPresets.orth.call(
+            //     this,
+            //     [],
+            //     { padding: options.padding },
+            //     this,
+            //   )
+            // },
           },
         },
         connector: { name: 'rounded', args: { radius: 8 } },
@@ -117,6 +118,9 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         pageHeight: 400,
         pageBreak: true,
         pageVisible: true,
+        autoResizeOptions: {
+          useCellGeometry: false,
+        },
       }),
     )
     graph.use(
