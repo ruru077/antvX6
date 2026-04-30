@@ -64,9 +64,18 @@ function useGraphListener() {
           args: { color: '#77caeb', width: 2, margin: 0 },
         })
       } else if (cell.isEdge()) {
+        // fix objectBoundingBox 在垂直时 link-height=0 导致filter失效的问题
+        // TODO : 假设用户的画布坐标超过 (-9999, -9999) ~ (9999, 9999)
         cell.attr('line/filter', {
           name: 'outline',
           args: { color: '#77caeb', width: 2, margin: 0 },
+          attrs: {
+            filterUnits: 'userSpaceOnUse',
+            x: -9999,
+            y: -9999,
+            width: 19998, //(-9999) 到 (+9999)
+            height: 19998,
+          },
         })
       }
     })
