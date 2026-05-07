@@ -24,7 +24,7 @@ function useScrollListener(containerRef: RefObject<HTMLElement | null>) {
       if (timer) clearTimeout(timer)
       scrollerEl.removeEventListener('scroll', onScroll)
     }
-  }, [])
+  }, [containerRef])
 }
 
 export { useScrollListener }

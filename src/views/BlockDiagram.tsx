@@ -48,7 +48,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
           />
           <div className="diagram-canvas-right">
             {/* 子系统导航栏 */}
-            <SubsystemNavBar visible={navPanelVisible} />
+            {navPanelVisible && <SubsystemNavBar />}
             <div className="paper-container">
               <div ref={paperContainerRef} className="paper"></div>
               {/* 悬浮工具栏 */}

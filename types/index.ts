@@ -3,3 +3,9 @@
  */
 export type { GraphModelDTO } from './dto/graphModel'
 export type { BlockResponse, ParsedBlock } from './vo/block'
+export type {
+  EntryGraphModel,
+  GraphJSON,
+  SubGraphItem,
+  SubGraphMap,
+} from './common/subGraph'
