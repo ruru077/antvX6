@@ -27,6 +27,8 @@ interface GraphStore {
   destroyGraph: () => void
   setZoom: (zoom: number) => void
   setPasteTarget: (pos: { x: number; y: number } | null) => void
+  /** 长按允许粘贴一次  */
+  firstTimePaste: boolean
 }
 
 const useGraphStore = create<GraphStore>((set, get) => ({
@@ -34,6 +36,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
   graph: null as unknown as GraphType,
   zoom: 100,
   pasteTarget: null,
+  firstTimePaste: true,
 
   initGraph: (container) => {
     const graph = new Graph({
@@ -59,7 +62,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         },
         connector: { name: 'rounded', args: { radius: 8 } },
       },
-      grid: { visible: true, size: 10, type: 'dot' },
+      grid: { visible: false, size: 10, type: 'dot' },
       mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'] },
       panning: false,
       virtual: true,
@@ -148,6 +151,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       return false
     })
     graph.bindKey(['ctrl+v', 'meta+v'], () => {
+      if (!get().firstTimePaste) return false
       if (!graph.isClipboardEmpty()) {
         const { pasteTarget, setPasteTarget } = get()
         let cells
@@ -166,9 +170,18 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           cells = graph.paste({ offset: 32 })
         }
         graph.resetSelection(cells)
+        set({ firstTimePaste: false })
       }
       return false
     })
+    graph.bindKey(
+      ['ctrl+v', 'meta+v'],
+      () => {
+        set({ firstTimePaste: true })
+        return false
+      },
+      'keyup',
+    )
     graph.bindKey(['ctrl+x', 'meta+x'], () => {
       const cells = graph.getSelectedCells()
       if (cells.length) {
