@@ -17,6 +17,9 @@ importers:
       antd:
         specifier: ^6.3.6
         version: 6.3.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      liquid-glass-react:
+        specifier: ^1.1.1
+        version: 1.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -1680,6 +1683,12 @@ packages:
     resolution: {integrity: sha512-lBWt8hujh/Cjysw5GYVmZpFHXDCgZzhrOm8vbcUdobADZNOK/bRshr2kM3DfgrrtR1DQhfupW9gnIXOfiFi+bw==}
     engines: {node: '>=20.17'}
     hasBin: true
+
+  liquid-glass-react@1.1.1:
+    resolution: {integrity: sha512-pKzaktaMAEztd93wpWcz2Z5Z9qdLJUNJdMX+n00Ca4XsnrLTQ5xJzm/+GQXZUeuFXe/PQ8ziVMZO6531PyaFJw==}
+    peerDependencies:
+      react: '>=19'
+      react-dom: '>=19'
 
   listr2@9.0.5:
     resolution: {integrity: sha512-ME4Fb83LgEgwNw96RKNvKV4VTLuXfoKudAmm2lP8Kk87KaMK0/Xrx/aAkMWmT8mDb+3MlFDspfbCs7adjRxA2g==}
@@ -3893,6 +3902,11 @@ snapshots:
       string-argv: 0.3.2
       tinyexec: 1.0.4
       yaml: 2.8.3
+
+  liquid-glass-react@1.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   listr2@9.0.5:
     dependencies:

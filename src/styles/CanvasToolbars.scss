@@ -25,7 +25,6 @@ $radius-2xl: 24px;
   }
 
   &:hover {
-    background: $primary-color-hover;
     color: $primary-color;
   }
 
@@ -34,27 +33,29 @@ $radius-2xl: 24px;
   }
 }
 
-.canvas-float-toolbar {
+.canvas-toolbar-pos {
   position: absolute;
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 10px;
-  background: #ffffff;
-  border: 1px solid #ebebeb;
-  border-radius: $radius-2xl;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   transition: opacity 0.24s ease, transform 0.24s ease;
+
+  .glass {
+    box-shadow: rgb(139 139 139 / 25%) 0px 12px 40px !important;
+  }
 
   &.is-hidden {
     opacity: 0;
     pointer-events: none;
     transform: translateX(-50%) translateY(10px);
   }
+}
+
+.canvas-float-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 
   .toolbar-btn {
     @extend %toolbar-btn;

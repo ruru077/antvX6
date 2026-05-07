@@ -15,6 +15,7 @@
     "@ant-design/icons": "~6.1.1",
     "@antv/x6": "^3.1.7",
     "antd": "^6.3.6",
+    "liquid-glass-react": "^1.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-intl-universal": "^2.13.4",
