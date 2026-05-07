@@ -6,8 +6,8 @@ import {
   SubsystemNavBar,
 } from '@/components'
 import { useGraphListener } from '@/hooks/useGraphListener'
+import { useScrollListener } from '@/hooks/useScrollListener'
 import { useGraphStore } from '@/store/graphStore'
-import { useSubGraphStore } from '@/store/subGraphStore'
 import '@/styles/BlockDiagram.spoced.scss'
 
 /**
@@ -19,11 +19,15 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
   useGraphListener()
+  useScrollListener(paperContainerRef)
   useEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
     initGraph(paperContainerRef.current)
-    return destroyGraph
+
+    return () => {
+      destroyGraph()
+    }
   }, [])
   return (
     <div className="diagram-wrapper">

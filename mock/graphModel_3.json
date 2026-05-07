@@ -1,0 +1,679 @@
+{
+  "currentGraphId": "bff0ec52-a07f-4687-b289-9975dcdb6f6d",
+  "rootId": "root",
+  "subGraphs": {
+    "root": {
+      "id": "root",
+      "name": "root",
+      "deep": 0,
+      "parentId": null,
+      "childrenIds": ["bff0ec52-a07f-4687-b289-9975dcdb6f6d"],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -240,
+              "y": -140
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "Subsystem"
+              },
+              "body": {
+                "filter": {
+                  "name": "outline",
+                  "args": {
+                    "color": "#77caeb",
+                    "width": 2,
+                    "margin": 0
+                  }
+                }
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "bff0ec52-a07f-4687-b289-9975dcdb6f6d",
+            "data": {
+              "type": "SubsystemBlock",
+              "graphJson": {
+                "cells": [
+                  {
+                    "position": {
+                      "x": -776,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "in"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                    "data": {
+                      "type": "InPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port2",
+                          "group": "out"
+                        }
+                      ],
+                      "groups": {
+                        "out": {
+                          "position": "right",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 3
+                  },
+                  {
+                    "position": {
+                      "x": -598,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "out"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                    "data": {
+                      "type": "OutPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port1",
+                          "group": "in"
+                        }
+                      ],
+                      "groups": {
+                        "in": {
+                          "position": "left",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 4
+                  },
+                  {
+                    "shape": "edge",
+                    "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+                    "source": {
+                      "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                      "port": "port2"
+                    },
+                    "target": {
+                      "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                      "port": "port1"
+                    },
+                    "zIndex": 5
+                  }
+                ]
+              }
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "0e6e080e-2238-496f-9902-f9922f1e6a03",
+                  "group": "in"
+                },
+                {
+                  "id": "c35e99f3-02b5-428b-853c-4a8009683347",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 1
+          },
+          {
+            "position": {
+              "x": -210,
+              "y": 0
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "rect"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "black",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "76861677-015d-4ce7-8367-c2fea04c22aa",
+            "ports": {
+              "items": [
+                {
+                  "group": "in",
+                  "id": "2b5f73db-5419-4b85-97c6-2f50e891faa5"
+                },
+                {
+                  "group": "out",
+                  "id": "5a601425-76b6-479e-9b85-693b44833207"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            },
+            "zIndex": 2
+          }
+        ]
+      }
+    },
+    "bff0ec52-a07f-4687-b289-9975dcdb6f6d": {
+      "id": "bff0ec52-a07f-4687-b289-9975dcdb6f6d",
+      "name": "Subsystem",
+      "deep": 1,
+      "parentId": "root",
+      "childrenIds": ["18bad986-91a6-4f2c-9638-f2a44d84b9e1"],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -776,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "in"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+            "data": {
+              "type": "InPort"
+            },
+            "zIndex": 3,
+            "ports": {
+              "items": [
+                {
+                  "id": "port2",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": -598,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "out"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+            "data": {
+              "type": "OutPort"
+            },
+            "zIndex": 4,
+            "ports": {
+              "items": [
+                {
+                  "id": "port1",
+                  "group": "in"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "shape": "edge",
+            "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+            "zIndex": 5,
+            "source": {
+              "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+              "port": "port2"
+            },
+            "target": {
+              "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+              "port": "port1"
+            }
+          },
+          {
+            "position": {
+              "x": -510,
+              "y": -250
+            },
+            "size": {
+              "width": 80,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "Subsystem"
+              },
+              "body": {
+                "filter": {
+                  "name": "outline",
+                  "args": {
+                    "color": "#77caeb",
+                    "width": 2,
+                    "margin": 0
+                  }
+                }
+              }
+            },
+            "visible": true,
+            "shape": "rect",
+            "id": "18bad986-91a6-4f2c-9638-f2a44d84b9e1",
+            "data": {
+              "type": "SubsystemBlock",
+              "graphJson": {
+                "cells": [
+                  {
+                    "position": {
+                      "x": -776,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "in"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                    "data": {
+                      "type": "InPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port2",
+                          "group": "out"
+                        }
+                      ],
+                      "groups": {
+                        "out": {
+                          "position": "right",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 3
+                  },
+                  {
+                    "position": {
+                      "x": -598,
+                      "y": -120
+                    },
+                    "size": {
+                      "width": 50,
+                      "height": 40
+                    },
+                    "attrs": {
+                      "text": {
+                        "text": "out"
+                      },
+                      "body": {
+                        "fill": "#fff",
+                        "stroke": "#8f8f8f",
+                        "strokeWidth": 1
+                      }
+                    },
+                    "visible": true,
+                    "shape": "circle",
+                    "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                    "data": {
+                      "type": "OutPort"
+                    },
+                    "ports": {
+                      "items": [
+                        {
+                          "id": "port1",
+                          "group": "in"
+                        }
+                      ],
+                      "groups": {
+                        "in": {
+                          "position": "left",
+                          "attrs": {
+                            "circle": {
+                              "r": 4,
+                              "magnet": true,
+                              "stroke": "#31d0c6",
+                              "strokeWidth": 2
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "zIndex": 4
+                  },
+                  {
+                    "shape": "edge",
+                    "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+                    "source": {
+                      "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+                      "port": "port2"
+                    },
+                    "target": {
+                      "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+                      "port": "port1"
+                    },
+                    "zIndex": 5
+                  }
+                ]
+              }
+            },
+            "zIndex": 6,
+            "ports": {
+              "items": [
+                {
+                  "id": "93f514ad-8bc2-4070-bd1f-3549dc8d9b5c",
+                  "group": "in"
+                },
+                {
+                  "id": "335d9c7c-cdcb-4d9f-a601-973a296e028b",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                },
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "18bad986-91a6-4f2c-9638-f2a44d84b9e1": {
+      "id": "18bad986-91a6-4f2c-9638-f2a44d84b9e1",
+      "name": "Subsystem",
+      "deep": 2,
+      "parentId": "bff0ec52-a07f-4687-b289-9975dcdb6f6d",
+      "childrenIds": [],
+      "graphJson": {
+        "cells": [
+          {
+            "position": {
+              "x": -776,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "in"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+            "data": {
+              "type": "InPort"
+            },
+            "zIndex": 3,
+            "ports": {
+              "items": [
+                {
+                  "id": "port2",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "out": {
+                  "position": "right",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "position": {
+              "x": -598,
+              "y": -120
+            },
+            "size": {
+              "width": 50,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "out"
+              },
+              "body": {
+                "fill": "#fff",
+                "stroke": "#8f8f8f",
+                "strokeWidth": 1
+              }
+            },
+            "visible": true,
+            "shape": "circle",
+            "id": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+            "data": {
+              "type": "OutPort"
+            },
+            "zIndex": 4,
+            "ports": {
+              "items": [
+                {
+                  "id": "port1",
+                  "group": "in"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "position": "left",
+                  "attrs": {
+                    "circle": {
+                      "r": 4,
+                      "magnet": true,
+                      "stroke": "#31d0c6",
+                      "strokeWidth": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "shape": "edge",
+            "id": "a682cc6c-68f1-45ee-9156-e5dd5fe7006a",
+            "zIndex": 5,
+            "source": {
+              "cell": "87e5c930-ce4e-48d0-a6f3-2b95633008ef",
+              "port": "port2"
+            },
+            "target": {
+              "cell": "49fee7fd-2620-4efc-ac23-633af7ff5f96",
+              "port": "port1"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
