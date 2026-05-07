@@ -19,7 +19,6 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
   useGraphListener()
-  useScrollListener(paperContainerRef)
   useEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
@@ -29,6 +28,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
       destroyGraph()
     }
   }, [])
+  useScrollListener(paperContainerRef)
   return (
     <div className="diagram-wrapper">
       <StencilPanel />
