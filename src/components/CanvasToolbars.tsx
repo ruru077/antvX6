@@ -28,7 +28,7 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
   const handleFit = () =>
     graph?.zoomToFit({
       padding: 16,
-      useCellGeometry: true,
+      useCellGeometry: false,
     })
   const handleCenter = () => graph?.centerContent()
   const handleExportSVG = () => {
