@@ -114,8 +114,8 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       new Scroller({
         enabled: true,
         pannable: true,
-        pageWidth: 400,
-        pageHeight: 400,
+        pageWidth: 3000,
+        pageHeight: 2000,
         pageBreak: true,
         pageVisible: true,
         autoResizeOptions: {
@@ -198,8 +198,8 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       graph.redo()
       return false
     })
-
-    graph.centerContent()
+    const scroller = graph.getPlugin<Scroller>('scroller')
+    scroller!.centerPoint(1500, 1000)
     openAutoPan(graph)
     set({ graph })
   },
