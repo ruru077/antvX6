@@ -42,8 +42,15 @@ const useGraphStore = create<GraphStore>((set, get) => ({
     const graph = new Graph({
       container,
       autoResize: true,
-      background: { color: '#F2F7FA' },
       connecting: {
+        allowNode: false, //是否允许连接到Block本体上
+        allowEdge: false, //是否允许连接到连线上
+        allowMulti: true, //是否允许多条相同的source target
+        allowLoop: false, //是否允许自连接
+        snap: {
+          radius: 20,
+          anchor: 'bbox',
+        },
         router: {
           name: 'manhattan',
           args: {
@@ -62,8 +69,16 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         },
         connector: { name: 'rounded', args: { radius: 8 } },
       },
-      grid: { visible: false, size: 10, type: 'dot' },
-      mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'] },
+      grid: { visible: true, size: 15, type: 'dot' },
+      scaling: { min: 0.5, max: 5 },
+      // 🧪BUG: 框架内置 mousewheel 参数过大会导致页面闪烁
+      mousewheel: {
+        enabled: true,
+        modifiers: ['ctrl', 'meta'],
+        factor: 1.1,
+        minScale: 0.5,
+        maxScale: 5,
+      },
       panning: false,
       virtual: true,
     })
@@ -117,9 +132,9 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       new Scroller({
         enabled: true,
         pannable: true,
-        pageWidth: 3000,
-        pageHeight: 2000,
-        pageBreak: true,
+        pageWidth: 1000,
+        pageHeight: 1000,
+        pageBreak: false,
         pageVisible: true,
         autoResizeOptions: {
           useCellGeometry: false,

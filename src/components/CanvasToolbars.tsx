@@ -109,10 +109,12 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
         mode="prominent"
         style={{
           position: 'absolute',
-          bottom: '14px',
+          top: 'calc(100% - 40px)',
           left: '50%',
+          zIndex: 10,
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
+          transition: 'opacity 0.24s ease',
         }}
       >
         <div className="canvas-float-toolbar">
@@ -244,6 +246,7 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
           </Tooltip>
         </div>
       </LiquidGlass>
+
       <div
         ref={minimapContainerRef}
         className={`canvas-minimap${minimapVisible ? ' is-visible' : ''}`}
