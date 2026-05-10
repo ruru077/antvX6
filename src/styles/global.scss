@@ -66,3 +66,52 @@ $radius-2xl: 24px;
   overflow: hidden;
   background-color: $app-main-bg;
 }
+
+/* --- X6 Selection Action Bar  --- */
+.x6-widget-selection-content {
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+  background-color: transparent;
+}
+
+.x6-selection-action-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: #333;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background: #e6f4ff;
+      color: #1677ff;
+    }
+
+    &:active {
+      background: #bae0ff;
+    }
+  }
+}

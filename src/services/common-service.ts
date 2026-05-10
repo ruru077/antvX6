@@ -1,4 +1,4 @@
-import type { Edge, Node } from '@antv/x6'
+import type { Cell, Edge, Node } from '@antv/x6'
 
 type UnconnectedPortInfo = {
   nodeId: string
@@ -81,9 +81,42 @@ function createCommonService() {
     return { unconnectedInPorts, unconnectedOutPorts }
   }
 
+  function addOutline(cell: Cell) {
+    if (cell.isNode()) {
+      cell.attr(
+        'body/filter',
+        { name: 'outline', args: { color: '#77caeb', width: 2, margin: 0 } },
+        { undo: false },
+      )
+    } else if (cell.isEdge()) {
+      cell.attr(
+        'line/filter',
+        {
+          name: 'outline',
+          args: { color: '#77caeb', width: 2, margin: 0 },
+          attrs: {
+            filterUnits: 'userSpaceOnUse',
+            x: -9999,
+            y: -9999,
+            width: 19998,
+            height: 19998,
+          },
+        },
+        { undo: false },
+      )
+    }
+  }
+
+  function removeOutline(cell: Cell) {
+    if (cell.isNode()) cell.attr('body/filter', null, { undo: false })
+    else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
+  }
+
   return {
     resize,
     getUnconnectedPorts,
+    addOutline,
+    removeOutline,
   }
 }
 

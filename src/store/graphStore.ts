@@ -96,34 +96,32 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         enabled: true,
         multiple: true,
         rubberband: true,
+        rubberEdge: true,
         showNodeSelectionBox: true,
+        showEdgeSelectionBox: true,
+        movingRouterFallback: 'orth',
         modifiers: 'shift',
         content(_selection, el) {
-          const btn = document.createElement('button')
-          btn.className = 'btn-create-subsystem'
-          Object.assign(btn.style, {
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '4px 12px',
-            background: '#1890ff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'auto',
-          })
-          btn.textContent = '转为子系统'
-          btn.onmousedown = (e) => e.stopPropagation()
-          btn.onclick = (e) => {
+          el.innerHTML = `
+            <div class="x6-selection-action-bar">
+              <button class="x6-selection-action-bar__btn" data-action="create-subsystem" title="创建子系统">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <rect x="1" y="1" width="14" height="14" rx="2"/>
+                  <path d="M5 8h6M8 5v6"/>
+                </svg>
+                <span>创建子系统</span>
+              </button>
+            </div>
+          `
+          const btn = el.querySelector<HTMLElement>(
+            '[data-action="create-subsystem"]',
+          )!
+          btn.addEventListener('mousedown', (e) => e.stopPropagation())
+          btn.addEventListener('click', (e) => {
             e.stopPropagation()
-            const cells = graph.getSelectedCells() as Node[]
+            const cells = graph.getSelectedCells()
             useSubGraphStore.getState().mergeToSubsystem(cells)
-          }
-          el.innerHTML = ''
-          el.appendChild(btn)
+          })
           return ''
         },
       }),
@@ -156,7 +154,15 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       }),
     )
     graph.use(new Clipboard({ enabled: true, useLocalStorage: true }))
-    graph.use(new History({ enabled: true }))
+    graph.use(
+      new History({
+        enabled: true,
+        beforeAddCommand(_event, args) {
+          if (!args) return
+          if ('options' in args && args.options?.undo === false) return false
+        },
+      }),
+    )
     graph.use(new Keyboard({ enabled: true }))
 
     // ── 快捷键 ───────────────────────────────────────────────────

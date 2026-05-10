@@ -134,7 +134,7 @@ function SubsystemNavBar() {
       <Drawer
         title="全部系统层级"
         placement="bottom"
-        size="22vw"
+        size="35vh"
         open={drawerOpen}
         onClose={() => {
           setDrawerOpen(false)
