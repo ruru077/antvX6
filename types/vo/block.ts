@@ -1,54 +1,30 @@
-import type { CellAttrs } from '@antv/x6'
+import type { NodeMetadata } from '@antv/x6'
 
+/**
+ * @id 数据库中 Block 的唯一标识
+ * @libraryId Block 所属库的 id
+ * @icon 图标img base64
+ * @antvBlock Block 元数据，JSON 字符串格式
+ */
 interface BlockResponse {
-  antvBlock: string
-  icon: string
+  id: number
   libraryId: number
-  userId: string
+  icon: string
+  antvBlock: string
 }
 
-interface BlockMarkupItem {
-  tagName: string
-  selector: string
-  attrs?: Record<string, unknown>
-}
-
-interface BlockPortItem {
-  id: string
-  group: string
-}
-
-interface BlockPortGroup {
-  markup?: BlockMarkupItem[]
-  z?: number
-  attrs?: Record<string, unknown>
-  position?: { name: string }
-  label?: { position?: { name: string } }
-}
-
-interface BlockPortConfig {
-  items: BlockPortItem[]
-  groups: Record<string, BlockPortGroup>
-}
-
+// 业务自定义数据
 interface BlockData {
   blockType: string
   title: string
   srcBlock: string
   description: string
-  paramValues: unknown[]
-  paramLables: string[]
+  paramValues: Record<string, string>
+  paramLables: Record<string, string>
   level: number
+  [K: string]: string | number | boolean | Record<string, string>
 }
 
-interface ParsedBlock {
-  shape: string
-  width: number
-  height: number
-  markup: BlockMarkupItem[]
-  attrs: CellAttrs
-  ports: BlockPortConfig
-  data: BlockData
-}
+type Block = Omit<NodeMetadata, 'data'> & { data: BlockData }
 
-export type { BlockResponse, ParsedBlock }
+export type { BlockResponse, Block }

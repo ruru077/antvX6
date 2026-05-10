@@ -155,7 +155,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         },
       }),
     )
-    graph.use(new Clipboard({ enabled: true }))
+    graph.use(new Clipboard({ enabled: true, useLocalStorage: true }))
     graph.use(new History({ enabled: true }))
     graph.use(new Keyboard({ enabled: true }))
 
