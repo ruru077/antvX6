@@ -14,7 +14,7 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
   const zoom = useGraphStore((s) => s.zoom)
   const getExportViewBox = () => {
     const bbox = graph.getContentBBox()
-    const padding = 16
+    const padding = 30
     return {
       x: bbox.x - padding,
       y: bbox.y - padding,
@@ -76,24 +76,102 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
     }
   }
 
+  const handlePrint = () => {
+    graph.toSVG(
+      (svgXml) => {
+        const win = window.open('', '_blank')
+        if (!win) return
+
+        // 用 DOM 操作注入点阵背景
+        const parser = new DOMParser()
+        const svgDoc = parser.parseFromString(svgXml, 'image/svg+xml')
+        const svg = svgDoc.documentElement
+
+        // 改为响应式尺寸，让打印页面自适应缩放
+        svg.setAttribute('width', '100%')
+        svg.setAttribute('height', 'auto')
+
+        // 解析 viewBox 用于背景 rect 的尺寸
+        const padding = 30
+        const rawVb = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number)
+        const [vx = 0, vy = 0, vw = 800, vh = 600] = rawVb
+        // 扩展 viewBox 加入 padding
+        svg.setAttribute(
+          'viewBox',
+          `${vx - padding} ${vy - padding} ${vw + padding * 2} ${vh + padding * 2}`,
+        )
+        const [pvx, pvy, pvw, pvh] = [
+          vx - padding,
+          vy - padding,
+          vw + padding * 2,
+          vh + padding * 2,
+        ]
+        const spacing = 15 // 与 graph grid size 一致
+
+        // // 注入 dot pattern 到 defs
+        // let defs = svg.querySelector('defs')
+        // if (!defs) {
+        //   defs = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'defs')
+        //   svg.insertBefore(defs, svg.firstChild)
+        // }
+        // defs.insertAdjacentHTML(
+        //   'beforeend',
+        //   `<pattern id="_dotgrid" x="0" y="0" width="${spacing}" height="${spacing}" patternUnits="userSpaceOnUse">
+        //     <circle cx="${spacing / 2}" cy="${spacing / 2}" r="1.5" fill="#d0d0d0"/>
+        //   </pattern>`,
+        // )
+
+        // 插入背景 rect（在 defs 之后，内容之前）
+        const bg = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        bg.setAttribute('x', String(pvx))
+        bg.setAttribute('y', String(pvy))
+        bg.setAttribute('width', String(pvw))
+        bg.setAttribute('height', String(pvh))
+        bg.setAttribute('fill', 'url(#_dotgrid)')
+        // defs.insertAdjacentElement('afterend', bg)
+
+        const printSvg = new XMLSerializer().serializeToString(svgDoc)
+
+        win.document.write(
+          `<html><head><title>打印</title><style>
+            *{box-sizing:border-box;}
+            body{margin:0;}
+            svg{display:block;width:100%;height:auto;}
+            @media print{
+              @page{margin:10mm;size:auto;}
+              svg{width:100%;height:auto;}
+            }
+          </style></head><body>${printSvg}<script>window.onload=function(){window.print();window.close()}</script></body></html>`,
+        )
+        win.document.close()
+      },
+      { copyStyles: false },
+    )
+  }
+
   const exportMenuItems = [
     {
       key: 'png',
       label: '导出为 PNG',
       onClick: () =>
         graph?.exportPNG('diagram', {
-          padding: 16,
+          padding: 30,
         }),
     },
     {
       key: 'jpeg',
       label: '导出为 JPEG',
-      onClick: () => graph?.exportJPEG('diagram'),
+      onClick: () => graph?.exportJPEG('diagram', { padding: 30 }),
     },
     {
       key: 'svg',
       label: '导出为 SVG',
       onClick: handleExportSVG,
+    },
+    {
+      key: 'print',
+      label: '打印',
+      onClick: handlePrint,
     },
   ]
 

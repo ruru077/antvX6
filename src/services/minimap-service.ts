@@ -37,7 +37,18 @@ function createMinimapService() {
       container,
       width,
       height,
-      padding: 10,
+      padding: 0,
+      // graphOptions: {
+      //   createCellView(cell) {
+      //     // 可以返回三种类型数据
+      //     // 1. null: 不渲染
+      //     // 2. undefined: 使用 X6 默认渲染方式
+      //     // 3. CellView: 自定义渲染
+      //     if (cell.isEdge()) {
+      //       return null
+      //     }
+      //   },
+      // },
     })
     graph.use(minimap)
   }
