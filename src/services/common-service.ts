@@ -1,4 +1,4 @@
-import type { Cell, Edge, Node } from '@antv/x6'
+import type { Cell, Edge, Graph, Node } from '@antv/x6'
 
 type UnconnectedPortInfo = {
   nodeId: string
@@ -111,12 +111,45 @@ function createCommonService() {
     if (cell.isNode()) cell.attr('body/filter', null, { undo: false })
     else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
   }
+  /**
+   * @description 判断鼠标在节点外的距离是否超过阈值
+   * @param e 事件对象
+   * @param threshold 阈值
+   * @returns 是否在节点外
+   */
+  function isMouseOutCell(
+    e: MouseEvent,
+    graph: Graph,
+    cell: Node,
+    threshold: number,
+  ): boolean {
+    const p = graph.clientToGraph(e.clientX, e.clientY)
+    const b = cell.getBBox()
+    return (
+      p.x < b.x - threshold ||
+      p.x > b.x + b.width + threshold ||
+      p.y < b.y - threshold ||
+      p.y > b.y + b.height + threshold
+    )
+  }
+
+  function getNodeAtPoint(e: MouseEvent, graph: Graph): Node | null {
+    const p = graph.clientToGraph(e.clientX, e.clientY)
+    return (
+      graph.getNodes().find((n) => {
+        const b = n.getBBox()
+        return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
+      }) ?? null
+    )
+  }
 
   return {
     resize,
     getUnconnectedPorts,
     addOutline,
     removeOutline,
+    isMouseOutCell,
+    getNodeAtPoint,
   }
 }
 

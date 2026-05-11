@@ -1,10 +1,10 @@
-import type { Block, BlockResponse } from '~/types/vo/block'
+import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
 /**
- * 从后端获取 Stencil Block 数据
+ * 获取 Stencil Block 数据
  * @returns Block NodeMeta[]
  */
-async function fetchBlocks(): Promise<Block[]> {
+async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
   try {
     const response = await fetch('http://localhost:8080/antvblocks')
     if (!response.ok) {
@@ -17,7 +17,7 @@ async function fetchBlocks(): Promise<Block[]> {
       if (block.attrs.image) {
         block.attrs.image.xlinkHref = `data:image/png;base64,${item.icon ?? ''}`
       }
-      return block
+      return { block, libraryId: item.libraryId }
     })
   } catch (error) {
     console.error('Failed to fetch blocks:', error)
@@ -25,4 +25,22 @@ async function fetchBlocks(): Promise<Block[]> {
   }
 }
 
-export { fetchBlocks }
+/**
+ * 获取 Stencil Block Library 分组数据
+ * @returns BlockLibrary[]
+ */
+async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
+  try {
+    const response = await fetch('http://localhost:8080/library')
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data: BlockLibrary[] = await response.json()
+    return data
+  } catch (error) {
+    console.error('Failed to fetch block library:', error)
+    return []
+  }
+}
+
+export { fetchBlocks, fetchBlockLibrary }

@@ -27,4 +27,10 @@ interface BlockData {
 
 type Block = Omit<NodeMetadata, 'data'> & { data: BlockData }
 
-export type { BlockResponse, Block }
+interface BlockLibrary {
+  id: number
+  name: string
+  description?: string
+}
+
+export type { BlockResponse, Block, BlockLibrary }

@@ -28,7 +28,7 @@ function useGraphListener() {
     })
 
     graph.on('node:added', ({ node, options }) => {
-      if (options?.ignoreSync) return
+      if (options?.ignore) return
       // #2.1 子系统添加
       if (node.getData()?.type === 'SubsystemBlock') {
         syncSubGraph(node, 'add')
@@ -36,13 +36,12 @@ function useGraphListener() {
     })
 
     graph.on('node:removed', ({ node, options }) => {
-      if (options?.ignoreSync) return
+      if (options?.ignore) return
       // #2.2 子系统删除
       if (node.getData()?.type === 'SubsystemBlock') {
         syncSubGraph(node, 'delete')
       }
     })
-
     graph.on('blank:click', ({ x, y }: { x: number; y: number }) => {
       // #3.1 空白处点击，修改粘贴目标位置
       setPasteTarget({ x, y })
@@ -53,6 +52,15 @@ function useGraphListener() {
       if (!history) return
       console.log(history['undoStack'])
     })
+
+    // const selectAffectedCells = ({ cmds }: { cmds: { data?: { id?: string } }[] | null }) => {
+    //   if (!cmds) return
+    //   const ids = [...new Set(cmds.map((c) => c.data?.id).filter(Boolean) as string[])]
+    //   const cells = ids.map((id) => graph.getCellById(id)).filter(Boolean) as Cell[]
+    //   graph.resetSelection(cells)
+    // }
+    // graph.on('history:undo', selectAffectedCells)
+    // graph.on('history:redo', selectAffectedCells)
 
     let prevCells = new Set<Cell>()
 
@@ -134,16 +142,53 @@ function useGraphListener() {
       commonService.addOutline(cell)
     })
 
+    // ── #5 Transform hover ──────────────────────────────────────────
+    // TODO: X6 框架的 outline svg 会导致node 左方和上方的mouse事件无法正确触发
+    let currentNode: Node | null = null
+    let isTransforming = false
+    const container = graph.container
+
+    function onContainerMouseMove(e: MouseEvent) {
+      if (
+        isTransforming ||
+        (currentNode &&
+          !commonService.isMouseOutCell(e, graph, currentNode, 10))
+      )
+        return
+      graph.clearTransformWidgets()
+      currentNode = null
+      const node = commonService.getNodeAtPoint(e, graph)
+      if (node) {
+        currentNode = node
+        graph.createTransformWidget(node)
+      }
+    }
+    container.addEventListener('mousemove', onContainerMouseMove)
+
+    graph.on('node:resize', () => {
+      // #5.1
+      isTransforming = true
+    })
+    graph.on('node:resized', () => {
+      // #5.1
+      isTransforming = false
+    })
+
     return () => {
+      container.removeEventListener('mousemove', onContainerMouseMove)
       graph.off('node:dblclick')
       graph.off('node:added')
       graph.off('node:removed')
       graph.off('blank:click')
       graph.off('history:change')
+      graph.off('history:undo')
+      graph.off('history:redo')
       graph.off('box:mousemove')
       graph.off('cell:unselected')
       graph.off('edge:mousedown')
       graph.off('edge:connected')
+      graph.off('node:resize')
+      graph.off('node:resized')
       graph.off('cell:click')
     }
   }, [graph, syncSubGraph, changeGraphView, setPasteTarget])
