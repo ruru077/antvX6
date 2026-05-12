@@ -10,27 +10,36 @@ import {
   Selection,
   Snapline,
   Transform,
+  routerPresets,
 } from '@antv/x6'
+import { debounce } from 'lodash-es'
 import { create } from 'zustand'
+import { GRAPH_GRID } from '@/assets/constant'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { createCommonService } from '@/services/common-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface GraphStore {
   graph: GraphType
-  zoom: number
-  /** 空白处点击记录的粘贴目标位置 */
-  pasteTarget: { x: number; y: number } | null
   /** 在挂载的容器上创建 Graph 并完成所有初始化 */
   initGraph: (container: HTMLElement) => void
   /** 销毁 Graph 实例 */
   destroyGraph: () => void
+  // 缩放比
+  zoom: number
   setZoom: (zoom: number) => void
-  setPasteTarget: (pos: { x: number; y: number } | null) => void
-  /** 长按允许粘贴一次  */
+  /** 是否为第一次粘贴  */
   firstTimePaste: boolean
+  /** 空白处点击记录的粘贴目标位置 */
+  pasteTarget: { x: number; y: number } | null
+  setPasteTarget: (pos: { x: number; y: number } | null) => void
+  // 是否为由方向键导航产生的选中
+  isSelectionByKey: boolean
+  setIsSelectionByKey: (is: boolean) => void
 }
 
 const useGraphStore = create<GraphStore>((set, get) => ({
@@ -39,7 +48,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
   zoom: 100,
   pasteTarget: null,
   firstTimePaste: true,
-
+  isSelectionByKey: false,
   initGraph: (container) => {
     const graph = new Graph({
       container,
@@ -57,15 +66,21 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           name: 'manhattan',
           args: {
             step: 10,
-            padding: 30,
+            padding: { top: 0, right: 30, bottom: 0, left: 30 },
             excludeTerminals: ['source', 'target'],
             startDirections: ['right'],
             endDirections: ['left'],
+            fallbackRouter: routerPresets.er,
+            // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
+            // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
+            draggingRouter() {
+              return []
+            },
           },
         },
         connector: { name: 'rounded', args: { radius: 8 } },
       },
-      grid: { visible: true, size: 15, type: 'dot' },
+      grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
       scaling: { min: 0.5, max: 5 },
       // 🧪BUG: 框架内置 mousewheel 参数过大会导致页面闪烁
       mousewheel: {
@@ -78,7 +93,20 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       panning: false,
       virtual: true,
     })
-
+    const transformPlugin = new Transform({
+      resizing: {
+        enabled: true,
+        minWidth: 30,
+        maxWidth: 200,
+        minHeight: 30,
+        maxHeight: 150,
+        orthogonal: false,
+        restrict: false,
+        preserveAspectRatio: false,
+      },
+    })
+    const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
+    
     // ── 基础事件 ────────────────────────────────────────────────
     graph.on('scale', ({ sx }: { sx: number }) => {
       get().setZoom(Math.round(sx * 100))
@@ -135,18 +163,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         },
       }),
     )
-    const transformPlugin = new Transform({
-      resizing: {
-        enabled: true,
-        minWidth: 30,
-        maxWidth: 200,
-        minHeight: 30,
-        maxHeight: 150,
-        orthogonal: false,
-        restrict: false,
-        preserveAspectRatio: false,
-      },
-    })
+
     graph.use(transformPlugin)
     // 禁用插件默认的 click 触发，改为 hover 触发
     transformPlugin.disable()
@@ -230,9 +247,13 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       graph.undo()
       return false
     })
-    graph.bindKey(['ctrl+y', 'meta+shift+z', 'ctrl+shift+z'], () => {
+    graph.bindKey(['ctrl+y', 'meta+y', 'meta+shift+z', 'ctrl+shift+z'], () => {
       graph.redo()
       return false
+    })
+    // key up down left right
+    DIRS.forEach((dir) => {
+      graph.bindKey(dir, moveKeyCallback(dir))
     })
     const scroller = graph.getPlugin<Scroller>('scroller')
     scroller!.centerPoint(1500, 1000)
@@ -246,6 +267,85 @@ const useGraphStore = create<GraphStore>((set, get) => ({
 
   setZoom: (zoom) => set({ zoom }),
   setPasteTarget: (pos) => set({ pasteTarget: pos }),
+  setIsSelectionByKey: (is) => set({ isSelectionByKey: is }),
 }))
+
+// ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
+
+type ArrowDir = 'up' | 'down' | 'left' | 'right'
+
+const STEP: Record<ArrowDir, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -GRAPH_GRID },
+  down: { dx: 0, dy: GRAPH_GRID },
+  left: { dx: -GRAPH_GRID, dy: 0 },
+  right: { dx: GRAPH_GRID, dy: 0 },
+}
+
+function findNeighbor(current: Node, dir: ArrowDir): Node | null {
+  const graph = useGraphStore.getState().graph
+  const center = current.getBBox().getCenter()
+  const candidates = graph.getNodes().filter((n) => {
+    if (n === current) return false
+    const c = n.getBBox().getCenter()
+    const dx = c.x - center.x
+    const dy = c.y - center.y
+    if (dir === 'left') return dx < 0
+    if (dir === 'right') return dx > 0
+    if (dir === 'up') return dy < 0
+    if (dir === 'down') return dy > 0
+  })
+  if (!candidates.length) return null
+  return candidates.reduce((best, n) => {
+    const c = n.getBBox().getCenter()
+    const bc = best.getBBox().getCenter()
+    return Math.hypot(c.x - center.x, c.y - center.y) <
+      Math.hypot(bc.x - center.x, bc.y - center.y)
+      ? n
+      : best
+  })
+}
+
+function moveKeyCallback(dir: ArrowDir) {
+  // 是否为正在批处理
+  let isBatching = false
+  const _debounce = debounce(() => {
+    useGraphStore.getState().graph.stopBatch('move')
+    isBatching = false
+  }, 700)
+  return () => {
+    // 没有节点过滤事件
+    const graph = useGraphStore.getState().graph
+    if (!graph.getNodes().length) return false
+    const isSelectionByKey = useGraphStore.getState().isSelectionByKey
+    const setIsSelectionByKey = useGraphStore.getState().setIsSelectionByKey
+
+    const selectedNodes = graph.getSelectedCells().filter((c) => c.isNode())
+    const selectedEdges = graph.getSelectedCells().filter((c) => c.isEdge())
+    if (selectedNodes.length > 0 && !isSelectionByKey) {
+      // ── 移动模式 ────────────────────────────────────────
+      if (!isBatching) {
+        isBatching = true
+        graph.startBatch('move')
+      }
+      selectedNodes.forEach((node) => {
+        const { x, y } = node.getPosition()
+        node.setPosition(x + STEP[dir].dx, y + STEP[dir].dy)
+      })
+      _debounce()
+    } else if (!selectedEdges.length) {
+      // ──没有Cell选中 导航模式 ────────────────────────────────────────
+      const nodes = graph.getNodes()
+      const current = isSelectionByKey ? selectedNodes[0] : nodes[0]
+      current.removeTools({ undo: false })
+      const neighbor = findNeighbor(current, dir) ?? current
+      setIsSelectionByKey(true)
+      graph.resetSelection([neighbor])
+      commonService.addOutline(neighbor)
+      commonService.addBoundaryTool(neighbor)
+      graph.getPlugin<Scroller>('scroller')?.scrollToCell(neighbor)
+    }
+    return false
+  }
+}
 
 export { useGraphStore }

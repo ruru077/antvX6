@@ -132,7 +132,10 @@ function createCommonService() {
       p.y > b.y + b.height + threshold
     )
   }
-
+  /**
+   * 获取指定坐标点下的节点
+   * @returns 节点对象 Node | null
+   */
   function getNodeAtPoint(e: MouseEvent, graph: Graph): Node | null {
     const p = graph.pageToLocal(e.pageX, e.pageY)
     return (
@@ -147,7 +150,27 @@ function createCommonService() {
       }) ?? null
     )
   }
-
+  /**
+   * @param node 目标节点
+   * @description 在节点上添加边界工具，不加入undoStack
+   */
+  function addBoundaryTool(cell: Cell) {
+    cell.addTools(
+      {
+        name: 'boundary',
+        args: {
+          padding: 5,
+          attrs: {
+            fill: '#7c68fc',
+            stroke: '#333',
+            strokeWidth: 0.5,
+            fillOpacity: 0.2,
+          },
+        },
+      },
+      { undo: false },
+    )
+  }
   return {
     resize,
     getUnconnectedPorts,
@@ -155,6 +178,7 @@ function createCommonService() {
     removeOutline,
     isMouseOutCell,
     getNodeAtPoint,
+    addBoundaryTool,
   }
 }
 
