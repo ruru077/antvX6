@@ -85,7 +85,7 @@ function createCommonService() {
     if (cell.isNode()) {
       cell.attr(
         'body/filter',
-        { name: 'outline', args: { color: '#77caeb', width: 2, margin: 0 } },
+        { name: 'outline', args: { color: '#77caeb', width: 4, margin: 0 } },
         { undo: false },
       )
     } else if (cell.isEdge()) {
@@ -123,7 +123,7 @@ function createCommonService() {
     cell: Node,
     threshold: number,
   ): boolean {
-    const p = graph.clientToGraph(e.clientX, e.clientY)
+    const p = graph.pageToLocal(e.pageX, e.pageY)
     const b = cell.getBBox()
     return (
       p.x < b.x - threshold ||
@@ -134,11 +134,16 @@ function createCommonService() {
   }
 
   function getNodeAtPoint(e: MouseEvent, graph: Graph): Node | null {
-    const p = graph.clientToGraph(e.clientX, e.clientY)
+    const p = graph.pageToLocal(e.pageX, e.pageY)
     return (
       graph.getNodes().find((n) => {
         const b = n.getBBox()
-        return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
+        return (
+          p.x >= b.x &&
+          p.x <= b.x + b.width &&
+          p.y >= b.y &&
+          p.y <= b.y + b.height
+        )
       }) ?? null
     )
   }

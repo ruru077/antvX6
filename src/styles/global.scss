@@ -71,6 +71,8 @@ $radius-2xl: 24px;
 .x6-widget-selection-content {
   display: flex;
   justify-content: center;
+  width: fit-content;
+  margin: 0 auto;
   pointer-events: auto;
   background-color: transparent;
 }
