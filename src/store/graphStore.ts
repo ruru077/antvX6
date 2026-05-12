@@ -10,11 +10,13 @@ import {
   Selection,
   Snapline,
   Transform,
-  routerPresets,
 } from '@antv/x6'
 import { create } from 'zustand'
 import { openAutoPan } from '@/plugin/openAutoPan'
+import { createCommonService } from '@/services/common-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
+
+const commonService = createCommonService()
 
 interface GraphStore {
   graph: GraphType
@@ -54,17 +56,11 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         router: {
           name: 'manhattan',
           args: {
-            step: 15,
+            step: 10,
             padding: 30,
-            // TODO: draggingRouter 稳定性
-            // draggingRouter: function (_from, _to, options) {
-            //   return routerPresets.orth.call(
-            //     this,
-            //     [],
-            //     { padding: options.padding },
-            //     this,
-            //   )
-            // },
+            excludeTerminals: ['source', 'target'],
+            startDirections: ['right'],
+            endDirections: ['left'],
           },
         },
         connector: { name: 'rounded', args: { radius: 8 } },
@@ -139,24 +135,30 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         },
       }),
     )
-    graph.use(
-      new Transform({
-        resizing: {
-          enabled: true,
-          minWidth: 20,
-          maxWidth: 200,
-          minHeight: 20,
-          maxHeight: 150,
-          orthogonal: false,
-          restrict: false,
-          preserveAspectRatio: false,
-        },
-      }),
-    )
+    const transformPlugin = new Transform({
+      resizing: {
+        enabled: true,
+        minWidth: 30,
+        maxWidth: 200,
+        minHeight: 30,
+        maxHeight: 150,
+        orthogonal: false,
+        restrict: false,
+        preserveAspectRatio: false,
+      },
+    })
+    graph.use(transformPlugin)
+    // 禁用插件默认的 click 触发，改为 hover 触发
+    transformPlugin.disable()
+
     graph.use(new Clipboard({ enabled: true, useLocalStorage: true }))
     graph.use(
       new History({
         enabled: true,
+        /**
+         * @custom dev
+         * @tips args 配置 {undo : false} 的命令不加入历史记录
+         */
         beforeAddCommand(_event, args) {
           if (!args) return
           if ('options' in args && args.options?.undo === false) return false
