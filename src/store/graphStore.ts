@@ -8,13 +8,15 @@ import {
   Node,
   Scroller,
   Selection,
+  Shape,
   Snapline,
   Transform,
   routerPresets,
 } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
-import { GRAPH_GRID } from '@/assets/constant'
+import { GRAPH_GRID, RED } from '@/assets/constant'
+import previewArrowRaw from '@/assets/previewArrow.svg?raw'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { createCommonService } from '@/services/common-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -63,22 +65,46 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           anchor: 'bbox',
         },
         router: {
-          name: 'manhattan',
+          name: 'orth',
           args: {
-            step: 10,
-            padding: { top: 0, right: 30, bottom: 0, left: 30 },
-            excludeTerminals: ['source', 'target'],
-            startDirections: ['right'],
-            endDirections: ['left'],
-            fallbackRouter: routerPresets.er,
+            step: GRAPH_GRID,
+            // padding: { top: 0, right: 30, bottom: 0, left: 30 },
+            // padding: 0,
+            // excludeTerminals: ['source', 'target'],
+            // startDirections: ['right'],
+            // endDirections: ['left'],
+            // fallbackRouter: routerPresets.er,
             // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
             // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
-            draggingRouter() {
-              return []
-            },
+            // draggingRouter() {
+            //   return []
+            // },
           },
         },
-        connector: { name: 'rounded', args: { radius: 8 } },
+        connector: {
+          name: 'jumpover',
+          args: {
+            type: 'gap',
+            size: 3,
+            radius: 8,
+          },
+        }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
+        createEdge() {
+          return new Shape.Edge({
+            attrs: {
+              line: {
+                stroke: RED,
+                strokeWidth: 1.5,
+                targetMarker: {
+                  name: 'path',
+                  d: previewArrowRaw.match(/\bd="([^"]+)"/)?.[1],
+                  transform: 'rotate(-90) scale(0.02)',
+                },
+                strokeDasharray: '4 2',
+              },
+            },
+          })
+        },
       },
       grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
       scaling: { min: 0.5, max: 5 },
@@ -106,7 +132,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       },
     })
     const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
-    
+
     // ── 基础事件 ────────────────────────────────────────────────
     graph.on('scale', ({ sx }: { sx: number }) => {
       get().setZoom(Math.round(sx * 100))
@@ -122,7 +148,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         rubberband: true,
         rubberEdge: true,
         showNodeSelectionBox: true,
-        showEdgeSelectionBox: true,
+        showEdgeSelectionBox: false,
         movingRouterFallback: 'orth',
         modifiers: 'shift',
         content(_selection, el) {
