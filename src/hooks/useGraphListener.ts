@@ -1,6 +1,12 @@
 import type { Cell, Edge, EdgeView, History, Node } from '@antv/x6'
+import { useThrottleFn } from 'ahooks'
+import { BLACK, RED, TARGETMARKER_SIZE } from '@/assets/constant'
 import { createCommonService } from '@/services/common-service'
-import { useGraphStore } from '@/store/graphStore'
+import {
+  setIsSelectionByKey,
+  setPasteTarget,
+  useGraphStore,
+} from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
@@ -10,41 +16,83 @@ const commonService = createCommonService()
  * graph 直接从 store 订阅，无需外部传参
  */
 
+function addNodeTools(node: Node) {
+  node.addTools([
+    {
+      name: 'node-editor',
+      args: {
+        attrs: {
+          backgroundColor: '#ffffff',
+        },
+      },
+    },
+  ])
+}
+
 function useGraphListener() {
   const graph = useGraphStore((s) => s.graph)
   const syncSubGraph = useSubGraphStore((s) => s.syncSubGraph)
   const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
-  const setPasteTarget = useGraphStore((s) => s.setPasteTarget)
+  const currentNodeRef = useRef<Node | null>(null)
+  const isTransformingRef = useRef(false)
+
+  const { run: throttledMouseMove, cancel: cancelThrottledMouseMove } =
+    useThrottleFn(
+      (e: MouseEvent) => {
+        if (
+          isTransformingRef.current ||
+          (currentNodeRef.current &&
+            !commonService.isMouseOutCell(
+              e,
+              graph!,
+              currentNodeRef.current,
+              10,
+            ))
+        )
+          return
+        graph!.clearTransformWidgets()
+        currentNodeRef.current = null
+        const node = commonService.getNodeAtPoint(e, graph!)
+        if (node) {
+          currentNodeRef.current = node
+          graph!.createTransformWidget(node)
+        }
+      },
+      { wait: 150 },
+    )
 
   useEffect(() => {
     if (!graph) return
 
     graph.on('node:dblclick', ({ node }) => {
       // #1 进入子系统
-      if (node.getData()?.type === 'SubsystemBlock') {
+      if (node.getData()?.blockType === 'Subsystem') {
         changeGraphView(node.id)
         setPasteTarget({ x: 0, y: 30 })
       }
     })
 
     graph.on('node:added', ({ node, options }) => {
+      addNodeTools(node)
       if (options?.ignore) return
       // #2.1 子系统添加
-      if (node.getData()?.type === 'SubsystemBlock') {
+      if (node.getData()?.blockType === 'Subsystem') {
         syncSubGraph(node, 'add')
       }
     })
-
+    graph.on('edge:added', ({ edge }) => {})
     graph.on('node:removed', ({ node, options }) => {
       if (options?.ignore) return
       // #2.2 子系统删除
-      if (node.getData()?.type === 'SubsystemBlock') {
+      if (node.getData()?.blockType === 'Subsystem') {
         syncSubGraph(node, 'delete')
       }
     })
     graph.on('blank:click', ({ x, y }: { x: number; y: number }) => {
       // #3.1 空白处点击，修改粘贴目标位置
       setPasteTarget({ x, y })
+      setIsSelectionByKey(false)
+      graph.getNodes().forEach((n) => n.removeTools({ undo: false }))
     })
 
     graph.on('history:change', () => {
@@ -90,7 +138,7 @@ function useGraphListener() {
       if (!e.ctrlKey && !e.metaKey) return
       // #4.1 线条分支
       // TODO: 临时线的Link拉线及连接时逻辑
-      if (edge.getAttrs()?.line?.stroke === 'red') return
+      if (edge.getAttrs()?.line?.stroke === RED) return
 
       const edgeView = graph.findViewByCell(edge) as EdgeView
       if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
@@ -105,7 +153,7 @@ function useGraphListener() {
         source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
         target: { x: startPos.x, y: startPos.y },
         attrs: {
-          line: { stroke: 'red', strokeWidth: 2, strokeDasharray: '6 3' },
+          line: { stroke: RED, strokeWidth: 2, strokeDasharray: '6 3' },
         },
         zIndex: 3,
       })
@@ -127,55 +175,77 @@ function useGraphListener() {
       }, 0)
     })
 
-    graph.on('edge:connected', ({ edge, isNew }) => {
+    graph.on('edge:connected', ({ edge }) => {
       // #4.2临时分支线连接成功后，恢复为正式连线样式
-      if (!isNew) return
-      if (edge.getAttrs()?.line?.stroke !== 'red') return
-      edge.setAttrs({
-        line: { stroke: null, strokeWidth: null, strokeDasharray: null },
-      })
+      // 注意：分支边是预先 addEdge 创建再拖拽端点连接的，isNew 为 false，不能用 isNew 判断
+      if (edge.getAttrs()?.line?.stroke == RED) {
+        edge.setAttrs({
+          line: {
+            stroke: BLACK,
+            strokeWidth: 1.5,
+            strokeDasharray: null,
+            targetMarker: {
+              name: 'block',
+              args: { size: TARGETMARKER_SIZE },
+              transform: 'rotate(180)',
+            },
+          },
+        })
+      }
     })
 
-    graph.on('cell:click', ({ cell, x, y }) => {
+    graph.on('edge:mouseenter', ({ edge }) => {
+      // 临时分支线不显示 tools
+      if (edge.getAttrs()?.line?.stroke === RED) {
+        edge.addTools(
+          [{ name: 'source-arrowhead' }, { name: 'target-arrowhead' }],
+          { undo: false },
+        )
+        return
+      }
+      edge.addTools(
+        [
+          { name: 'source-arrowhead' },
+          { name: 'target-arrowhead' },
+          {
+            name: 'segments',
+            args: { attrs: { fill: '#444' } },
+          },
+        ],
+        { undo: false },
+      )
+    })
+
+    graph.on('edge:mouseleave', ({ edge }) => {
+      edge.removeTools({ undo: false })
+    })
+
+    graph.on('cell:click', ({ cell }) => {
       // #3.2 cell点击，修改粘贴目标位置
+      const { x, y } = cell.getBBox().getCenter()
       setPasteTarget({ x, y })
       commonService.addOutline(cell)
+      setIsSelectionByKey(false)
+      graph.getNodes().forEach((n) => n.removeTools({ undo: false }))
     })
 
     // ── #5 Transform hover ──────────────────────────────────────────
     // TODO: X6 框架的 outline svg 会导致node 左方和上方的mouse事件无法正确触发
-    let currentNode: Node | null = null
-    let isTransforming = false
     const container = graph.container
-
-    function onContainerMouseMove(e: MouseEvent) {
-      if (
-        isTransforming ||
-        (currentNode &&
-          !commonService.isMouseOutCell(e, graph, currentNode, 10))
-      )
-        return
-      graph.clearTransformWidgets()
-      currentNode = null
-      const node = commonService.getNodeAtPoint(e, graph)
-      if (node) {
-        currentNode = node
-        graph.createTransformWidget(node)
-      }
-    }
-    container.addEventListener('mousemove', onContainerMouseMove)
+    container.addEventListener('mousemove', throttledMouseMove)
 
     graph.on('node:resize', () => {
       // #5.1
-      isTransforming = true
+      isTransformingRef.current = true
     })
     graph.on('node:resized', () => {
       // #5.1
-      isTransforming = false
+      isTransformingRef.current = false
     })
 
     return () => {
-      container.removeEventListener('mousemove', onContainerMouseMove)
+      cancelThrottledMouseMove()
+      container.removeEventListener('mousemove', throttledMouseMove)
       graph.off('node:dblclick')
       graph.off('node:added')
       graph.off('node:removed')
@@ -186,12 +256,21 @@ function useGraphListener() {
       graph.off('box:mousemove')
       graph.off('cell:unselected')
       graph.off('edge:mousedown')
+      graph.off('edge:mouseenter')
+      graph.off('edge:mouseleave')
       graph.off('edge:connected')
+      graph.off('edge:added')
       graph.off('node:resize')
       graph.off('node:resized')
       graph.off('cell:click')
     }
-  }, [graph, syncSubGraph, changeGraphView, setPasteTarget])
+  }, [
+    graph,
+    syncSubGraph,
+    changeGraphView,
+    throttledMouseMove,
+    cancelThrottledMouseMove,
+  ])
 }
 
 export { useGraphListener }

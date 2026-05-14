@@ -15,7 +15,15 @@ import {
 } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
-import { GRAPH_GRID, RED } from '@/assets/constant'
+import {
+  EDGE_STROKE_WIDTH,
+  GAP_SIZE,
+  GRAPH_GRID,
+  PASTE_OFFSET,
+  RADIUS_SIZE,
+  RED,
+  SNAP_RADIUS,
+} from '@/assets/constant'
 import previewArrowRaw from '@/assets/previewArrow.svg?raw'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { createCommonService } from '@/services/common-service'
@@ -34,24 +42,14 @@ interface GraphStore {
   // 缩放比
   zoom: number
   setZoom: (zoom: number) => void
-  /** 是否为第一次粘贴  */
-  firstTimePaste: boolean
-  /** 空白处点击记录的粘贴目标位置 */
-  pasteTarget: { x: number; y: number } | null
-  setPasteTarget: (pos: { x: number; y: number } | null) => void
-  // 是否为由方向键导航产生的选中
-  isSelectionByKey: boolean
-  setIsSelectionByKey: (is: boolean) => void
 }
 
 const useGraphStore = create<GraphStore>((set, get) => ({
   // TS检查越狱
   graph: null as unknown as GraphType,
   zoom: 100,
-  pasteTarget: null,
-  firstTimePaste: true,
-  isSelectionByKey: false,
   initGraph: (container) => {
+    let firstTimePaste = true
     const graph = new Graph({
       container,
       autoResize: true,
@@ -60,8 +58,15 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         allowEdge: false, //是否允许连接到连线上
         allowMulti: true, //是否允许多条相同的source target
         allowLoop: false, //是否允许自连接
+        sourceConnectionPoint: 'anchor',
+        targetConnectionPoint: {
+          name: 'anchor',
+          args: {
+            offset: -5,
+          },
+        },
         snap: {
-          radius: 20,
+          radius: SNAP_RADIUS,
           anchor: 'bbox',
         },
         router: {
@@ -85,8 +90,8 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           name: 'jumpover',
           args: {
             type: 'gap',
-            size: 3,
-            radius: 8,
+            size: GAP_SIZE,
+            radius: RADIUS_SIZE,
           },
         }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
         createEdge() {
@@ -94,7 +99,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
             attrs: {
               line: {
                 stroke: RED,
-                strokeWidth: 1.5,
+                strokeWidth: EDGE_STROKE_WIDTH,
                 targetMarker: {
                   name: 'path',
                   d: previewArrowRaw.match(/\bd="([^"]+)"/)?.[1],
@@ -113,8 +118,6 @@ const useGraphStore = create<GraphStore>((set, get) => ({
         enabled: true,
         modifiers: ['ctrl', 'meta'],
         factor: 1.1,
-        minScale: 0.5,
-        maxScale: 5,
       },
       panning: false,
       virtual: true,
@@ -132,7 +135,11 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       },
     })
     const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
+    // @ts-expect-error AntV X6
+    window.__x6_instances__ = []
 
+    // @ts-expect-error AntV X6
+    window.__x6_instances__.push(graph)
     // ── 基础事件 ────────────────────────────────────────────────
     graph.on('scale', ({ sx }: { sx: number }) => {
       get().setZoom(Math.round(sx * 100))
@@ -217,9 +224,8 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       return false
     })
     graph.bindKey(['ctrl+v', 'meta+v'], () => {
-      if (!get().firstTimePaste) return false
+      if (!firstTimePaste) return false
       if (!graph.isClipboardEmpty()) {
-        const { pasteTarget, setPasteTarget } = get()
         let cells
         if (pasteTarget) {
           const clipboardCells = graph.getCellsInClipboard()
@@ -233,17 +239,17 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           }
           setPasteTarget(null)
         } else {
-          cells = graph.paste({ offset: 32 })
+          cells = graph.paste({ offset: PASTE_OFFSET })
         }
         graph.resetSelection(cells)
-        set({ firstTimePaste: false })
+        firstTimePaste = false
       }
       return false
     })
     graph.bindKey(
       ['ctrl+v', 'meta+v'],
       () => {
-        set({ firstTimePaste: true })
+        firstTimePaste = true
         return false
       },
       'keyup',
@@ -292,8 +298,6 @@ const useGraphStore = create<GraphStore>((set, get) => ({
   },
 
   setZoom: (zoom) => set({ zoom }),
-  setPasteTarget: (pos) => set({ pasteTarget: pos }),
-  setIsSelectionByKey: (is) => set({ isSelectionByKey: is }),
 }))
 
 // ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
@@ -306,7 +310,12 @@ const STEP: Record<ArrowDir, { dx: number; dy: number }> = {
   left: { dx: -GRAPH_GRID, dy: 0 },
   right: { dx: GRAPH_GRID, dy: 0 },
 }
-
+/**
+ * 寻找 [current, dir] 方向的下一个节点
+ * @param current 当前节点
+ * @param dir 方向
+ * @returns 下一个节点或 null
+ */
 function findNeighbor(current: Node, dir: ArrowDir): Node | null {
   const graph = useGraphStore.getState().graph
   const center = current.getBBox().getCenter()
@@ -342,8 +351,6 @@ function moveKeyCallback(dir: ArrowDir) {
     // 没有节点过滤事件
     const graph = useGraphStore.getState().graph
     if (!graph.getNodes().length) return false
-    const isSelectionByKey = useGraphStore.getState().isSelectionByKey
-    const setIsSelectionByKey = useGraphStore.getState().setIsSelectionByKey
 
     const selectedNodes = graph.getSelectedCells().filter((c) => c.isNode())
     const selectedEdges = graph.getSelectedCells().filter((c) => c.isEdge())
@@ -374,4 +381,15 @@ function moveKeyCallback(dir: ArrowDir) {
   }
 }
 
-export { useGraphStore }
+// ── 行为标志位（不需要触发 React re-render，模块级变量）────────────────────
+let isSelectionByKey = false
+const setIsSelectionByKey = (val: boolean) => {
+  isSelectionByKey = val
+}
+
+let pasteTarget: { x: number; y: number } | null = null
+const setPasteTarget = (pos: { x: number; y: number } | null) => {
+  pasteTarget = pos
+}
+
+export { useGraphStore, setIsSelectionByKey, setPasteTarget }

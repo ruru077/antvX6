@@ -85,7 +85,7 @@ function createCommonService() {
     if (cell.isNode()) {
       cell.attr(
         'body/filter',
-        { name: 'outline', args: { color: '#77caeb', width: 4, margin: 0 } },
+        { name: 'outline', args: { color: 'rgb(102,194,255)', width: 4, margin: 0 } },
         { undo: false },
       )
     } else if (cell.isEdge()) {
@@ -93,7 +93,7 @@ function createCommonService() {
         'line/filter',
         {
           name: 'outline',
-          args: { color: '#77caeb', width: 2, margin: 0 },
+          args: { color: 'rgb(102,194,255)', width: 2, margin: 0 },
           attrs: {
             filterUnits: 'userSpaceOnUse',
             x: -9999,
@@ -151,7 +151,7 @@ function createCommonService() {
     )
   }
   /**
-   * @param node 目标节点
+   * @param cell 目标元素
    * @description 在节点上添加边界工具，不加入undoStack
    */
   function addBoundaryTool(cell: Cell) {
@@ -170,6 +170,15 @@ function createCommonService() {
       },
       { undo: false },
     )
+  }
+
+  function addNodeTools(node: Node) {
+  }
+
+  function addEdgeTools(edge: Edge) {
+  }
+  function removeTools(cell: Cell){
+
   }
   return {
     resize,
