@@ -10,7 +10,7 @@ export default function () {
       },
     ],
     dtsMode: 'overwrite',
-    dts: 'src/types/auto-imports.d.ts',
+    dts: 'types/auto-imports.d.ts',
     viteOptimizeDeps: true,
   })
 }
