@@ -1,6 +1,7 @@
 import type { Cell, Edge, EdgeView, History, Node } from '@antv/x6'
 import { useThrottleFn } from 'ahooks'
-import { BLACK, RED, TARGETMARKER_SIZE } from '@/assets/constant'
+import { RED } from '@/assets/constant'
+import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import {
   setIsSelectionByKey,
@@ -15,19 +16,6 @@ const commonService = createCommonService()
  * 图形编辑器事件监听 hook
  * graph 直接从 store 订阅，无需外部传参
  */
-
-function addNodeTools(node: Node) {
-  node.addTools([
-    {
-      name: 'node-editor',
-      args: {
-        attrs: {
-          backgroundColor: '#ffffff',
-        },
-      },
-    },
-  ])
-}
 
 function useGraphListener() {
   const graph = useGraphStore((s) => s.graph)
@@ -73,7 +61,7 @@ function useGraphListener() {
     })
 
     graph.on('node:added', ({ node, options }) => {
-      addNodeTools(node)
+      commonService.addNodeTools(node)
       if (options?.ignore) return
       // #2.1 子系统添加
       if (node.getData()?.blockType === 'Subsystem') {
@@ -110,21 +98,7 @@ function useGraphListener() {
     // graph.on('history:undo', selectAffectedCells)
     // graph.on('history:redo', selectAffectedCells)
 
-    let prevCells = new Set<Cell>()
-
-    graph.on(
-      'box:mousemove',
-      ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
-        const curr = new Set<Cell>([...nodes, ...edges])
-        curr.forEach((c) => {
-          if (!prevCells.has(c)) commonService.addOutline(c)
-        })
-        prevCells.forEach((c) => {
-          if (!curr.has(c)) commonService.removeOutline(c)
-        })
-        prevCells = curr
-      },
-    )
+    graph.on('box:mousemove', mouseMoveCallback())
 
     graph.on('cell:unselected', ({ cell }) => {
       commonService.removeOutline(cell)
@@ -152,10 +126,7 @@ function useGraphListener() {
       const tempEdge = graph.addEdge({
         source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
         target: { x: startPos.x, y: startPos.y },
-        attrs: {
-          line: { stroke: RED, strokeWidth: 2, strokeDasharray: '6 3' },
-        },
-        zIndex: 3,
+        ...previewLink,
       })
       // 事件委托，将临时线行为交给X6管理
       // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
@@ -179,41 +150,12 @@ function useGraphListener() {
       // #4.2临时分支线连接成功后，恢复为正式连线样式
       // 注意：分支边是预先 addEdge 创建再拖拽端点连接的，isNew 为 false，不能用 isNew 判断
       if (edge.getAttrs()?.line?.stroke == RED) {
-        edge.setAttrs({
-          line: {
-            stroke: BLACK,
-            strokeWidth: 1.5,
-            strokeDasharray: null,
-            targetMarker: {
-              name: 'block',
-              args: { size: TARGETMARKER_SIZE },
-              transform: 'rotate(180)',
-            },
-          },
-        })
+        edge.setAttrs(formalLink.attrs)
       }
     })
 
     graph.on('edge:mouseenter', ({ edge }) => {
-      // 临时分支线不显示 tools
-      if (edge.getAttrs()?.line?.stroke === RED) {
-        edge.addTools(
-          [{ name: 'source-arrowhead' }, { name: 'target-arrowhead' }],
-          { undo: false },
-        )
-        return
-      }
-      edge.addTools(
-        [
-          { name: 'source-arrowhead' },
-          { name: 'target-arrowhead' },
-          {
-            name: 'segments',
-            args: { attrs: { fill: '#444' } },
-          },
-        ],
-        { undo: false },
-      )
+      commonService.addEdgeTools(edge)
     })
 
     graph.on('edge:mouseleave', ({ edge }) => {
@@ -272,5 +214,17 @@ function useGraphListener() {
     cancelThrottledMouseMove,
   ])
 }
-
+function mouseMoveCallback() {
+  let prevCells = new Set<Cell>()
+  return ({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) => {
+    const curr = new Set<Cell>([...nodes, ...edges])
+    curr.forEach((c) => {
+      if (!prevCells.has(c)) commonService.addOutline(c)
+    })
+    prevCells.forEach((c) => {
+      if (!curr.has(c)) commonService.removeOutline(c)
+    })
+    prevCells = curr
+  }
+}
 export { useGraphListener }

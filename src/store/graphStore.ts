@@ -16,15 +16,13 @@ import {
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
 import {
-  EDGE_STROKE_WIDTH,
   GAP_SIZE,
   GRAPH_GRID,
   PASTE_OFFSET,
   RADIUS_SIZE,
-  RED,
   SNAP_RADIUS,
 } from '@/assets/constant'
-import previewArrowRaw from '@/assets/previewArrow.svg?raw'
+import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { createCommonService } from '@/services/common-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -95,20 +93,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
           },
         }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
         createEdge() {
-          return new Shape.Edge({
-            attrs: {
-              line: {
-                stroke: RED,
-                strokeWidth: EDGE_STROKE_WIDTH,
-                targetMarker: {
-                  name: 'path',
-                  d: previewArrowRaw.match(/\bd="([^"]+)"/)?.[1],
-                  transform: 'rotate(-90) scale(0.02)',
-                },
-                strokeDasharray: '4 2',
-              },
-            },
-          })
+          return new Shape.Edge(previewLink)
         },
       },
       grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
@@ -135,10 +120,10 @@ const useGraphStore = create<GraphStore>((set, get) => ({
       },
     })
     const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
-    // @ts-expect-error AntV X6
+    // @ts-expect-error AntV X6 插件
     window.__x6_instances__ = []
 
-    // @ts-expect-error AntV X6
+    // @ts-expect-error AntV X6 插件
     window.__x6_instances__.push(graph)
     // ── 基础事件 ────────────────────────────────────────────────
     graph.on('scale', ({ sx }: { sx: number }) => {

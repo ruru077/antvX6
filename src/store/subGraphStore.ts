@@ -9,7 +9,9 @@ import type {
   SubGraphItem,
   SubGraphMap,
 } from '~/types'
+import { formalLink, signalPortGroups } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from './graphStore'
 
 /**
@@ -217,7 +219,7 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
         redoStack: [...history['redoStack']],
       })
     }
-
+    graph.cleanSelection()
     syncGraph(graph.toJSON())
 
     // 切换期间禁用 history，过滤 fromJSON 进入历史栈
@@ -250,7 +252,6 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
     const bbox = graph.getCellsBBox(cells)
     const { x, y, width, height } = bbox
 
-    // fix: 框选不带edge
     const nodes = cells.filter((c) => c.isNode())
     const nodeIds = nodes.map((c) => c.id)
     const edgeSet: Edge[] = []
@@ -272,90 +273,59 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
     const { unconnectedInPorts, unconnectedOutPorts } =
       commonService.getUnconnectedPorts(nodes, edgeSet)
 
-    // 为未连接 port 生成 InPort/OutPort IO 节点及连线，加入 extraCells
-    const nodeMap = new Map(nodes.map((node) => [node.id, node]))
-    const portCircleAttrs = {
-      r: 4,
-      magnet: true,
-      stroke: '#31d0c6',
-      strokeWidth: 2,
+    // 加入 extraJson
+    const extraJson: GraphJSON['cells'] = []
+
+    function createIONodeJson(
+      dir: 'in' | 'out',
+      nodeId: string,
+      portId: string,
+    ) {
+      const node = graph.getCellById(nodeId) as Node
+      const pos = node.getPosition()
+      const ioNodeId = StringExt.uuid()
+      const isIn = dir === 'in'
+      const offsetX = isIn ? pos.x - 200 : pos.x + node.getSize().width + 200
+      extraJson.push({
+        id: ioNodeId,
+        shape: 'circle',
+        position: { x: offsetX, y: pos.y },
+        size: { width: 50, height: 40 },
+        attrs: {
+          text: { text: dir },
+          body: { fill: '#fff', stroke: '#8f8f8f', strokeWidth: 1 },
+        },
+        data: { type: isIn ? 'InPort' : 'OutPort' },
+        ports: {
+          groups: signalPortGroups,
+          items: [{ id: isIn ? 'out1' : 'in1', group: isIn ? 'out' : 'in' }],
+        },
+      })
+      extraJson.push({
+        id: StringExt.uuid(),
+        shape: 'edge',
+        source: isIn
+          ? { cell: ioNodeId, port: 'out1' }
+          : { cell: nodeId, port: portId },
+        target: isIn
+          ? { cell: nodeId, port: portId }
+          : { cell: ioNodeId, port: 'in1' },
+        ...formalLink,
+      })
     }
-    const nodeInIdx = new Map<string, number>()
-    const nodeOutIdx = new Map<string, number>()
-    const extraCells = []
 
     for (const { nodeId, portId } of unconnectedInPorts.values()) {
-      const node = nodeMap.get(nodeId)
-      if (!node) continue
-      const pos = node.getPosition()
-      const idx = nodeInIdx.get(nodeId) ?? 0
-      nodeInIdx.set(nodeId, idx + 1)
-      const ioNodeId = StringExt.uuid()
-      const ioPortId = StringExt.uuid()
-      extraCells.push({
-        id: ioNodeId,
-        shape: 'circle',
-        position: { x: pos.x - 50, y: pos.y + idx * 50 },
-        size: { width: 50, height: 40 },
-        attrs: {
-          text: { text: 'in' },
-          body: { fill: '#fff', stroke: '#8f8f8f', strokeWidth: 1 },
-        },
-        data: { type: 'InPort' },
-        ports: {
-          groups: {
-            out: { position: 'right', attrs: { circle: portCircleAttrs } },
-          },
-          items: [{ group: 'out', id: ioPortId }],
-        },
-      })
-      extraCells.push({
-        id: StringExt.uuid(),
-        shape: 'edge',
-        source: { cell: ioNodeId, port: ioPortId },
-        target: { cell: nodeId, port: portId },
-        attrs: { line: { stroke: '#8f8f8f', strokeWidth: 1 } },
-      })
+      createIONodeJson('in', nodeId, portId)
     }
-
     for (const { nodeId, portId } of unconnectedOutPorts.values()) {
-      const node = nodeMap.get(nodeId)
-      if (!node) continue
-      const pos = node.getPosition()
-      const size = node.getSize()
-      const idx = nodeOutIdx.get(nodeId) ?? 0
-      nodeOutIdx.set(nodeId, idx + 1)
-      const ioNodeId = StringExt.uuid()
-      const ioPortId = StringExt.uuid()
-      extraCells.push({
-        id: ioNodeId,
-        shape: 'circle',
-        position: { x: pos.x + size.width + 50, y: pos.y + idx * 50 },
-        size: { width: 50, height: 40 },
-        attrs: {
-          text: { text: 'out' },
-          body: { fill: '#fff', stroke: '#8f8f8f', strokeWidth: 1 },
-        },
-        data: { type: 'OutPort' },
-        ports: {
-          groups: {
-            in: { position: 'left', attrs: { circle: portCircleAttrs } },
-          },
-          items: [{ group: 'in', id: ioPortId }],
-        },
-      })
-      extraCells.push({
-        id: StringExt.uuid(),
-        shape: 'edge',
-        source: { cell: nodeId, port: portId },
-        target: { cell: ioNodeId, port: ioPortId },
-        attrs: { line: { stroke: '#8f8f8f', strokeWidth: 1 } },
-      })
+      createIONodeJson('out', nodeId, portId)
     }
 
     const allCells = [...nodes, ...edgeSet]
+    // 清除 outline
+    graph.cleanSelection()
     const graphJson = Model.toJSON(allCells)
-    graphJson.cells.push(...extraCells)
+    graphJson.cells.push(...extraJson)
 
     // 2. 找出被合并 nodes 中属于子系统的节点
     const mergedSubsystemIds = nodes
@@ -395,60 +365,41 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
 
     set({ subGraphs: nextSubGraphs })
 
-    // 6. 构建子系统节点的 ports（与内部 IO 节点一一对应）
-    const subsystemPortCircle = {
-      r: 4,
-      magnet: true,
-      stroke: '#5f95ff',
-      strokeWidth: 1,
-      fill: '#fff',
-    }
-    const subsystemPortItems = [
-      ...Array.from(unconnectedInPorts.values()).map(() => ({
-        group: 'in',
-        id: StringExt.uuid(),
-      })),
-      ...Array.from(unconnectedOutPorts.values()).map(() => ({
-        group: 'out',
-        id: StringExt.uuid(),
-      })),
-    ]
-
     // 7. Batch 更新
     graph.batchUpdate(() => {
-      graph.cleanSelection()
       graph.removeCells(allCells, { ignore: true })
       const subsystemNode = graph.addNode(
         {
           id: subGraphItem.id,
-          shape: 'rect',
+          shape: 'subsystem-block',
           x,
           y,
           width,
           height,
           label: 'New Subsystem',
           data: {
-            type: 'SubsystemBlock',
+            blockType: 'Subsystem',
             graphJson,
-          },
-          ports: {
-            groups: {
-              in: {
-                position: 'left',
-                attrs: { circle: subsystemPortCircle },
-              },
-              out: {
-                position: 'right',
-                attrs: { circle: subsystemPortCircle },
-              },
-            },
-            items: subsystemPortItems,
           },
         },
         { ignore: true },
       )
       commonService.resize(subsystemNode)
+      commonService.addPort(subsystemNode, unconnectedInPorts.size, {
+        group: 'in',
+      })
+      commonService.addPort(subsystemNode, unconnectedOutPorts.size, {
+        group: 'out',
+      })
     })
+
+    // 8. 离屏渲染快照，回填缩略图
+    snapshotToDataURL(graphJson)
+      .then((dataUrl) => {
+        const node = graph.getCellById(subGraphItem.id) as Node
+        node?.setAttrs({ thumb: { xlinkHref: dataUrl } })
+      })
+      .catch((e) => console.warn('[snapshot] 子系统缩略图生成失败', e))
   },
   // exportGraphModelDTO: () => {
   //   const { rootId, subGraphs } = get()

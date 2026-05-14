@@ -1,4 +1,6 @@
 import type { Cell, Edge, Graph, Node } from '@antv/x6'
+import { RED } from '@/assets/constant'
+import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 
 type UnconnectedPortInfo = {
   nodeId: string
@@ -85,7 +87,10 @@ function createCommonService() {
     if (cell.isNode()) {
       cell.attr(
         'body/filter',
-        { name: 'outline', args: { color: 'rgb(102,194,255)', width: 4, margin: 0 } },
+        {
+          name: 'outline',
+          args: { color: 'rgb(102,194,255)', width: 4, margin: 0 },
+        },
         { undo: false },
       )
     } else if (cell.isEdge()) {
@@ -173,13 +178,56 @@ function createCommonService() {
   }
 
   function addNodeTools(node: Node) {
+    node.addTools([
+      {
+        name: 'node-editor',
+        args: {
+          attrs: {
+            backgroundColor: '#ffffff',
+          },
+        },
+      },
+    ])
   }
 
   function addEdgeTools(edge: Edge) {
+    if (edge.getAttrs()?.line?.stroke === RED) {
+      edge.addTools(
+        [{ name: 'source-arrowhead' }, { name: 'target-arrowhead' }],
+        { undo: false },
+      )
+      return
+    }
+    edge.addTools(
+      [
+        { name: 'source-arrowhead' },
+        { name: 'target-arrowhead' },
+        {
+          name: 'segments',
+          args: { attrs: { fill: '#444' } },
+        },
+      ],
+      { undo: false },
+    )
   }
-  function removeTools(cell: Cell){
 
+  type AddPortOptions = { group?: string; groups?: 'signal' | 'electrical' }
+
+  function addPort(
+    node: Node,
+    count: number,
+    options: AddPortOptions = { group: 'in', groups: 'signal' },
+  ) {
+    const { group, groups } = options
+    const isElectrical = groups === 'electrical'
+    const portGroups = isElectrical ? electricalPortGroups : signalPortGroups
+    node.prop('ports/groups', portGroups)
+    const existing = node.getPorts().filter((p) => p.group === group).length
+    for (let i = 1; i <= count; i++) {
+      node.addPort({ id: `${group}${existing + i}`, group })
+    }
   }
+
   return {
     resize,
     getUnconnectedPorts,
@@ -188,6 +236,9 @@ function createCommonService() {
     isMouseOutCell,
     getNodeAtPoint,
     addBoundaryTool,
+    addNodeTools,
+    addEdgeTools,
+    addPort,
   }
 }
 
