@@ -1,57 +1,67 @@
-import { Stencil, StringExt } from '@antv/x6'
+import { Graph, Model, Stencil, StringExt } from '@antv/x6'
+import type { Node } from '@antv/x6'
 import { throttle } from 'lodash-es'
 import type { Block } from '~/types/vo/block'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
-import { STENCIL_GROUP_PADDING, STENCIL_NODE_GAP } from '@/assets/constant'
+import {
+  STENCIL_GROUP_PADDING,
+  STENCIL_NODE_GAP,
+  STENCIL_PADDING,
+} from '@/assets/constant'
 import { useGraphStore } from '@/store/graphStore'
 
 function createStencilService(stencilContainer: HTMLElement) {
   let stencil!: Stencil
+  let graph!: Graph
   let stencilWidth = stencilContainer.clientWidth
-  const STENCIL_PADDING = 10
   let libraryWithBlock = new Map<string, Block[]>()
   let resizeObserver: ResizeObserver | null = null
-
   /**
-   * 贪心行布局：每行尽量塞节点，装不下换行；每行高度 = 该行最高节点；行列间距固定
+   * 贪心布局：每行塞节点，装不下换行，不修改加载顺序；每行高度 = 该行最高节点；行列间距固定
    */
-  function greedyLayout(model: {
-    getNodes: () => {
-      getSize: () => { width: number; height: number }
-      position: (x: number, y: number) => void
-    }[]
-  }) {
+  function greedyLayout(model: Model) {
     const nodes = model.getNodes()
-    const available = stencilWidth - 2 * STENCIL_PADDING
-    const rows: (typeof nodes)[] = []
-    let row: typeof nodes = []
-    let rowWidth = 0
+    const areaX = stencilWidth - 2 * STENCIL_PADDING
+    const rows: Node[][] = []
+    let row: Node[] = []
+    let tolWidth = 0
     for (const node of nodes) {
       const { width } = node.getSize()
       const needed =
-        row.length === 0 ? width : rowWidth + STENCIL_NODE_GAP + width
-      if (needed <= available || row.length === 0) {
+        row.length === 0 ? width : tolWidth + STENCIL_NODE_GAP + width
+      if (needed <= areaX) {
         row.push(node)
-        rowWidth = needed
-      } else {
+        tolWidth = needed
+      } else if (needed > areaX && row.length > 0) {
         rows.push(row)
         row = [node]
-        rowWidth = width
+        tolWidth = width
+      } else if (needed > areaX && row.length === 0) {
+        // 单个节点宽度超过行宽 兼容性报错
+        console.error('[联系管理员兼容]Exist node exceeds min row width:', node)
+      } else {
+        console.error('Unexpected layout case:', node)
       }
     }
     if (row.length) rows.push(row)
     let y = STENCIL_NODE_GAP / 2
     for (const r of rows) {
-      const rowH = Math.max(...r.map((n) => n.getSize().height))
-      const totalNodeWidth = r.reduce((sum, n) => sum + n.getSize().width, 0)
+      const sizes = r.map((n) => n.getSize())
+      const rowH = Math.max(...sizes.map((s) => s.height))
+      const totalNodeWidth = sizes.reduce((sum, s) => sum + s.width, 0)
+      //  gap 计算（两种情况）：
+      // ┌ r.length > 1 → gap = (areaX - totalNodeWidth) / (r.length + 1)
+      // │   节点间和两侧都留等量间距，共 (n+1) 份
+      // └ r.length = 1 → gap = (areaX - totalNodeWidth) / 2
+      //  单节点居中，左右各一份
       const gap =
         r.length > 1
-          ? (available - totalNodeWidth) / (r.length + 1)
-          : (available - totalNodeWidth) / 2
+          ? (areaX - totalNodeWidth) / (r.length + 1)
+          : (areaX - totalNodeWidth) / 2
       let x = gap
-      for (const node of r) {
-        const { width, height } = node.getSize()
-        node.position(x, y + (rowH - height) / 2)
+      for (let i = 0; i < r.length; i++) {
+        const { width, height } = sizes[i]
+        r[i].position(x, y + (rowH - height) / 2)
         x += width + gap
       }
       y += rowH + STENCIL_NODE_GAP
@@ -59,7 +69,7 @@ function createStencilService(stencilContainer: HTMLElement) {
   }
 
   async function create(): Promise<void> {
-    const graph = useGraphStore.getState().graph
+    graph = useGraphStore.getState().graph
     const [blocks, libraries] = await Promise.all([
       fetchBlocks(),
       fetchBlockLibrary(),
@@ -96,7 +106,6 @@ function createStencilService(stencilContainer: HTMLElement) {
   }
 
   function buildStencil(): Stencil {
-    const graph = useGraphStore.getState().graph
     return new Stencil({
       target: graph,
       stencilGraphWidth: stencilWidth,
@@ -132,7 +141,7 @@ function createStencilService(stencilContainer: HTMLElement) {
     for (const [libName, libBlocks] of libraryWithBlock) {
       stencil.resizeGroup(libName, { width: stencilWidth, height: 0 })
       stencil.load(
-        libBlocks.map((b) => useGraphStore.getState().graph.createNode(b)),
+        libBlocks.map((b) => graph.createNode(b)),
         libName,
       )
     }
