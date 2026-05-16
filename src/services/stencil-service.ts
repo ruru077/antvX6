@@ -263,7 +263,7 @@ function createStencilService(stencilContainer: HTMLElement) {
       notFoundText: 'NOT FOUND',
       getDragNode(node) {
         // 子系统port id 不需要唯一性 保持in1 out1
-        if (node.getData()?.blockType === 'Subsystem') return node
+        if (node.getData()?.blockType === 'Subsystem') return node.clone()
         const cloned = node.clone()
         cloned.getPorts().forEach((port) => {
           if (port.id) cloned.portProp(port.id, 'id', StringExt.uuid())
