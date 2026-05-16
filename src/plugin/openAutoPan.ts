@@ -1,5 +1,9 @@
 import type { Edge, Graph, Scroller } from '@antv/x6'
 
+/**
+ * @description 开启鼠标沿边移动功能
+ * @param graph - X6 Graph 实例
+ */
 export function openAutoPan(graph: Graph) {
   const threshold = 30
   const controller = new AbortController()

@@ -25,6 +25,12 @@ import {
 import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { createCommonService } from '@/services/common-service'
+import {
+  isSelectionByKey,
+  pasteTarget,
+  setIsSelectionByKey,
+  setPasteTarget,
+} from '@/store/graphFlags'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
@@ -47,233 +53,14 @@ const useGraphStore = create<GraphStore>((set, get) => ({
   graph: null as unknown as GraphType,
   zoom: 100,
   initGraph: (container) => {
-    let firstTimePaste = true
-    const graph = new Graph({
-      container,
-      autoResize: true,
-      connecting: {
-        allowNode: false, //是否允许连接到Block本体上
-        allowEdge: false, //是否允许连接到连线上
-        allowMulti: true, //是否允许多条相同的source target
-        allowLoop: false, //是否允许自连接
-        sourceConnectionPoint: 'anchor',
-        targetConnectionPoint: {
-          name: 'anchor',
-          args: {
-            offset: -5,
-          },
-        },
-        snap: {
-          radius: SNAP_RADIUS,
-          anchor: 'bbox',
-        },
-        router: {
-          name: 'orth',
-          args: {
-            step: GRAPH_GRID,
-            // padding: { top: 0, right: 30, bottom: 0, left: 30 },
-            // padding: 0,
-            // excludeTerminals: ['source', 'target'],
-            // startDirections: ['right'],
-            // endDirections: ['left'],
-            // fallbackRouter: routerPresets.er,
-            // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
-            // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
-            // draggingRouter() {
-            //   return []
-            // },
-          },
-        },
-        connector: {
-          name: 'jumpover',
-          args: {
-            type: 'gap',
-            size: GAP_SIZE,
-            radius: RADIUS_SIZE,
-          },
-        }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
-        createEdge() {
-          return new Shape.Edge(previewLink)
-        },
-      },
-      grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
-      scaling: { min: 0.5, max: 5 },
-      // 🧪BUG: 框架内置 mousewheel 参数过大会导致页面闪烁
-      mousewheel: {
-        enabled: true,
-        modifiers: ['ctrl', 'meta'],
-        factor: 1.1,
-      },
-      panning: false,
-      virtual: true,
-    })
-    const transformPlugin = new Transform({
-      resizing: {
-        enabled: true,
-        minWidth: 30,
-        maxWidth: 200,
-        minHeight: 30,
-        maxHeight: 150,
-        orthogonal: false,
-        restrict: false,
-        preserveAspectRatio: false,
-      },
-    })
-    const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
-    // @ts-expect-error AntV X6 插件
-    window.__x6_instances__ = []
-
-    // @ts-expect-error AntV X6 插件
-    window.__x6_instances__.push(graph)
-    // ── 基础事件 ────────────────────────────────────────────────
+    const graph = createGraph(container)
+    setupDevTools(graph)
     graph.on('scale', ({ sx }: { sx: number }) => {
       get().setZoom(Math.round(sx * 100))
     })
-
-    // ── 插件 ────────────────────────────────────────────────────
-    graph.use(new Snapline({ enabled: true, sharp: true }))
-    graph.use(new Export())
-    graph.use(
-      new Selection({
-        enabled: true,
-        multiple: true,
-        rubberband: true,
-        rubberEdge: true,
-        showNodeSelectionBox: true,
-        showEdgeSelectionBox: false,
-        movingRouterFallback: 'orth',
-        modifiers: 'shift',
-        content(_selection, el) {
-          el.innerHTML = `
-            <div class="x6-selection-action-bar">
-              <button class="x6-selection-action-bar__btn" data-action="create-subsystem" title="创建子系统">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                  <rect x="1" y="1" width="14" height="14" rx="2"/>
-                  <path d="M5 8h6M8 5v6"/>
-                </svg>
-                <span>创建子系统</span>
-              </button>
-            </div>
-          `
-          const btn = el.querySelector<HTMLElement>(
-            '[data-action="create-subsystem"]',
-          )!
-          btn.addEventListener('mousedown', (e) => e.stopPropagation())
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation()
-            const cells = graph.getSelectedCells()
-            useSubGraphStore.getState().mergeToSubsystem(cells)
-          })
-          return ''
-        },
-      }),
-    )
-    graph.use(
-      new Scroller({
-        enabled: true,
-        pannable: true,
-        pageWidth: 1000,
-        pageHeight: 1000,
-        pageBreak: false,
-        pageVisible: true,
-        autoResizeOptions: {
-          useCellGeometry: false,
-        },
-      }),
-    )
-
-    graph.use(transformPlugin)
-    // 禁用插件默认的 click 触发，改为 hover 触发
-    transformPlugin.disable()
-
-    graph.use(new Clipboard({ enabled: true, useLocalStorage: true }))
-    graph.use(
-      new History({
-        enabled: true,
-        /**
-         * @custom dev
-         * @tips args 配置 {undo : false} 的命令不加入历史记录
-         */
-        beforeAddCommand(_event, args) {
-          if (!args) return
-          if ('options' in args && args.options?.undo === false) return false
-        },
-      }),
-    )
-    graph.use(new Keyboard({ enabled: true }))
-
-    // ── 快捷键 ───────────────────────────────────────────────────
-    graph.bindKey(['ctrl+c', 'meta+c'], () => {
-      const cells = graph.getSelectedCells()
-      if (cells.length) graph.copy(cells)
-      return false
-    })
-    graph.bindKey(['ctrl+v', 'meta+v'], () => {
-      if (!firstTimePaste) return false
-      if (!graph.isClipboardEmpty()) {
-        let cells
-        if (pasteTarget) {
-          const clipboardCells = graph.getCellsInClipboard()
-          const nodes = clipboardCells.filter((c) => c.isNode())
-          if (nodes.length) {
-            const minX = Math.min(...nodes.map((n) => n.getPosition().x))
-            const minY = Math.min(...nodes.map((n) => n.getPosition().y))
-            cells = graph.paste({
-              offset: { dx: pasteTarget.x - minX, dy: pasteTarget.y - minY },
-            })
-          }
-          setPasteTarget(null)
-        } else {
-          cells = graph.paste({ offset: PASTE_OFFSET })
-        }
-        graph.resetSelection(cells)
-        firstTimePaste = false
-      }
-      return false
-    })
-    graph.bindKey(
-      ['ctrl+v', 'meta+v'],
-      () => {
-        firstTimePaste = true
-        return false
-      },
-      'keyup',
-    )
-    graph.bindKey(['ctrl+x', 'meta+x'], () => {
-      const cells = graph.getSelectedCells()
-      if (cells.length) {
-        graph.cut(cells)
-        graph.resetSelection([])
-      }
-      return false
-    })
-    graph.bindKey(['delete', 'backspace'], () => {
-      const cells = graph.getSelectedCells()
-      if (cells.length) {
-        graph.removeCells(cells)
-        graph.resetSelection([])
-      }
-      return false
-    })
-    graph.bindKey(['ctrl+a', 'meta+a'], () => {
-      const cells = graph.getCells()
-      if (cells.length) graph.resetSelection(cells)
-      return false
-    })
-    graph.bindKey(['ctrl+z', 'meta+z'], () => {
-      graph.undo()
-      return false
-    })
-    graph.bindKey(['ctrl+y', 'meta+y', 'meta+shift+z', 'ctrl+shift+z'], () => {
-      graph.redo()
-      return false
-    })
-    // key up down left right
-    DIRS.forEach((dir) => {
-      graph.bindKey(dir, moveKeyCallback(dir))
-    })
-    const scroller = graph.getPlugin<Scroller>('scroller')
-    scroller!.centerPoint(1500, 1000)
+    registerPlugins(graph)
+    registerKeyBindings(graph)
+    graph.getPlugin<Scroller>('scroller')!.centerPoint(500, 500)
     openAutoPan(graph)
     set({ graph })
   },
@@ -285,9 +72,209 @@ const useGraphStore = create<GraphStore>((set, get) => ({
   setZoom: (zoom) => set({ zoom }),
 }))
 
+// ── Graph 实例创建 ────────────────────────────────────────────────────────────
+
+function createGraph(container: HTMLElement): GraphType {
+  return new Graph({
+    container,
+    autoResize: true,
+    connecting: {
+      allowNode: false, //是否允许连接到Block本体上
+      allowEdge: false, //是否允许连接到连线上
+      allowMulti: true, //是否允许多条相同的source target
+      allowLoop: false, //是否允许自连接
+      sourceConnectionPoint: 'anchor',
+      targetConnectionPoint: {
+        name: 'anchor',
+        args: {
+          offset: -5,
+        },
+      },
+      snap: {
+        radius: SNAP_RADIUS,
+        anchor: 'bbox',
+      },
+      router: {
+        name: 'orth',
+        args: {
+          step: GRAPH_GRID,
+          // padding: { top: 0, right: 30, bottom: 0, left: 30 },
+          // padding: 0,
+          // excludeTerminals: ['source', 'target'],
+          // startDirections: ['right'],
+          // endDirections: ['left'],
+          // fallbackRouter: routerPresets.er,
+          // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
+          // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
+          // draggingRouter() {
+          //   return []
+          // },
+        },
+      },
+      connector: {
+        name: 'jumpover',
+        args: {
+          type: 'gap',
+          size: GAP_SIZE,
+          radius: RADIUS_SIZE,
+        },
+      }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
+      createEdge() {
+        return new Shape.Edge(previewLink)
+      },
+    },
+    grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
+    scaling: { min: 0.5, max: 5 },
+    // 🧪BUG: 框架内置 mousewheel 参数过大会导致页面闪烁
+    mousewheel: {
+      enabled: true,
+      modifiers: ['ctrl', 'meta'],
+      factor: 1.1,
+    },
+    panning: false,
+    virtual: true,
+  })
+}
+
+// ── 插件注册 ──────────────────────────────────────────────────────────────────
+
+function registerPlugins(graph: GraphType) {
+  graph.use(new Snapline({ enabled: true, sharp: true }))
+  graph.use(new Export())
+  graph.use(
+    new Selection({
+      enabled: true,
+      multiple: true,
+      rubberband: true,
+      rubberEdge: true,
+      showNodeSelectionBox: false,
+      showEdgeSelectionBox: false,
+      movingRouterFallback: 'orth',
+      modifiers: 'shift',
+      // pointerEvents: 'none',
+      content(_selection, el) {
+        el.innerHTML = `
+          <div class="x6-selection-action-bar">
+            <button class="x6-selection-action-bar__btn" data-action="create-subsystem" title="创建子系统">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                <rect x="1" y="1" width="14" height="14" rx="2"/>
+                <path d="M5 8h6M8 5v6"/>
+              </svg>
+              <span>创建子系统</span>
+            </button>
+          </div>
+        `
+        const btn = el.querySelector<HTMLElement>(
+          '[data-action="create-subsystem"]',
+        )!
+        btn.addEventListener('mousedown', (e) => e.stopPropagation())
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          const cells = graph.getSelectedCells()
+          useSubGraphStore.getState().mergeToSubsystem(cells)
+        })
+        return ''
+      },
+    }),
+  )
+  graph.use(
+    new Scroller({
+      enabled: true,
+      pannable: true,
+      pageWidth: 1000,
+      pageHeight: 1000,
+      pageBreak: false,
+      pageVisible: true,
+      autoResizeOptions: {
+        useCellGeometry: false,
+      },
+    }),
+  )
+
+  const transformPlugin = new Transform({
+    resizing: {
+      enabled: true,
+      minWidth: 30,
+      maxWidth: 200,
+      minHeight: 30,
+      maxHeight: 150,
+      orthogonal: false,
+      restrict: false,
+      preserveAspectRatio: false,
+    },
+  })
+  graph.use(transformPlugin)
+  // 禁用插件默认的 click 触发，改为 hover 触发
+  transformPlugin.disable()
+
+  graph.use(new Clipboard({ enabled: true, useLocalStorage: true }))
+  graph.use(
+    new History({
+      enabled: true,
+      /**
+       * @custom dev
+       * @tips args 配置 {undo : false} 的命令不加入历史记录
+       */
+      beforeAddCommand(_event, args) {
+        if (!args) return
+        if ('options' in args && args.options?.undo === false) return false
+      },
+    }),
+  )
+  graph.use(new Keyboard({ enabled: true }))
+}
+
+// ── 快捷键注册 ────────────────────────────────────────────────────────────────
+
+function registerKeyBindings(graph: GraphType) {
+  // 方向键单独处理（依赖运行时 dir 参数）
+  DIRS.forEach((dir) => {
+    graph.bindKey(dir, moveKeyHandler(dir))
+  })
+
+  registerKeys(graph, [
+    // ── 复制 / 粘贴 / 剪切 ──────────────────────────────────
+    [['ctrl+c', 'meta+c'], copyHandler],
+    [['ctrl+v', 'meta+v'], pasteHandler],
+    [['ctrl+v', 'meta+v'], pasteUpHandler, 'keyup'],
+    [['ctrl+x', 'meta+x'], cutHandler],
+    // ── 删除 / 全选 ─────────────────────────────────────────
+    [['delete', 'backspace'], removeHandler],
+    [['ctrl+a', 'meta+a'], selectAllHandler],
+    // ── 视图适应 ────────────────────────────────────────────
+    ['space', spaceDownHandler],
+    ['space', zoomToFitHandler, 'keyup'],
+    ['space+f', zoomToSelectionHandler],
+    // ── 撤销 / 重做 ─────────────────────────────────────────
+    [
+      ['ctrl+z', 'meta+z'],
+      () => {
+        graph.undo()
+      },
+    ],
+    [
+      ['ctrl+y', 'meta+y', 'meta+shift+z', 'ctrl+shift+z'],
+      () => {
+        graph.redo()
+      },
+    ],
+  ])
+}
+
+// ── 开发工具 ──────────────────────────────────────────────────────────────────
+
+function setupDevTools(graph: GraphType) {
+  // @ts-expect-error AntV X6 插件
+  window.__x6_instances__ = []
+  // @ts-expect-error AntV X6 插件
+  window.__x6_instances__.push(graph)
+}
+
 // ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
 
 type ArrowDir = 'up' | 'down' | 'left' | 'right'
+
+const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
 
 const STEP: Record<ArrowDir, { dx: number; dy: number }> = {
   up: { dx: 0, dy: -GRAPH_GRID },
@@ -325,7 +312,7 @@ function findNeighbor(current: Node, dir: ArrowDir): Node | null {
   })
 }
 
-function moveKeyCallback(dir: ArrowDir) {
+function moveKeyHandler(dir: ArrowDir) {
   // 是否为正在批处理
   let isBatching = false
   const _debounce = debounce(() => {
@@ -367,14 +354,112 @@ function moveKeyCallback(dir: ArrowDir) {
 }
 
 // ── 行为标志位（不需要触发 React re-render，模块级变量）────────────────────
-let isSelectionByKey = false
-const setIsSelectionByKey = (val: boolean) => {
-  isSelectionByKey = val
+/** 粘贴去抖：keydown 首次触发后锁定，keyup 解锁 */
+let firstTimePaste = true
+/** 当前按键序列已被 combo 键消费，单键 keyup 应跳过 */
+let keySequenceConsumed = false
+
+// ── 快捷键 handler（模块级，通过 store.getState() 按需取 graph）────────────
+
+function copyHandler() {
+  const graph = useGraphStore.getState().graph
+  const cells = graph.getSelectedCells()
+  if (cells.length) graph.copy(cells)
 }
 
-let pasteTarget: { x: number; y: number } | null = null
-const setPasteTarget = (pos: { x: number; y: number } | null) => {
-  pasteTarget = pos
+function pasteHandler() {
+  if (!firstTimePaste) return
+  const graph = useGraphStore.getState().graph
+  if (graph.isClipboardEmpty()) return
+  let cells
+  if (pasteTarget) {
+    const clipboardCells = graph.getCellsInClipboard()
+    const nodes = clipboardCells.filter((c) => c.isNode())
+    const minX = Math.min(...nodes.map((n) => n.getPosition().x))
+    const minY = Math.min(...nodes.map((n) => n.getPosition().y))
+    cells = graph.paste({
+      offset: { dx: pasteTarget.x - minX, dy: pasteTarget.y - minY },
+    })
+    setPasteTarget(pasteTarget.x + PASTE_OFFSET, pasteTarget.y + PASTE_OFFSET)
+  } else {
+    cells = graph.paste({ offset: PASTE_OFFSET })
+  }
+  graph.resetSelection(cells)
+  firstTimePaste = false
 }
 
-export { useGraphStore, setIsSelectionByKey, setPasteTarget }
+function pasteUpHandler() {
+  firstTimePaste = true
+}
+
+function cutHandler() {
+  const graph = useGraphStore.getState().graph
+  const cells = graph.getSelectedCells()
+  if (cells.length) {
+    graph.cut(cells)
+    graph.resetSelection([])
+  }
+}
+
+function removeHandler() {
+  const graph = useGraphStore.getState().graph
+  const cells = graph.getSelectedCells()
+  if (cells.length) {
+    graph.removeCells(cells)
+    graph.resetSelection([])
+  }
+}
+
+function selectAllHandler() {
+  const graph = useGraphStore.getState().graph
+  const cells = graph.getCells()
+  if (cells.length) graph.resetSelection(cells)
+}
+
+function spaceDownHandler() {
+  keySequenceConsumed = false
+}
+
+function zoomToFitHandler() {
+  if (keySequenceConsumed) {
+    keySequenceConsumed = false
+    return
+  }
+  useGraphStore.getState().graph.zoomToFit({ padding: 20 })
+}
+
+function zoomToSelectionHandler() {
+  keySequenceConsumed = true
+  const graph = useGraphStore.getState().graph
+  const selection = graph.getPlugin<Selection>('selection')
+  const cells = selection?.getSelectedCells() ?? []
+  if (cells.length > 0) {
+    graph.zoomToRect(graph.getCellsBBox(cells)!, { padding: 20 })
+  }
+}
+
+// ── registerKeys ─────────────────────────────────────────────────────────────
+/**
+ * 批量注册快捷键，每条 entry 为 `[keys, handler, eventType?]`。
+ * handler 统一用 `function` 具名声明，自动追加 `return false`。
+ */
+type KeyEntry = [
+  keys: string | string[],
+  handler: () => void,
+  eventType?: 'keydown' | 'keyup' | 'keypress',
+]
+
+function registerKeys(graph: GraphType, entries: KeyEntry[]) {
+  for (const [keys, handler, eventType] of entries) {
+    graph.bindKey(
+      keys,
+      function () {
+        handler()
+        return false
+      },
+      eventType,
+    )
+  }
+}
+
+export { useGraphStore }

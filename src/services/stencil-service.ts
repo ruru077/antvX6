@@ -240,7 +240,7 @@ function createStencilService(stencilContainer: HTMLElement) {
 
   function dispose(): void {
     resizeObserver?.disconnect()
-    stencil.dispose()
+    stencil?.dispose()
   }
 
   function buildStencil(): Stencil {

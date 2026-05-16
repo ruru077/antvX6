@@ -1,6 +1,7 @@
 import type { Cell, Edge, Graph, Node } from '@antv/x6'
 import { RED } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
+import { useGraphStore } from '@/store/graphStore'
 
 type UnconnectedPortInfo = {
   nodeId: string
@@ -124,10 +125,10 @@ function createCommonService() {
    */
   function isMouseOutCell(
     e: MouseEvent,
-    graph: Graph,
     cell: Node,
     threshold: number,
   ): boolean {
+    const graph = useGraphStore.getState().graph
     const p = graph.pageToLocal(e.pageX, e.pageY)
     const b = cell.getBBox()
     return (
@@ -141,7 +142,8 @@ function createCommonService() {
    * 获取指定坐标点下的节点
    * @returns 节点对象 Node | null
    */
-  function getNodeAtPoint(e: MouseEvent, graph: Graph): Node | null {
+  function getNodeAtPoint(e: MouseEvent): Node | null {
+    const graph = useGraphStore.getState().graph
     const p = graph.pageToLocal(e.pageX, e.pageY)
     return (
       graph.getNodes().find((n) => {

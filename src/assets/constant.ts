@@ -1,15 +1,29 @@
+/**
+ * @description: 常量
+ */
+// 画布最小单元
 const GRAPH_GRID = 15
+// EDGE 红
 const RED = '#e60000'
+// EDGE 黑
 const BLACK = '#000000'
 const TARGETMARKER_SIZE = 15
+// EDGE 线宽
+const EDGE_STROKE_WIDTH = 1.5
+// EDGE 交点GAP
 const GAP_SIZE = 2.5
 const RADIUS_SIZE = 4
+// 吸附触发Threshold
 const SNAP_RADIUS = 20
-const EDGE_STROKE_WIDTH = 1.5
+// 粘贴时节点偏移量
 const PASTE_OFFSET = 32
+// STENCIL节点间距
 const STENCIL_NODE_GAP = 50
+// STENCIL分组底部间距
 const STENCIL_GROUP_PADDING = 40
 const STENCIL_PADDING = 20
+// 键盘事件节流时间
+const KEY_THROTTLE_TIME = 800
 export {
   GRAPH_GRID,
   RED,
@@ -23,4 +37,5 @@ export {
   STENCIL_NODE_GAP,
   STENCIL_GROUP_PADDING,
   STENCIL_PADDING,
+  KEY_THROTTLE_TIME,
 }
