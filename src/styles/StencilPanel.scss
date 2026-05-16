@@ -6,7 +6,7 @@ $radius-md: 8px;
 .stencil-wrapper {
   display: flex;
   flex-direction: column;
-  width: clamp(200px, 20%, 400px);
+  width: 100%;
   border: 1px solid #f0f0f0;
   background-color: #ffffff;
   border-radius: $radius-md;
@@ -17,9 +17,11 @@ $radius-md: 8px;
   padding: 10px 8px 8px 8px;
 
   &--collapsed {
-    width: 40px;
-    padding-left: 0;
-    padding-right: 0;
+    width: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
 
     .stencil,
     .stencil-title {
@@ -35,13 +37,120 @@ $radius-md: 8px;
       justify-content: center;
       padding: 0;
     }
-
-    .stencil-header-actions {
-      width: 100%;
-      justify-content: center;
-      gap: 0;
-    }
   }
+}
+
+.stencil-resizable {
+  position: relative;
+  height: 100%;
+}
+
+.stencil-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -7px;
+  width: 14px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 8;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 6px;
+    width: 2px;
+    height: 100%;
+    background: rgba(22, 119, 255, 0.42);
+    opacity: 0;
+    transition: opacity 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 5px;
+    width: 4px;
+    height: 100%;
+    background: rgba(22, 119, 255, 0.12);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &.is-collapsed .stencil-collapse-handle-btn svg {
+    transform: rotate(180deg);
+  }
+
+  &.is-collapsed {
+    cursor: default;
+  }
+}
+
+.stencil-collapse-handle-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 48px;
+  border: 1px solid #d8e3f7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3d4f70;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s ease;
+  }
+
+  &:hover {
+    border-color: #9ebdf0;
+    color: #1f3a68;
+    box-shadow: 0 4px 10px rgba(22, 119, 255, 0.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(22, 119, 255, 0.4);
+    outline-offset: 2px;
+  }
+}
+
+.stencil-resize-handle:not(.is-collapsed):hover {
+  &::before {
+    opacity: 1;
+    background: rgba(22, 119, 255, 0.9);
+    box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2);
+  }
+
+  &::after {
+    opacity: 0.65;
+  }
+}
+
+.stencil-resize-handle.is-collapsed {
+  &::before,
+  &::after {
+    display: none;
+  }
+}
+
+.stencil-resize-handle:hover .stencil-collapse-handle-btn,
+.stencil-resize-handle.is-collapsed .stencil-collapse-handle-btn,
+.stencil-collapse-handle-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .stencil-header {
@@ -91,12 +200,6 @@ $radius-md: 8px;
     }
   }
 
-  .stencil-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
   .stencil-visibility-btn {
     display: flex;
     align-items: center;
@@ -133,34 +236,6 @@ $radius-md: 8px;
     }
   }
 
-  .stencil-toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: #1e1e1e;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-
-    svg {
-      width: 24px;
-      height: 24px;
-      transition: transform 0.3s ease;
-    }
-
-    &--open svg {
-      transform: rotate(180deg);
-    }
-
-    &:hover {
-      background: $primary-color-hover;
-    }
-  }
 }
 
 .stencil {

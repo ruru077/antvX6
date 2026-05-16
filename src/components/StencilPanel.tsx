@@ -1,23 +1,31 @@
 import { type Graph } from '@antv/x6'
 import { Tooltip } from 'antd'
+import { type SyntheticEvent } from 'react'
+import { Resizable, type ResizeCallbackData } from 'react-resizable'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
 import '@/styles/StencilPanel.scss'
+import 'react-resizable/css/styles.css'
 
 type StencilPanelProps = Record<string, never>
 
 function StencilPanel(_props: StencilPanelProps) {
+  const MIN_WIDTH = 220
+  const MAX_WIDTH = 560
+  const DEFAULT_WIDTH = 320
+
   const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
   const stencilServiceRef = useRef<ReturnType<
     typeof createStencilService
   > | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_WIDTH)
 
   useEffect(() => {
     if (!graph || !stencilContainerRef.current) return
     const service = createStencilService(stencilContainerRef.current)
-    service.create(graph)
+    service.create()
     stencilServiceRef.current = service
     return () => {
       service.dispose()
@@ -28,10 +36,14 @@ function StencilPanel(_props: StencilPanelProps) {
   const handleExpandAll = () => stencilServiceRef.current?.expandAll()
   const handleCollapseAll = () => stencilServiceRef.current?.collapseAll()
   const handleToggleCollapsed = () => setCollapsed((value) => !value)
+  const handleResize = (_event: SyntheticEvent, data: ResizeCallbackData) => {
+    setPanelWidth(data.size.width)
+  }
 
-  return (
+  const stencilPanel = (
     <div
       className={`stencil-wrapper${collapsed ? ' stencil-wrapper--collapsed' : ''}`}
+      style={collapsed ? { width: 0 } : { width: panelWidth }}
     >
       <div className="stencil-header">
         {!collapsed && (
@@ -91,34 +103,51 @@ function StencilPanel(_props: StencilPanelProps) {
           </div>
         )}
         <span className="stencil-title">123456</span>
-        <div className="stencil-header-actions">
-          <Tooltip
-            title={collapsed ? '展开' : '收起'}
-            mouseEnterDelay={0.2}
-            placement="bottom"
-          >
-            <button
-              className={`stencil-toggle-btn${collapsed ? '' : ' stencil-toggle-btn--open'}`}
-              onClick={handleToggleCollapsed}
-            >
-              <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <polyline
-                  points="11,4 6,8 11,12"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </Tooltip>
-        </div>
       </div>
       <div ref={stencilContainerRef} className="stencil"></div>
     </div>
+  )
+
+  return (
+    <Resizable
+      width={collapsed ? 0 : panelWidth}
+      height={0}
+      axis={collapsed ? 'none' : 'x'}
+      minConstraints={[MIN_WIDTH, 0]}
+      maxConstraints={[MAX_WIDTH, 0]}
+      onResize={handleResize}
+      resizeHandles={['e']}
+      handle={
+        <div
+          className={`stencil-resize-handle${collapsed ? ' is-collapsed' : ''}`}
+          aria-label="resize stencil panel"
+        >
+          <button
+            type="button"
+            className="stencil-collapse-handle-btn"
+            title={collapsed ? '展开' : '收起'}
+            aria-label={collapsed ? '展开 stencil panel' : '收起 stencil panel'}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={handleToggleCollapsed}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <polyline
+                points="10,4 6,8 10,12"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      }
+    >
+      <div className="stencil-resizable">{stencilPanel}</div>
+    </Resizable>
   )
 }
 

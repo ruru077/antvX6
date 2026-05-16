@@ -3,11 +3,7 @@ import type { Node } from '@antv/x6'
 import { throttle } from 'lodash-es'
 import type { Block } from '~/types/vo/block'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
-import {
-  STENCIL_GROUP_PADDING,
-  STENCIL_NODE_GAP,
-  STENCIL_PADDING,
-} from '@/assets/constant'
+import { STENCIL_GROUP_PADDING, STENCIL_NODE_GAP } from '@/assets/constant'
 import { useGraphStore } from '@/store/graphStore'
 
 function createStencilService(stencilContainer: HTMLElement) {
@@ -21,7 +17,7 @@ function createStencilService(stencilContainer: HTMLElement) {
    */
   function greedyLayout(model: Model) {
     const nodes = model.getNodes()
-    const areaX = stencilWidth - 2 * STENCIL_PADDING
+    const areaX = stencilWidth - 2 * 10
     const rows: Node[][] = []
     let row: Node[] = []
     let tolWidth = 0
