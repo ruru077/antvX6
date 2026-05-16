@@ -31,11 +31,12 @@ const formalLink = {
     line: {
       stroke: BLACK,
       strokeWidth: 1.5,
-      strokeDasharray: null as null,
+      strokeDasharray: null,
       targetMarker: {
         name: 'block',
         args: { size: TARGETMARKER_SIZE },
         transform: 'rotate(180)',
+        d: null,
       },
     },
   },

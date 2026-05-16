@@ -260,7 +260,7 @@ function registerOutlineListeners(graph: Graph) {
 // ── Node Tools ───────────────────────────────────────────────────────────
 function registerNodeToolListeners(graph: Graph) {
   function nodeAddedHandler({ node }: EventArgs['node:added']) {
-    commonService.addNodeTools(node)
+    // commonService.addNodeTools(node)
   }
   return registerListeners(graph, [['node:added', nodeAddedHandler]])
 }

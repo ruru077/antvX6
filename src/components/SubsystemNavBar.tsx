@@ -129,7 +129,10 @@ function SubsystemNavBar() {
       <DoubleRightOutlined
         className="subsystem-navbar__expand-btn"
         rotate={90}
-        onClick={() => setDrawerOpen(true)}
+        onClick={() => {
+          setExpandedKeys(currentPathIds.slice(0, -1))
+          setDrawerOpen(true)
+        }}
       />
       <Drawer
         title="全部系统层级"

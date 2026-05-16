@@ -21,7 +21,6 @@ const PASTE_OFFSET = 32
 const STENCIL_NODE_GAP = 50
 // STENCIL分组底部间距
 const STENCIL_GROUP_PADDING = 40
-const STENCIL_PADDING = 20
 // 键盘事件节流时间
 const KEY_THROTTLE_TIME = 800
 export {

@@ -121,21 +121,19 @@ $radius-2xl: 24px;
 .x6-widget-transform {
   margin: -1px 0 0 -1px;
   padding: 0;
-  border: 1px solid #239edd;
-  border-radius: 6px;
 }
 
 .x6-widget-transform>div {
-  border: 1px solid #239edd;
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgb(140, 140, 140);
+  background-color: rgba(255, 255, 255, 0.5);
+
+  // &:hover {
+  //   background-color: rgba(21, 255, 0, 0.9);
+  // }
 }
 
-.x6-widget-transform>div:hover {
-  background-color: #3dafe4;
-}
-
-.x6-widget-transform-active-handle {
-  background-color: #3dafe4;
-}
 
 .x6-widget-transform-resize {
   border-radius: 0;

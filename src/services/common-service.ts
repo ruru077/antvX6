@@ -214,7 +214,11 @@ function createCommonService() {
   }
 
   type AddPortOptions = { group?: string; groups?: 'signal' | 'electrical' }
-
+  /**
+   * @description 合并子系统增缺失的端口
+   * @param count 增加的端口数量
+   * @param options 
+   */
   function addPort(
     node: Node,
     count: number,
@@ -230,6 +234,21 @@ function createCommonService() {
     }
   }
 
+  /**
+   * 递归移除对象中所有值为 null 的字段
+   * null 在 X6 attrs 中表示"清除该属性"，导出时不存在该字段效果等同
+   */
+  function zipJson(obj: unknown): unknown {
+    if (Array.isArray(obj)) return obj.map(zipJson)
+    if (obj !== null && typeof obj === 'object') {
+      return Object.fromEntries(
+        Object.entries(obj as Record<string, unknown>)
+          .filter(([, v]) => v !== null)
+          .map(([k, v]) => [k, zipJson(v)]),
+      )
+    }
+    return obj
+  }
   return {
     resize,
     getUnconnectedPorts,
@@ -241,6 +260,7 @@ function createCommonService() {
     addNodeTools,
     addEdgeTools,
     addPort,
+    zipJson,
   }
 }
 
