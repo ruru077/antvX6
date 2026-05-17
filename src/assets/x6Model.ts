@@ -2,6 +2,8 @@ import { Node } from '@antv/x6'
 import {
   BLACK,
   EDGE_STROKE_WIDTH,
+  EDGE_TARGET_CP_OFFSET,
+  EDGE_WRAPPER_WIDTH,
   RED,
   TARGETMARKER_SIZE,
 } from '@/assets/constant'
@@ -12,6 +14,9 @@ const previewArrowPath = previewArrowRaw.match(/\bd="([^"]+)"/)?.[1]
 /** 拖拽连线时的预览线样式 */
 const previewLink = {
   attrs: {
+    wrap: {
+      strokeWidth: EDGE_WRAPPER_WIDTH,
+    },
     line: {
       stroke: RED,
       strokeWidth: EDGE_STROKE_WIDTH,
@@ -28,9 +33,12 @@ const previewLink = {
 /** 正式连线样式 */
 const formalLink = {
   attrs: {
+    wrap: {
+      strokeWidth: EDGE_WRAPPER_WIDTH,
+    },
     line: {
       stroke: BLACK,
-      strokeWidth: 1.5,
+      strokeWidth: EDGE_STROKE_WIDTH,
       strokeDasharray: null,
       targetMarker: {
         name: 'block',
@@ -132,7 +140,13 @@ const electricalPortGroups = {
   },
 }
 
-export { previewLink, formalLink, signalPortGroups, electricalPortGroups }
+export {
+  previewLink,
+  formalLink,
+  signalPortGroups,
+  electricalPortGroups,
+  previewArrowPath,
+}
 
 // ─── 子系统 Block 自定义形状 ─────────────────────────────────────────────────
 // markup 顺序决定 SVG 层叠：thumb（底）→ body（边框）→ label（顶）

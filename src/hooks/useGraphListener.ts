@@ -12,7 +12,12 @@ import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { setIsSelectionByKey, setPasteTarget, activeToolEdgeId, setActiveToolEdgeId } from '@/store/flags'
+import {
+  activeToolEdgeId,
+  setActiveToolEdgeId,
+  setIsSelectionByKey,
+  setPasteTarget,
+} from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 

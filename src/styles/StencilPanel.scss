@@ -7,6 +7,7 @@ $radius-md: 8px;
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
   border: 1px solid #f0f0f0;
   background-color: #ffffff;
   border-radius: $radius-md;
@@ -140,6 +141,7 @@ $radius-md: 8px;
 }
 
 .stencil-resize-handle.is-collapsed {
+
   &::before,
   &::after {
     display: none;

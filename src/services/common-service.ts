@@ -5,11 +5,7 @@ import {
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
-import {
-  arrowheadPath,
-  electricalPortGroups,
-  signalPortGroups,
-} from '@/assets/x6Model'
+import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
 
 type UnconnectedPortInfo = {
@@ -232,7 +228,6 @@ function createCommonService() {
       name: 'target-arrowhead',
       args: {
         attrs: {
-          d: arrowheadPath,
           fill: 'transparent',
           stroke: 'transparent',
           'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,

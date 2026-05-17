@@ -16,12 +16,12 @@ import {
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
 import {
+  EDGE_TARGET_CP_OFFSET,
   GAP_SIZE,
   GRAPH_GRID,
   PASTE_OFFSET,
   RADIUS_SIZE,
   SNAP_RADIUS,
-  EDGE_TARGET_CP_OFFSET,
 } from '@/assets/constant'
 import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'

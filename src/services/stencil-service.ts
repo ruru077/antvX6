@@ -1,6 +1,6 @@
 import { Graph, Model, Stencil, StringExt } from '@antv/x6'
 import type { Node } from '@antv/x6'
-import { throttle } from 'lodash-es'
+import { debounce } from 'lodash-es'
 import type { Block } from '~/types/vo/block'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
 import { STENCIL_GROUP_PADDING, STENCIL_NODE_GAP } from '@/assets/constant'
@@ -87,11 +87,12 @@ function createStencilService(stencilContainer: HTMLElement) {
     }
     stencilContainer.appendChild(stencil.container)
     resizeObserver = new ResizeObserver(
-      throttle((entries: ResizeObserverEntry[]) => {
+      debounce((entries: ResizeObserverEntry[]) => {
         const newWidth = entries[0].contentRect.width
+        if (newWidth < 10) return
         if (Math.abs(newWidth - stencilWidth) < 10) return
         resize(newWidth)
-      }, 200),
+      }, 500),
     )
     resizeObserver.observe(stencilContainer)
   }
@@ -132,6 +133,7 @@ function createStencilService(stencilContainer: HTMLElement) {
   }
 
   function resize(newWidth: number): void {
+    if (newWidth < 10) return
     stencilWidth = newWidth
     if (!libraryWithBlock.size) return
     stencil.options.stencilGraphWidth = stencilWidth
@@ -150,8 +152,13 @@ function createStencilService(stencilContainer: HTMLElement) {
   function expandAll(): void {
     stencil?.expandGroups()
   }
+  function setCollapsed(collapsed: boolean): void {
+    if (!collapsed && libraryWithBlock.size) {
+      resize(stencilContainer.clientWidth)
+    }
+  }
 
-  return { create, dispose, resize, collapseAll, expandAll }
+  return { create, dispose, resize, collapseAll, expandAll, setCollapsed }
 }
 
 export { createStencilService }
