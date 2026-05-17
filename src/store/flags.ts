@@ -3,6 +3,8 @@
 
 export let isSelectionByKey = false
 export let pasteTarget: { x: number; y: number } | null = null
+/** 当前持有 edge tool 的边 ID，同一时刻只允许一条 */
+export let activeToolEdgeId: string | null = null
 
 export const setIsSelectionByKey = (val: boolean) => {
   isSelectionByKey = val
@@ -10,4 +12,8 @@ export const setIsSelectionByKey = (val: boolean) => {
 
 export const setPasteTarget = (x?: number, y?: number) => {
   pasteTarget = x !== undefined && y !== undefined ? { x, y } : null
+}
+
+export const setActiveToolEdgeId = (id: string | null) => {
+  activeToolEdgeId = id
 }

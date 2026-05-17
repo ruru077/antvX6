@@ -12,7 +12,7 @@ import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { setIsSelectionByKey, setPasteTarget } from '@/store/graphFlags'
+import { setIsSelectionByKey, setPasteTarget, activeToolEdgeId, setActiveToolEdgeId } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
@@ -141,7 +141,8 @@ function registerEdgeBranchListeners(graph: Graph) {
 
     e.stopPropagation()
     e.preventDefault()
-
+    // 将 sourceEdge Tool 删除
+    edge.removeTools({ undo: false })
     const startPos = graph.pageToLocal(e.pageX, e.pageY)
     const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
 
@@ -182,9 +183,14 @@ function registerEdgeBranchListeners(graph: Graph) {
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
 function registerEdgeToolListeners(graph: Graph) {
   function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
+    if (activeToolEdgeId) return
+    setActiveToolEdgeId(edge.id)
     commonService.addEdgeTools(edge)
   }
-  function edgeMouseleaveHandler({ edge }: EventArgs['edge:mouseleave']) {
+  function edgeMouseleaveHandler({ edge, e }: EventArgs['edge:mouseleave']) {
+    // 鼠标按键按住中（正在拖拽），不移除工具
+    if (e.buttons !== 0) return
+    setActiveToolEdgeId(null)
     edge.removeTools({ undo: false })
   }
   return registerListeners(graph, [

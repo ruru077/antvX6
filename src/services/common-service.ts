@@ -1,6 +1,15 @@
 import type { Cell, Edge, Graph, Node } from '@antv/x6'
-import { RED } from '@/assets/constant'
-import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
+import {
+  EDGE_WRAPPER_WIDTH,
+  RED,
+  SOURCE_ARROWHEAD_STROKE_WIDTH,
+  TARGET_ARROWHEAD_STROKE_WIDTH,
+} from '@/assets/constant'
+import {
+  arrowheadPath,
+  electricalPortGroups,
+  signalPortGroups,
+} from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
 
 type UnconnectedPortInfo = {
@@ -193,31 +202,52 @@ function createCommonService() {
   }
 
   function addEdgeTools(edge: Edge) {
-    if (edge.getAttrs()?.line?.stroke === RED) {
-      edge.addTools(
-        [{ name: 'source-arrowhead' }, { name: 'target-arrowhead' }],
-        { undo: false },
-      )
-      return
-    }
-    edge.addTools(
-      [
-        { name: 'source-arrowhead' },
-        { name: 'target-arrowhead' },
-        {
-          name: 'segments',
-          args: { attrs: { fill: '#444' } },
+    const isPreview = edge.getAttrs()?.line?.stroke === RED
+    const sourceCell = useGraphStore
+      .getState()
+      .graph.getCellById(edge.getSourceCellId())
+    const isBranchEdge = sourceCell.isEdge() ? true : false
+    const tools = []
+    if (isBranchEdge) {
+      // 分支边显示 ratioAnchor 工具，允许调整连接点位置
+      tools.push({ name: 'ratio-anchor' })
+    } else if (!isBranchEdge) {
+      // 正常边显示箭头工具，修改source cell
+      tools.push({
+        name: 'source-arrowhead',
+        args: {
+          attrs: {
+            d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
+            fill: 'white',
+            stroke: 'black',
+            cursor: 'move',
+            'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
+          },
         },
-      ],
-      { undo: false },
-    )
+      })
+    } else {
+      alert('存在未知情况，请联系开发人员兼容')
+    }
+    tools.push({
+      name: 'target-arrowhead',
+      args: {
+        attrs: {
+          d: arrowheadPath,
+          fill: 'transparent',
+          stroke: 'transparent',
+          'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
+          cursor: 'move',
+        },
+      },
+    })
+    edge.addTools(tools, { undo: false })
   }
 
   type AddPortOptions = { group?: string; groups?: 'signal' | 'electrical' }
   /**
    * @description 合并子系统增缺失的端口
    * @param count 增加的端口数量
-   * @param options 
+   * @param options
    */
   function addPort(
     node: Node,

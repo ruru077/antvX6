@@ -23,6 +23,14 @@ const STENCIL_NODE_GAP = 50
 const STENCIL_GROUP_PADDING = 40
 // 键盘事件节流时间
 const KEY_THROTTLE_TIME = 800
+// target connectionPoint 相对 anchor 的偏移量（负值 = 线段终点提前于 port）
+const EDGE_TARGET_CP_OFFSET = -5
+// EDGE Wrapper 的宽度
+const EDGE_WRAPPER_WIDTH = 20
+// sourceArrowhead StrokeWdith
+const SOURCE_ARROWHEAD_STROKE_WIDTH = 3
+// targetArrowhead StrokeWidth
+const TARGET_ARROWHEAD_STROKE_WIDTH = 25
 export {
   GRAPH_GRID,
   RED,
@@ -36,4 +44,8 @@ export {
   STENCIL_NODE_GAP,
   STENCIL_GROUP_PADDING,
   KEY_THROTTLE_TIME,
+  EDGE_TARGET_CP_OFFSET,
+  EDGE_WRAPPER_WIDTH,
+  SOURCE_ARROWHEAD_STROKE_WIDTH,
+  TARGET_ARROWHEAD_STROKE_WIDTH,
 }

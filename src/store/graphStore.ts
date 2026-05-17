@@ -21,16 +21,18 @@ import {
   PASTE_OFFSET,
   RADIUS_SIZE,
   SNAP_RADIUS,
+  EDGE_TARGET_CP_OFFSET,
 } from '@/assets/constant'
 import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
+import { registerRatioAnchorTool } from '@/plugin/ratioAnchorTool'
 import { createCommonService } from '@/services/common-service'
 import {
   isSelectionByKey,
   pasteTarget,
   setIsSelectionByKey,
   setPasteTarget,
-} from '@/store/graphFlags'
+} from '@/store/flags'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
@@ -87,7 +89,7 @@ function createGraph(container: HTMLElement): GraphType {
       targetConnectionPoint: {
         name: 'anchor',
         args: {
-          offset: -5,
+          offset: EDGE_TARGET_CP_OFFSET,
         },
       },
       snap: {
@@ -137,6 +139,7 @@ function createGraph(container: HTMLElement): GraphType {
 }
 
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
+registerRatioAnchorTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
