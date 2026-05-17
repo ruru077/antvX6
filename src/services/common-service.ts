@@ -1,4 +1,5 @@
 import type { Cell, Edge, Graph, Node } from '@antv/x6'
+import type { EntryGraphModel } from '~/types/common/subGraph'
 import {
   EDGE_WRAPPER_WIDTH,
   RED,
@@ -227,6 +228,7 @@ function createCommonService() {
     tools.push({
       name: 'target-arrowhead',
       args: {
+        ratio: isPreview ? 1.05 : 0.96,
         attrs: {
           fill: 'transparent',
           stroke: 'transparent',
@@ -263,16 +265,19 @@ function createCommonService() {
    * 递归移除对象中所有值为 null 的字段
    * null 在 X6 attrs 中表示"清除该属性"，导出时不存在该字段效果等同
    */
-  function zipJson(obj: unknown): unknown {
-    if (Array.isArray(obj)) return obj.map(zipJson)
-    if (obj !== null && typeof obj === 'object') {
-      return Object.fromEntries(
-        Object.entries(obj as Record<string, unknown>)
-          .filter(([, v]) => v !== null)
-          .map(([k, v]) => [k, zipJson(v)]),
-      )
+  function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
+    function zip(val: unknown): unknown {
+      if (Array.isArray(val)) return val.map(zip)
+      if (val !== null && typeof val === 'object') {
+        return Object.fromEntries(
+          Object.entries(val as Record<string, unknown>)
+            .filter(([, v]) => v !== null)
+            .map(([k, v]) => [k, zip(v)]),
+        )
+      }
+      return val
     }
-    return obj
+    return zip(obj) as EntryGraphModel
   }
   return {
     resize,
@@ -285,7 +290,7 @@ function createCommonService() {
     addNodeTools,
     addEdgeTools,
     addPort,
-    zipJson,
+    zipGraphModelJson,
   }
 }
 

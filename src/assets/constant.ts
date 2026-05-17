@@ -30,7 +30,7 @@ const EDGE_WRAPPER_WIDTH = 20
 // sourceArrowhead StrokeWdith
 const SOURCE_ARROWHEAD_STROKE_WIDTH = 3
 // targetArrowhead StrokeWidth
-const TARGET_ARROWHEAD_STROKE_WIDTH = 25
+const TARGET_ARROWHEAD_STROKE_WIDTH = 10
 export {
   GRAPH_GRID,
   RED,
