@@ -12,6 +12,7 @@ import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { createInteractiveService } from '@/services/interactive-service'
 import {
   activeToolEdgeId,
   setActiveToolEdgeId,
@@ -22,6 +23,7 @@ import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
+const interactiveService = createInteractiveService()
 
 // 当前鼠标所在节点和是否正在变换 用于 Transform 工具显示控制
 let currentNode: Node | null = null
@@ -47,7 +49,7 @@ function useGraphListener() {
       // ── Cell ──────────────────────────────────────────────────────
       registerEdgeBranchListeners(graph),
       registerEdgeToolListeners(graph),
-      registerNodeToolListeners(graph),
+      registerNodeEditListeners(graph),
       // ── 插件 ──────────────────────────────────────────────────────────────
       registerTransformListeners(graph),
       registerOutlineListeners(graph),
@@ -110,18 +112,18 @@ function registerPasteTargetListeners(graph: Graph) {
     useGraphStore
       .getState()
       .graph.getNodes()
-      .forEach((n) => n.removeTools({ undo: false }))
+      .forEach((n) => n.removeTool('boundary', { undo: false }))
   }
   function cellClickHandler({ cell }: EventArgs['cell:click']) {
     // cell点击，修改粘贴目标位置
     const { x, y } = cell.getBBox().getCenter()
     setPasteTarget(x, y)
-    commonService.addOutline(cell)
+    interactiveService.addOutline(cell)
     setIsSelectionByKey(false)
     useGraphStore
       .getState()
       .graph.getNodes()
-      .forEach((n) => n.removeTools({ undo: false }))
+      .forEach((n) => n.removeTool('boundary', { undo: false }))
   }
   return registerListeners(graph, [
     ['blank:click', blankClickHandler],
@@ -190,7 +192,7 @@ function registerEdgeToolListeners(graph: Graph) {
   function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
     if (activeToolEdgeId) return
     setActiveToolEdgeId(edge.id)
-    commonService.addEdgeTools(edge)
+    interactiveService.addEdgeTools(edge)
   }
   function edgeMouseleaveHandler({ edge, e }: EventArgs['edge:mouseleave']) {
     // 鼠标按键按住中（正在拖拽），不移除工具
@@ -251,16 +253,16 @@ function registerOutlineListeners(graph: Graph) {
     return ({ nodes, edges }: EventArgs['box:mousemove']) => {
       const curr = new Set<Cell>([...nodes, ...edges])
       curr.forEach((c) => {
-        if (!prevCells.has(c)) commonService.addOutline(c)
+        if (!prevCells.has(c)) interactiveService.addOutline(c)
       })
       prevCells.forEach((c) => {
-        if (!curr.has(c)) commonService.removeOutline(c)
+        if (!curr.has(c)) interactiveService.removeOutline(c)
       })
       prevCells = curr
     }
   }
   function cellUnselectedHandler({ cell }: EventArgs['cell:unselected']) {
-    commonService.removeOutline(cell)
+    interactiveService.removeOutline(cell)
   }
   return registerListeners(graph, [
     ['box:mousemove', mouseMoveHandler()],
@@ -268,12 +270,34 @@ function registerOutlineListeners(graph: Graph) {
   ])
 }
 
-// ── Node Tools ───────────────────────────────────────────────────────────
-function registerNodeToolListeners(graph: Graph) {
-  function nodeAddedHandler({ node }: EventArgs['node:added']) {
-    // commonService.addNodeTools(node)
+// ── Node 双击编辑 ──────────────────────────────────────────────────────────
+function registerNodeEditListeners(graph: Graph) {
+  function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
+    const target = e.target as Element
+    const nodeView = graph.findViewByCell(node) as NodeView & {
+      selectors?: Record<string, Element>
+    }
+    if (!nodeView?.selectors) return
+    console.log(nodeView);
+    // 反查 target 属于哪个 selector 元素
+    const selector = Object.entries(nodeView.selectors).find(
+      ([, el]) => el === target || el.contains(target),
+    )?.[0]
+    if (!selector) return
+
+    if (selector === 'body') {
+      // TODO: 触发弹窗
+      console.log('body')
+      return
+    }
+
+    const selectorEl = nodeView.selectors[selector]
+    if (selectorEl.tagName.toLowerCase() === 'text') {
+      interactiveService.openInlineEditor({ graph, node, attrPath: `${selector}/text`, anchorEl: selectorEl as SVGElement })
+    }
   }
-  return registerListeners(graph, [['node:added', nodeAddedHandler]])
+
+  return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])
 }
 
 // ── 历史 ──────────────────────────────────────────────────────────────────
@@ -293,7 +317,7 @@ type ListenerEntry = {
 
 /**
  * @description: 批量注册事件监听器
- * @param graph
+ * @param graph X6 Graph 需要暴露 离屏渲染等会有多个Graph实例
  * @param entries 事件和处理函数
  * @returns 清理函数
  */

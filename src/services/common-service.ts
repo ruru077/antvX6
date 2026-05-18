@@ -1,11 +1,6 @@
-import type { Cell, Edge, Graph, Node } from '@antv/x6'
+import type { Edge, Node } from '@antv/x6'
 import type { EntryGraphModel } from '~/types/common/subGraph'
-import {
-  EDGE_WRAPPER_WIDTH,
-  RED,
-  SOURCE_ARROWHEAD_STROKE_WIDTH,
-  TARGET_ARROWHEAD_STROKE_WIDTH,
-} from '@/assets/constant'
+import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
 
@@ -90,39 +85,6 @@ function createCommonService() {
     return { unconnectedInPorts, unconnectedOutPorts }
   }
 
-  function addOutline(cell: Cell) {
-    if (cell.isNode()) {
-      cell.attr(
-        'body/filter',
-        {
-          name: 'outline',
-          args: { color: 'rgb(102,194,255)', width: 4, margin: 0 },
-        },
-        { undo: false },
-      )
-    } else if (cell.isEdge()) {
-      cell.attr(
-        'line/filter',
-        {
-          name: 'outline',
-          args: { color: 'rgb(102,194,255)', width: 2, margin: 0 },
-          attrs: {
-            filterUnits: 'userSpaceOnUse',
-            x: -9999,
-            y: -9999,
-            width: 19998,
-            height: 19998,
-          },
-        },
-        { undo: false },
-      )
-    }
-  }
-
-  function removeOutline(cell: Cell) {
-    if (cell.isNode()) cell.attr('body/filter', null, { undo: false })
-    else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
-  }
   /**
    * @description 判断鼠标在节点外的距离是否超过阈值
    * @param e 事件对象
@@ -163,83 +125,6 @@ function createCommonService() {
       }) ?? null
     )
   }
-  /**
-   * @param cell 目标元素
-   * @description 在节点上添加边界工具，不加入undoStack
-   */
-  function addBoundaryTool(cell: Cell) {
-    cell.addTools(
-      {
-        name: 'boundary',
-        args: {
-          padding: 5,
-          attrs: {
-            fill: '#7c68fc',
-            stroke: '#333',
-            strokeWidth: 0.5,
-            fillOpacity: 0.2,
-          },
-        },
-      },
-      { undo: false },
-    )
-  }
-
-  function addNodeTools(node: Node) {
-    node.addTools([
-      {
-        name: 'node-editor',
-        args: {
-          attrs: {
-            backgroundColor: '#ffffff',
-          },
-        },
-      },
-    ])
-  }
-
-  function addEdgeTools(edge: Edge) {
-    const isPreview = edge.getAttrs()?.line?.stroke === RED
-    const sourceCell = useGraphStore
-      .getState()
-      .graph.getCellById(edge.getSourceCellId())
-    const isBranchEdge = sourceCell.isEdge() ? true : false
-    const tools = []
-    if (isBranchEdge) {
-      // 分支边显示 ratioAnchor 工具，允许调整连接点位置
-      tools.push({ name: 'ratio-anchor' })
-    } else if (!isBranchEdge) {
-      // 正常边显示箭头工具，修改source cell
-      tools.push({
-        name: 'source-arrowhead',
-        args: {
-          attrs: {
-            d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
-            fill: 'white',
-            stroke: 'black',
-            cursor: 'move',
-            'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
-          },
-        },
-      })
-    } else {
-      alert('存在未知情况，请联系开发人员兼容')
-    }
-    tools.push({
-      name: 'target-arrowhead',
-      args: {
-        ratio: isPreview ? 1.05 : 0.96,
-        attrs: {
-          fill: 'transparent',
-          stroke: 'transparent',
-          'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
-          cursor: 'move',
-        },
-      },
-    })
-    edge.addTools(tools, { undo: false })
-  }
-
   type AddPortOptions = { group?: string; groups?: 'signal' | 'electrical' }
   /**
    * @description 合并子系统增缺失的端口
@@ -282,13 +167,8 @@ function createCommonService() {
   return {
     resize,
     getUnconnectedPorts,
-    addOutline,
-    removeOutline,
     isMouseOutCell,
     getNodeAtPoint,
-    addBoundaryTool,
-    addNodeTools,
-    addEdgeTools,
     addPort,
     zipGraphModelJson,
   }

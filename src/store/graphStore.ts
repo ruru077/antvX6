@@ -27,6 +27,7 @@ import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/plugin/ratioAnchorTool'
 import { createCommonService } from '@/services/common-service'
+import { createInteractiveService } from '@/services/interactive-service'
 import {
   isSelectionByKey,
   pasteTarget,
@@ -36,6 +37,7 @@ import {
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
+const interactiveService = createInteractiveService()
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -344,12 +346,12 @@ function moveKeyHandler(dir: ArrowDir) {
       // ──没有Cell选中 导航模式 ────────────────────────────────────────
       const nodes = graph.getNodes()
       const current = isSelectionByKey ? selectedNodes[0] : nodes[0]
-      current.removeTools({ undo: false })
+      current.removeTool('boundary', { undo: false })
       const neighbor = findNeighbor(current, dir) ?? current
       setIsSelectionByKey(true)
       graph.resetSelection([neighbor])
-      commonService.addOutline(neighbor)
-      commonService.addBoundaryTool(neighbor)
+      interactiveService.addOutline(neighbor)
+      interactiveService.addBoundaryTool(neighbor)
       graph.getPlugin<Scroller>('scroller')?.scrollToCell(neighbor)
     }
     return false
