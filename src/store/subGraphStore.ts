@@ -81,6 +81,7 @@ function createSubGraphItem(
   } = options
   // Node
   if ('isNode' in arg && arg.isNode()) {
+    console.log('hel')
     return {
       id: arg.id,
       name: arg.attr<string>('text/text') || 'Subsystem',
@@ -140,11 +141,11 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
 
   exportEntryGraphModel: () => {
     const { currentGraphId, rootId, subGraphs } = get()
-    return {
+    return commonService.zipGraphModelJson({
       currentGraphId,
       rootId,
       subGraphs,
-    }
+    })
   },
   loadEntryGraphModel: (model) => {
     // 清除所有图层的历史栈快照（旧 Cell 引用已失效）

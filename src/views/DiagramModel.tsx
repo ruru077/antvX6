@@ -1,4 +1,5 @@
 import { Graph } from '@antv/x6'
+import { height } from '@antv/x6/lib/common/dom/position'
 import { useEffect, useRef } from 'react'
 
 function DiagramModel() {
@@ -17,10 +18,8 @@ function DiagramModel() {
 
     graph.addNode({
       shape: 'rect',
-      width: 70,
-      height: 90,
-      x: 60,
-      y: 60,
+      width: 100,
+      height: 60,
       markup: [
         {
           tagName: 'rect',
@@ -30,51 +29,33 @@ function DiagramModel() {
           tagName: 'text',
           selector: 'label',
         },
-        {
-          tagName: 'image',
-          selector: 'image',
-        },
       ],
       attrs: {
         body: {
-          refWidth: '100%',
-          refHeight: '100%',
           strokeWidth: 2,
-          stroke: '#000000',
-          fill: '#FFFFFF',
         },
         label: {
-          textVerticalAnchor: 'top',
-          textAnchor: 'middle',
           refX: '50%',
-          refY: '110%',
-          fontSize: 14,
-          fill: '#000000',
-          text: 'Derivative',
-        },
-        image: {
-          xlinkHref:
-            'data:image/png;base64,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',
-          refWidth: '80%',
-          refHeight: '80%',
-          refX: '10%',
-          refY: '10%',
-          preserveAspectRatio: 'xMidYMid meet',
+          refY: '100%',
+          refY2: 5,
+          textAnchor: 'middle',
+          textVerticalAnchor: 'top',
+          text: 'Subsystem',
         },
       },
       ports: {
         items: [
           {
             id: 'i1',
-            group: 'in',
+            group: 'inSYS',
           },
           {
             id: 'o1',
-            group: 'out',
+            group: 'outSYS',
           },
         ],
         groups: {
-          in: {
+          inSYS: {
             markup: [
               {
                 tagName: 'path',
@@ -88,10 +69,13 @@ function DiagramModel() {
             attrs: {
               portBody: {
                 magnet: true,
-                fill: '#000000',
-                stroke: '#000000',
                 strokeWidth: 10,
                 strokeOpacity: 0,
+              },
+              text: {
+                fontSize: 12,
+                fontWeight: 'bold',
+                text: 'In1',
               },
             },
             position: {
@@ -99,10 +83,308 @@ function DiagramModel() {
             },
             label: {
               position: {
-                name: 'left',
+                name: 'right',
+                args: {
+                  x: 2,
+                },
               },
             },
           },
+          outSYS: {
+            markup: [
+              {
+                tagName: 'path',
+                selector: 'portBody',
+                attrs: {
+                  d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z',
+                },
+              },
+            ],
+            z: 1,
+            attrs: {
+              portBody: {
+                magnet: true,
+                fill: '#000000',
+                stroke: '#000000',
+                strokeWidth: 10,
+                strokeOpacity: 0,
+              },
+              text: {
+                fontSize: 12,
+                fontWeight: 'bold',
+                text: 'Out1',
+              },
+            },
+            position: {
+              name: 'right',
+            },
+            label: {
+              position: {
+                name: 'left',
+                args: {
+                  x: -2,
+                },
+              },
+            },
+          },
+        },
+      },
+      data: {
+        title: 'Subsystem',
+        srcBlock: 'simulink/Ports & Subsystems/Subsystem',
+        blockType: 'Subsystem',
+        portTexts: ['In1', 'Out1'],
+        description: 'Subsystem',
+        paramLables: [],
+        paramValues: [],
+        level: 10,
+      },
+      graphJson: {
+        cells: [
+          {
+            position: {
+              x: 120,
+              y: 390,
+            },
+            size: {
+              width: 52,
+              height: 26,
+            },
+            attrs: {
+              body: {
+                strokeWidth: 2,
+                rx: 13,
+                ry: 13,
+              },
+              label: {
+                refX: '50%',
+                refY: '100%',
+                refY2: 5,
+                textAnchor: 'middle',
+                textVerticalAnchor: 'top',
+                text: 'In',
+              },
+            },
+            visible: true,
+            shape: 'rect',
+            id: '49c2b1b5-bced-468e-aa95-1747fd55fd33',
+            markup: [
+              {
+                tagName: 'rect',
+                selector: 'body',
+              },
+              {
+                tagName: 'text',
+                selector: 'label',
+              },
+            ],
+            data: {
+              title: 'In',
+              srcBlock: 'simulink/Ports & Subsystems/In1',
+              blockType: 'In',
+              description: 'Provide an input port for a subsystem or model.',
+              paramLables: {
+                No: 'No.',
+              },
+              paramValues: {
+                No: 1,
+              },
+              level: 10,
+            },
+            ports: {
+              items: [
+                {
+                  id: 'a288cf5a-808b-42ac-8631-05d9ef73fed7',
+                  group: 'out',
+                },
+              ],
+              groups: {
+                out: {
+                  markup: [
+                    {
+                      tagName: 'path',
+                      selector: 'portBody',
+                      attrs: {
+                        d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z',
+                      },
+                    },
+                  ],
+                  z: 1,
+                  attrs: {
+                    portBody: {
+                      magnet: true,
+                      strokeWidth: 10,
+                      strokeOpacity: 0,
+                    },
+                  },
+                  position: {
+                    name: 'right',
+                  },
+                  label: {
+                    position: {
+                      name: 'right',
+                    },
+                  },
+                },
+              },
+            },
+            zIndex: 1,
+          },
+          {
+            position: {
+              x: 322,
+              y: 390,
+            },
+            size: {
+              width: 52,
+              height: 26,
+            },
+            attrs: {
+              body: {
+                strokeWidth: 2,
+                rx: 13,
+                ry: 13,
+              },
+              label: {
+                refX: '50%',
+                refY: '100%',
+                refY2: 5,
+                textAnchor: 'middle',
+                textVerticalAnchor: 'top',
+                text: 'Out',
+              },
+            },
+            visible: true,
+            shape: 'rect',
+            id: '11836323-e27e-4607-a944-19e3c16b97f4',
+            markup: [
+              {
+                tagName: 'rect',
+                selector: 'body',
+              },
+              {
+                tagName: 'text',
+                selector: 'label',
+              },
+            ],
+            data: {
+              title: 'Out',
+              srcBlock: 'simulink/Ports & Subsystems/Out1',
+              blockType: 'Out',
+              description: 'Provide an output port for a subsystem or model.',
+              paramLables: {
+                No: 'No.',
+              },
+              paramValues: {
+                No: 1,
+              },
+              level: 10,
+            },
+            ports: {
+              items: [
+                {
+                  id: '86ad5397-db32-4d8b-b9ff-b9eec530496d',
+                  group: 'in',
+                },
+              ],
+              groups: {
+                in: {
+                  markup: [
+                    {
+                      tagName: 'path',
+                      selector: 'portBody',
+                      attrs: {
+                        d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z',
+                      },
+                    },
+                  ],
+                  z: 1,
+                  attrs: {
+                    portBody: {
+                      magnet: true,
+                      strokeWidth: 10,
+                      strokeOpacity: 0,
+                    },
+                  },
+                  position: {
+                    name: 'left',
+                  },
+                  label: {
+                    position: {
+                      name: 'left',
+                    },
+                  },
+                },
+              },
+            },
+            zIndex: 2,
+          },
+          {
+            shape: 'edge',
+            attrs: {
+              line: {
+                strokeWidth: 1.5,
+                targetMarker: {
+                  name: 'block',
+                  args: {
+                    size: 15,
+                  },
+                },
+              },
+            },
+            id: '1d857d06-f372-42a0-8061-491ddb5fee8a',
+            source: {
+              cell: '49c2b1b5-bced-468e-aa95-1747fd55fd33',
+              port: 'a288cf5a-808b-42ac-8631-05d9ef73fed7',
+            },
+            target: {
+              cell: '11836323-e27e-4607-a944-19e3c16b97f4',
+              port: '86ad5397-db32-4d8b-b9ff-b9eec530496d',
+            },
+            zIndex: 3,
+          },
+        ],
+      },
+    })
+    graph.addNode({
+      shape: 'rect',
+      width: 52,
+      height: 26,
+      x: 60,
+      y: 60,
+      markup: [
+        {
+          tagName: 'rect',
+          selector: 'body',
+        },
+        {
+          tagName: 'text',
+          selector: 'label',
+        },
+      ],
+      attrs: {
+        body: {
+          strokeWidth: 2,
+          rx: 13,
+          ry: 13,
+        },
+        label: {
+          refX: '50%',
+          refY: '100%',
+          refY2: 5,
+          textAnchor: 'middle',
+          textVerticalAnchor: 'top',
+          text: 'In',
+        },
+      },
+      ports: {
+        items: [
+          {
+            id: 'o1',
+            group: 'out',
+          },
+        ],
+        groups: {
           out: {
             markup: [
               {
@@ -113,12 +395,11 @@ function DiagramModel() {
                 },
               },
             ],
-            z: -1,
+            z: 1,
             attrs: {
               portBody: {
-                magnet: true,
-                fill: '#000000',
                 stroke: '#000000',
+                magnet: true,
                 strokeWidth: 10,
                 strokeOpacity: 0,
               },
@@ -134,18 +415,20 @@ function DiagramModel() {
           },
         },
       },
-      // 自定义数据放在 data 字段
       data: {
-        blockType: 'Derivative',
-        title: 'Derivative',
-        srcBlock: 'simulink/Continuous/Derivative',
-        description: 'Numerical derivative for the input signal.',
-        paramValues: [],
-        paramLables: [],
+        title: 'In',
+        srcBlock: 'simulink/Ports & Subsystems/In1',
+        blockType: 'In',
+        description: 'Provide an input port for a subsystem or model.',
+        paramLables: {
+          No: 'No.',
+        },
+        paramValues: {
+          No: 1,
+        },
         level: 10,
       },
     })
-
     return () => {
       graph.dispose()
     }

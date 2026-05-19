@@ -26,6 +26,7 @@ import {
 import { previewLink } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/plugin/ratioAnchorTool'
+import { registerSimulinkSegmentsTool } from '@/plugin/segmentsTool'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
@@ -38,6 +39,17 @@ import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
+
+// 模块级 Ctrl 键状态，供 interacting 回调使用
+let ctrlHeld = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Control') ctrlHeld = true
+  })
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Control') ctrlHeld = false
+  })
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -99,7 +111,7 @@ function createGraph(container: HTMLElement): GraphType {
         anchor: 'bbox',
       },
       router: {
-        name: 'orth',
+        name: 'manhattan',
         args: {
           step: GRAPH_GRID,
           // padding: { top: 0, right: 30, bottom: 0, left: 30 },
@@ -137,11 +149,19 @@ function createGraph(container: HTMLElement): GraphType {
     },
     panning: false,
     virtual: true,
+    interacting: (cellView) => {
+      // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
+      if (cellView.cell.isEdge()) {
+        return { edgeMovable: ctrlHeld }
+      }
+      return {}
+    },
   })
 }
 
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 registerRatioAnchorTool()
+registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
@@ -152,7 +172,7 @@ function registerPlugins(graph: GraphType) {
       multiple: true,
       rubberband: true,
       rubberEdge: true,
-      showNodeSelectionBox: false,
+      showNodeSelectionBox: true,
       showEdgeSelectionBox: false,
       movingRouterFallback: 'orth',
       modifiers: 'shift',
@@ -237,6 +257,8 @@ function registerKeyBindings(graph: GraphType) {
     graph.bindKey(dir, moveKeyHandler(dir))
   })
 
+  const space = createSpaceHandlers()
+
   registerKeys(graph, [
     // ── 复制 / 粘贴 / 剪切 ──────────────────────────────────
     [['ctrl+c', 'meta+c'], copyHandler],
@@ -246,10 +268,21 @@ function registerKeyBindings(graph: GraphType) {
     // ── 删除 / 全选 ─────────────────────────────────────────
     [['delete', 'backspace'], removeHandler],
     [['ctrl+a', 'meta+a'], selectAllHandler],
-    // ── 视图适应 ────────────────────────────────────────────
-    ['space', spaceDownHandler],
-    ['space', zoomToFitHandler, 'keyup'],
-    ['space+f', zoomToSelectionHandler],
+    // ── Space 单键 ───────────────────────────────────────────
+    ['space', space.down],
+    ['space', space.up, 'keyup'],
+    // ── Space + 方向键 平移画布 ───────────────────────────────
+    ['space+left', space.panLeft],
+    ['space+right', space.panRight],
+    ['space+up', space.panUp],
+    ['space+down', space.panDown],
+    // ── Space + 缩放 ────────────────────────────────────────
+    ['space+=', space.zoomIn],
+    ['space+-', space.zoomOut],
+    ['space+0', space.zoomReset],
+    // ── Space + 视图适应 ─────────────────────────────────────
+    ['space+g', space.zoomToFit],
+    ['space+f', space.zoomToSelection],
     // ── 撤销 / 重做 ─────────────────────────────────────────
     [
       ['ctrl+z', 'meta+z'],
@@ -325,6 +358,8 @@ function moveKeyHandler(dir: ArrowDir) {
     isBatching = false
   }, 700)
   return () => {
+    // space 序列触发期间跳过，避免与 space+方向键 冲突
+    if (spaceHeld) return false
     // 没有节点过滤事件
     const graph = useGraphStore.getState().graph
     if (!graph.getNodes().length) return false
@@ -361,8 +396,8 @@ function moveKeyHandler(dir: ArrowDir) {
 // ── 行为标志位（不需要触发 React re-render，模块级变量）────────────────────
 /** 粘贴去抖：keydown 首次触发后锁定，keyup 解锁 */
 let firstTimePaste = true
-/** 当前按键序列已被 combo 键消费，单键 keyup 应跳过 */
-let keySequenceConsumed = false
+/** space 键当前是否处于按下状态，供 moveKeyHandler 跳过误触 */
+let spaceHeld = false
 
 // ── 快捷键 handler（模块级，通过 store.getState() 按需取 graph）────────────
 
@@ -421,25 +456,66 @@ function selectAllHandler() {
   if (cells.length) graph.resetSelection(cells)
 }
 
-function spaceDownHandler() {
-  keySequenceConsumed = false
-}
+// ── Space 键闭包 ────────────────────────────────────────────────────────────
+/**
+ * - 单键：space keyup → zoomToFit
+ * - 组合键：space+G/F/方向键/+/-/0 → 触发对应动作并阻止 keyup 时的 zoomToFit
+ */
+function createSpaceHandlers() {
+  let comboUsed = false
 
-function zoomToFitHandler() {
-  if (keySequenceConsumed) {
-    keySequenceConsumed = false
-    return
+  function used(fn: () => void) {
+    return () => {
+      comboUsed = true
+      fn()
+    }
   }
-  useGraphStore.getState().graph.zoomToFit({ padding: 20 })
-}
 
-function zoomToSelectionHandler() {
-  keySequenceConsumed = true
-  const graph = useGraphStore.getState().graph
-  const selection = graph.getPlugin<Selection>('selection')
-  const cells = selection?.getSelectedCells() ?? []
-  if (cells.length > 0) {
-    graph.zoomToRect(graph.getCellsBBox(cells)!, { padding: 20 })
+  const panHandler = (dir: ArrowDir) =>
+    used(() => {
+      const scroller = useGraphStore
+        .getState()
+        .graph.getPlugin<Scroller>('scroller')
+      if (!scroller) return
+      const { left, top } = scroller.getScrollbarPosition()
+      scroller.setScrollbarPosition(
+        left + STEP[dir].dx * 5,
+        top + STEP[dir].dy * 5,
+      )
+    })
+
+  return {
+    down() {
+      comboUsed = false
+      spaceHeld = true
+    },
+    up() {
+      spaceHeld = false
+      if (!comboUsed) {
+        useGraphStore.getState().graph.zoomToFit({ padding: 20 })
+      }
+    },
+    // ── Space + 方向键 平移画布 ───────────────────────────────
+    panLeft: panHandler('left'),
+    panRight: panHandler('right'),
+    panUp: panHandler('up'),
+    panDown: panHandler('down'),
+    // ── 缩放 ──────────────────────────────────────────────
+    zoomIn: used(() => useGraphStore.getState().graph.zoom(0.1)),
+    zoomOut: used(() => useGraphStore.getState().graph.zoom(-0.1)),
+    zoomReset: used(() => useGraphStore.getState().graph.zoomTo(1)),
+    // ── 视图适应 ──────────────────────────────────────────
+    zoomToFit: used(() =>
+      useGraphStore.getState().graph.zoomToFit({ padding: 20 }),
+    ),
+    zoomToSelection: used(() => {
+      const graph = useGraphStore.getState().graph
+      const cells =
+        graph.getPlugin<Selection>('selection')?.getSelectedCells() ?? []
+      if (cells.length > 0) {
+        graph.zoomToRect(graph.getCellsBBox(cells)!, { padding: 20 })
+      }
+    }),
   }
 }
 

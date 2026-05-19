@@ -23,7 +23,7 @@ const previewLink = {
       targetMarker: {
         name: 'path',
         d: previewArrowPath,
-        transform: 'rotate(-90) scale(0.02)',
+        transform: 'rotate(-90) scale(0.015)',
       },
       strokeDasharray: '4 2',
     },
