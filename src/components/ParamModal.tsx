@@ -36,8 +36,8 @@ function BlockParamModal({
   }
 
   function renderFormItem(key: string) {
-    const label = paramLables?.[key] || key
-    const options = paramOptions?.[key] || []
+    const label = paramLables?.[key] ?? key
+    const options = paramOptions?.[key] ?? []
 
     return (
       <Form.Item key={key} label={label} name={key}>

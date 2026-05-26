@@ -1,0 +1,243 @@
+import { Dropdown } from 'antd'
+import { Tooltip } from 'antd'
+import LiquidGlass from 'liquid-glass-react'
+import CanvasToolbarCommentSvg from '@/assets/svg/canvas-toolbar-comment.svg?react'
+import CanvasToolbarEnterFullscreenSvg from '@/assets/svg/canvas-toolbar-enter-fullscreen.svg?react'
+import CanvasToolbarExitFullscreenSvg from '@/assets/svg/canvas-toolbar-exit-fullscreen.svg?react'
+import CanvasToolbarExportSvg from '@/assets/svg/canvas-toolbar-export.svg?react'
+import CanvasToolbarFitSvg from '@/assets/svg/canvas-toolbar-fit.svg?react'
+import CanvasToolbarMinimapSvg from '@/assets/svg/canvas-toolbar-minimap.svg?react'
+import CanvasToolbarZoomInSvg from '@/assets/svg/canvas-toolbar-zoom-in.svg?react'
+import CanvasToolbarZoomOutSvg from '@/assets/svg/canvas-toolbar-zoom-out.svg?react'
+import { createMinimapService } from '@/services/minimap-service'
+import { useGraphStore } from '@/store/graphStore'
+import '@/styles/CanvasToolbars.scss'
+
+type CanvasToolbarsProps = {
+  visible: boolean
+}
+
+function CanvasToolbars({ visible }: CanvasToolbarsProps) {
+  const graph = useGraphStore((s) => s.graph)
+  const zoom = useGraphStore((s) => s.zoom)
+  const getExportViewBox = () => {
+    const bbox = graph.getContentBBox()
+    const padding = 30
+    return {
+      x: bbox.x - padding * 2,
+      y: bbox.y - padding,
+      width: bbox.width + padding * 4,
+      height: bbox.height + padding * 4,
+    }
+  }
+
+  const handleZoomIn = () => graph?.zoom(0.1)
+  const handleZoomOut = () => graph?.zoom(-0.1)
+  const handleFit = () =>
+    graph?.zoomToFit({
+      padding: 16,
+      useCellGeometry: false,
+    })
+  const handleExportSVG = () => {
+    graph.exportSVG('diagram', {
+      copyStyles: false,
+      preserveDimensions: true,
+      viewBox: getExportViewBox() ?? undefined,
+    })
+  }
+
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [minimapVisible, setMinimapVisible] = useState(false)
+  const minimapContainerRef = useRef<HTMLDivElement>(null)
+  const minimapServiceRef = useRef<ReturnType<
+    typeof createMinimapService
+  > | null>(null)
+
+  useEffect(() => {
+    if (!graph || !minimapContainerRef.current) return
+    const service = createMinimapService()
+    service.create(graph, minimapContainerRef.current)
+    minimapServiceRef.current = service
+    return () => {
+      service.dispose()
+      minimapServiceRef.current = null
+    }
+  }, [graph])
+
+  const handleToggleMinimap = () => setMinimapVisible((v) => !v)
+
+  useEffect(() => {
+    const onFullscreenChange = () =>
+      setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () =>
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  const handleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  const handlePrint = () => {
+    const viewBox = getExportViewBox()
+    graph.toSVG(
+      (svgXml) => {
+        const win = window.open('', '_blank')
+        if (!win) return
+
+        const parser = new DOMParser()
+        const svgDoc = parser.parseFromString(svgXml, 'image/svg+xml')
+        const svg = svgDoc.documentElement
+
+        svg.setAttribute('width', '100%')
+        svg.setAttribute('height', 'auto')
+
+        const printSvg = new XMLSerializer().serializeToString(svgDoc)
+
+        win.document.write(
+          `<html><head><title>打印</title><style>
+            *{box-sizing:border-box;}
+            body{margin:0;}
+            svg{display:block;width:100%;height:auto;}
+            @media print{
+              @page{margin:10mm;size:auto;}
+              svg{width:100%;height:auto;}
+            }
+          </style></head><body>${printSvg}<script>window.onload=function(){window.print();window.close()}</script></body></html>`,
+        )
+        win.document.close()
+      },
+      { copyStyles: false, viewBox },
+    )
+  }
+
+  const exportMenuItems = [
+    {
+      key: 'png',
+      label: '导出为 PNG',
+      onClick: () =>
+        graph?.exportPNG('diagram', {
+          padding: 30,
+        }),
+    },
+    {
+      key: 'jpeg',
+      label: '导出为 JPEG',
+      onClick: () => graph?.exportJPEG('diagram', { padding: 30 }),
+    },
+    {
+      key: 'svg',
+      label: '导出为 SVG',
+      onClick: handleExportSVG,
+    },
+    {
+      key: 'print',
+      label: '打印',
+      onClick: handlePrint,
+    },
+  ]
+
+  return (
+    <>
+      <LiquidGlass
+        displacementScale={30}
+        blurAmount={0.01}
+        aberrationIntensity={1}
+        elasticity={0.1}
+        cornerRadius={100}
+        padding="8px 16px"
+        mode="prominent"
+        style={{
+          position: 'absolute',
+          top: 'calc(100% - 40px)',
+          left: '50%',
+          zIndex: 10,
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'auto' : 'none',
+          transition: 'opacity 0.24s ease',
+        }}
+      >
+        <div className="canvas-float-toolbar">
+          <Tooltip
+            title={isFullscreen ? '退出全屏' : '全屏'}
+            mouseEnterDelay={0.2}
+            placement="top"
+          >
+            <button className="toolbar-btn" onClick={handleFullscreen}>
+              {isFullscreen ? (
+                <CanvasToolbarExitFullscreenSvg />
+              ) : (
+                <CanvasToolbarEnterFullscreenSvg />
+              )}
+            </button>
+          </Tooltip>
+          <Tooltip title="适应画布" mouseEnterDelay={0.2} placement="top">
+            <button className="toolbar-btn" onClick={handleFit}>
+              <CanvasToolbarFitSvg />
+            </button>
+          </Tooltip>
+          <span className="toolbar-divider" />
+          <Tooltip title="缩小" mouseEnterDelay={0.2} placement="top">
+            <button className="toolbar-btn" onClick={handleZoomOut}>
+              <CanvasToolbarZoomOutSvg />
+            </button>
+          </Tooltip>
+          <span className="toolbar-zoom-label">{zoom}%</span>
+          <Tooltip title="放大" mouseEnterDelay={0.2} placement="top">
+            <button className="toolbar-btn" onClick={handleZoomIn}>
+              <CanvasToolbarZoomInSvg />
+            </button>
+          </Tooltip>
+          <span className="toolbar-divider" />
+          <Tooltip title="注解" mouseEnterDelay={0.2} placement="top">
+            <button className="toolbar-btn">
+              <CanvasToolbarCommentSvg />
+            </button>
+          </Tooltip>
+          <span className="toolbar-divider" />
+          <Dropdown
+            menu={{ items: exportMenuItems }}
+            placement="top"
+            trigger={['click']}
+            onOpenChange={setExportDropdownOpen}
+          >
+            <Tooltip
+              title="导出"
+              mouseEnterDelay={0.2}
+              placement="top"
+              open={exportDropdownOpen ? false : undefined}
+            >
+              <button className="toolbar-btn">
+                <CanvasToolbarExportSvg />
+              </button>
+            </Tooltip>
+          </Dropdown>
+          <Tooltip
+            title={minimapVisible ? '隐藏小地图' : '小地图'}
+            mouseEnterDelay={0.2}
+            placement="top"
+          >
+            <button
+              className={`toolbar-btn${minimapVisible ? ' is-active' : ''}`}
+              onClick={handleToggleMinimap}
+            >
+              <CanvasToolbarMinimapSvg />
+            </button>
+          </Tooltip>
+        </div>
+      </LiquidGlass>
+
+      <div
+        ref={minimapContainerRef}
+        className={`canvas-minimap${minimapVisible ? ' is-visible' : ''}`}
+      />
+    </>
+  )
+}
+
+export { CanvasToolbars }
