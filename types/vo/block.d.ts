@@ -20,9 +20,16 @@ interface BlockData {
   srcBlock: string
   description: string
   paramValues: Record<string, string>
-  paramLables: Record<string, string>
+  paramLables?: Record<string, string>
+  paramOptions?: Record<string, string[]>
   level: number
-  [K: string]: string | number | boolean | Record<string, string>
+  [K: string]:
+    | string
+    | number
+    | boolean
+    | Record<string, string>
+    | Record<string, string[]>
+    | undefined
 }
 
 type Block = Omit<NodeMetadata, 'data'> & { data: BlockData }
@@ -33,4 +40,4 @@ interface BlockLibrary {
   description?: string
 }
 
-export type { BlockResponse, Block, BlockLibrary }
+export type { BlockResponse, Block, BlockLibrary, BlockData }

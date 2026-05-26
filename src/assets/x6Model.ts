@@ -1,4 +1,3 @@
-import { Node } from '@antv/x6'
 import {
   BLACK,
   EDGE_STROKE_WIDTH,
@@ -147,36 +146,3 @@ export {
   electricalPortGroups,
   previewArrowPath,
 }
-
-// ─── 子系统 Block 自定义形状 ─────────────────────────────────────────────────
-// markup 顺序决定 SVG 层叠：thumb（底）→ body（边框）→ label（顶）
-Node.define({
-  shape: 'subsystem-block',
-  markup: [
-    { tagName: 'rect', selector: 'body' },
-    { tagName: 'image', selector: 'thumb' },
-    { tagName: 'text', selector: 'label' },
-  ],
-  attrs: {
-    body: {
-      refWidth: '100%',
-      refHeight: '100%',
-      fill: '#fff',
-      stroke: '#333333',
-      strokeWidth: 1,
-    },
-    label: {
-      refX: '50%',
-      refY: '50%',
-      textAnchor: 'middle',
-      dominantBaseline: 'middle',
-      fontSize: 12,
-      fill: '#333333',
-      pointerEvents: 'none',
-    },
-    thumb: {
-      refWidth: '98%',
-      refHeight: '98%',
-    },
-  },
-})
