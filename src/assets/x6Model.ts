@@ -6,9 +6,10 @@ import {
   RED,
   TARGETMARKER_SIZE,
 } from '@/assets/constant'
-import previewArrowRaw from '@/assets/previewArrow.svg?raw'
+import previewArrowRaw from '@/assets/svg/preview-edge-arrow.svg?raw'
+import { createCommonService } from '@/services/common-service'
 
-const previewArrowPath = previewArrowRaw.match(/\bd="([^"]+)"/)?.[1]
+const commonService = createCommonService()
 
 /** 拖拽连线时的预览线样式 */
 const previewLink = {
@@ -21,7 +22,7 @@ const previewLink = {
       strokeWidth: EDGE_STROKE_WIDTH,
       targetMarker: {
         name: 'path',
-        d: previewArrowPath,
+        d: commonService.svgToPath(previewArrowRaw),
         transform: 'rotate(-90) scale(0.015)',
       },
       strokeDasharray: '4 2',
@@ -139,10 +140,4 @@ const electricalPortGroups = {
   },
 }
 
-export {
-  previewLink,
-  formalLink,
-  signalPortGroups,
-  electricalPortGroups,
-  previewArrowPath,
-}
+export { previewLink, formalLink, signalPortGroups, electricalPortGroups }

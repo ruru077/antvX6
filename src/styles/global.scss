@@ -4,14 +4,46 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  user-select: none;
 }
 
+@font-face {
+  font-family: 'OPPO Sans';
+  src: local('OPPO Sans'), local('OPPOSans');
+  font-style: normal;
+  font-display: swap;
+}
+
+$font-family-sans: 'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei',
+  'Helvetica Neue', Arial, sans-serif;
 
 html,
 body {
   height: 100%;
+  font-weight: 500;
   font-size: 16px; //rem
+  font-family: $font-family-sans;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.x6-graph svg text,
+.x6-graph svg tspan {
+  font-family: $font-family-sans !important;
+}
+
+.x6-graph foreignObject ::selection {
+  background-color: #0078d7;
+  color: #fff;
+}
+
+.x6-graph foreignObject [contenteditable] {
+  caret-color: rgb(32, 205, 227);
+  caret-shape: block;
 }
 
 $text-color: #333;

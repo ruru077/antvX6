@@ -1,23 +1,17 @@
-import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
-import { Input } from 'antd'
+import type { Cell, Edge, EdgeView, Node } from '@antv/x6'
 import { createRoot } from 'react-dom/client'
 import {
   RED,
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
+import { BlockParamModal } from '@/components/ParamModal'
 import { useGraphStore } from '@/store/graphStore'
-
-type InlineEditorOptions = {
-  graph: Graph
-  node: Node
-  attrPath: string
-  anchorEl: SVGElement
-}
 
 function createInteractiveService() {
   function addOutline(cell: Cell) {
     if (cell.isNode()) {
+      cell.attr('body/filter', null, { undo: false })
       cell.attr(
         'body/filter',
         {
@@ -44,9 +38,26 @@ function createInteractiveService() {
       )
     }
   }
-
+  /**
+   * @add 取消节点outline添加阴影
+   * @param cell 处理的 Cell
+   */
   function removeOutline(cell: Cell) {
-    if (cell.isNode()) cell.attr('body/filter', null, { undo: false })
+    if (cell.isNode())
+      cell.attr(
+        'body/filter',
+        {
+          name: 'dropShadow',
+          args: {
+            dx: 2.5,
+            dy: 2.5,
+            blur: 1.25,
+            color: 'black',
+            opacity: 0.55,
+          },
+        },
+        { undo: false },
+      )
     else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
   }
 
@@ -76,7 +87,7 @@ function createInteractiveService() {
     const graph = useGraphStore.getState().graph
     const isPreview = edge.getAttrs()?.line?.stroke === RED
 
-    // 将 Manhattan 路由动态计算的折点物化为模型 vertices
+    // 将 X6 视图层动态计算的折点物化为模型 vertices
     // 仅对正式连线处理；previewLink（红色临时线）不物化，避免影响后续连接的寻线结果
     const edgeView = graph.findViewByCell(edge) as EdgeView
     if (
@@ -86,7 +97,7 @@ function createInteractiveService() {
       edgeView?.routePoints
     ) {
       const pts = edgeView.routePoints
-      // routePoints 已是纯中间折点（manhattan reconstructRoute 不含 source/target）
+      // routePoints 已是纯中间折点，不含 source/target
       const intermediates = pts.map((p) => ({ x: p.x, y: p.y }))
       if (intermediates.length > 0) {
         edge.setVertices(intermediates, { undo: false })
@@ -126,89 +137,48 @@ function createInteractiveService() {
           },
         },
       },
-      {
-        name: 'vertices',
-        args: {
-          addable: false,
-          removable: false,
-          attrs: { fill: 'transparent', stroke: 'transparent' },
-          processHandle(handle: {
-            container: SVGElement
-            setAttrs: (attrs: Record<string, unknown>) => void
-          }) {
-            handle.container.addEventListener('mouseenter', () => {
-              handle.setAttrs({ fill: 'green', stroke: '#fff' })
-            })
-            handle.container.addEventListener('mouseleave', () => {
-              handle.setAttrs({ fill: 'transparent', stroke: 'transparent' })
-            })
-          },
-        },
-      },
-      {
-        name: 'simulink-segments',
-      },
+      // {
+      //   name: 'vertices',
+      //   args: {
+      //     addable: false,
+      //     removable: false,
+      //     attrs: { fill: 'transparent', stroke: 'transparent' },
+      //     processHandle(handle: {
+      //       container: SVGElement
+      //       setAttrs: (attrs: Record<string, unknown>) => void
+      //     }) {
+      //       handle.container.addEventListener('mouseenter', () => {
+      //         handle.setAttrs({ fill: 'green', stroke: '#fff' })
+      //       })
+      //       handle.container.addEventListener('mouseleave', () => {
+      //         handle.setAttrs({ fill: 'transparent', stroke: 'transparent' })
+      //       })
+      //     },
+      //   },
+      // },
+      // {
+      //   name: 'simulink-segments',
+      // },
     )
     edge.addTools(tools, { undo: false })
   }
 
   /**
-   * @description 在指定 SVG 文本元素上叠加 inline input，编辑完成后回写 attr
-   * @param graph 当前图实例（用于坐标换算和挂载 input）
-   * @param node 目标节点
-   * @param attrPath X6 attr 路径，如 `label/text`
-   * @param anchorEl 用于定位的 SVG 文本元素
+   * 命令式打开模块参数弹窗，无需在组件树中挂载占位符
    */
-  function openInlineEditor({
-    graph,
-    node,
-    attrPath,
-    anchorEl,
-  }: InlineEditorOptions) {
-    const currentText = node.attr<string>(attrPath) ?? ''
-    const elRect = anchorEl.getBoundingClientRect()
-    const scale = graph.scale()
-    const fontSize = 14 * scale.sx
-    // 以节点逻辑宽度 × 缩放比作为容器宽度，保证不同缩放下宽度一致
-    const scaledNodeWidth = node.getSize().width * scale.sx * 1.2
-
+  function openBlockParamModal(node: Node) {
     const container = document.createElement('div')
-    Object.assign(container.style, {
-      position: 'fixed',
-      left: `${elRect.left + elRect.width / 2}px`,
-      top: `${elRect.top}px`,
-      transform: 'translateX(-50%)',
-      width: `${Math.max(scaledNodeWidth, 100)}px`,
-      zIndex: '999',
-    })
     document.body.appendChild(container)
     const root = createRoot(container)
 
-    const finish = (cancel: boolean, value: string) => {
-      if (!container.parentNode) return
-      if (!cancel && value !== currentText) node.attr(attrPath, value)
-      root.unmount()
-      container.remove()
+    const destroy = () => {
+      requestAnimationFrame(() => {
+        root.unmount()
+        container.remove()
+      })
     }
 
-    root.render(
-      <Input.TextArea
-        defaultValue={currentText}
-        autoSize
-        autoFocus
-        maxLength={30}
-        style={{ fontSize: `${fontSize}px`, textAlign: 'center' }}
-        onBlur={(e) => finish(false, e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            finish(false, e.currentTarget.value)
-          }
-          if (e.key === 'Escape') finish(true, currentText)
-          e.stopPropagation()
-        }}
-      />,
-    )
+    root.render(<BlockParamModal node={node} onDestroy={destroy} />)
   }
 
   return {
@@ -216,7 +186,7 @@ function createInteractiveService() {
     removeOutline,
     addBoundaryTool,
     addEdgeTools,
-    openInlineEditor,
+    openBlockParamModal,
   }
 }
 
