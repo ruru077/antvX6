@@ -1,319 +1,165 @@
 $primary-color: #1677ff;
-$primary-color-hover: #f5f5f5;
+$primary-color-hover: #eef5ff;
 $radius-sm: 4px;
 $radius-md: 8px;
+$stencil-shell-border: #d9e1ea;
+$stencil-shell-border-strong: rgb(200,200,200);
+$stencil-shell-bg-top: #ffffff;
+$stencil-shell-bg-bottom: #ffffff;
+$stencil-surface: #ffffff;
+$stencil-surface-soft: #ffffff;
+$stencil-surface-muted: #ffffff;
+$stencil-surface-hover: #ffffff;
+$stencil-text-main: #2f3a45;
+$stencil-text-soft: #6e7b88;
 
 .stencil-wrapper {
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  border: 1px solid #f0f0f0;
-  background-color: #ffffff;
+  border: 1px solid $stencil-shell-border;
+  background: #ffffff;
   border-radius: $radius-md;
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 1px 2px rgba(15, 23, 42, 0.04);
   transition: width 0.2s ease;
   overflow: hidden;
   flex-shrink: 0;
-  padding: 10px 8px 8px 8px;
-
-  &--collapsed {
-    width: 0;
-    padding: 0;
-    border: 0;
-    box-shadow: none;
-    background: transparent;
-
-    .stencil,
-    .stencil-title {
-      display: none;
-    }
-
-    .stencil-header-left,
-    .stencil-visibility-btn {
-      display: none;
-    }
-
-    .stencil-header {
-      justify-content: center;
-      padding: 0;
-    }
-  }
+  padding: 8px 6px 6px;
 }
 
-.stencil-resizable {
-  position: relative;
-  height: 100%;
-}
-
-.stencil-resize-handle {
-  position: absolute;
-  top: 0;
-  right: -7px;
-  width: 14px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 8;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 6px;
-    width: 2px;
-    height: 100%;
-    background: rgba(22, 119, 255, 0.42);
-    opacity: 0;
-    transition: opacity 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 5px;
-    width: 4px;
-    height: 100%;
-    background: rgba(22, 119, 255, 0.12);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  &.is-collapsed .stencil-collapse-handle-btn svg {
-    transform: rotate(180deg);
-  }
-
-  &.is-collapsed {
-    cursor: default;
-  }
-}
-
-.stencil-collapse-handle-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 48px;
-  border: 1px solid #d8e3f7;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #3d4f70;
-  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
+.stencil-actions {
   display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 4px;
+  margin: 0 2px 4px;
+  flex-shrink: 0;
+  background: transparent;
+  gap: 4px;
+}
+
+.stencil-search-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+  padding: 0 4px 0;
+}
+
+.stencil-search-row {
+  margin: 0 2px 8px;
+
+  span {
+    height: 32px;
+  }
+}
+
+.stencil-search-rules {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -4px;
+}
+
+.stencil-search-rule-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 3px;
+  background: none;
   cursor: pointer;
-  padding: 0;
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-  transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-
-  svg {
-    width: 14px;
-    height: 14px;
-    transition: transform 0.2s ease;
-  }
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
 
   &:hover {
-    border-color: #9ebdf0;
-    color: #1f3a68;
-    box-shadow: 0 4px 10px rgba(22, 119, 255, 0.2);
+    background: rgba(0, 0, 0, 0.07);
+    color: #3c4249;
   }
 
-  &:focus-visible {
-    outline: 2px solid rgba(22, 119, 255, 0.4);
-    outline-offset: 2px;
+  &[data-active='true'] {
+    color: var(--ant-color-primary, #1677ff);
+    background: rgba(22, 119, 255, 0.1);
+
+    &:hover {
+      background: rgba(22, 119, 255, 0.16);
+    }
   }
 }
 
-.stencil-resize-handle:not(.is-collapsed):hover {
-  &::before {
+.stencil-search-nav {
+  .ant-tabs-nav {
+    margin: 0;
+  }
+
+  // 所有卡片边框颜色与内容区一致；translate 过渡
+  .ant-tabs-tab {
+    border-color: $stencil-shell-border-strong !important;
+  } 
+
+  .ant-tabs-tab-active {
+    border-bottom-color: transparent !important;
+    position: relative;
+
+    // 蓝色高亮线代替底边框，从中心展开动画
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 4px;
+      right: 4px;
+      height: 2px;
+      background: var(--ant-tabs-item-selected-color);
+      transform-origin: center;
+      animation: stencil-indicator-in 0.22s ease;
+    }
+  }
+
+  // 导航栏底部分割线颜色与内容区边框一致，视觉上即内容区顶边
+  .ant-tabs-nav::before {
+    border-bottom-color: $stencil-shell-border-strong !important;
+  }
+}
+
+@keyframes stencil-indicator-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
     opacity: 1;
-    background: rgba(22, 119, 255, 0.9);
-    box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2);
-  }
-
-  &::after {
-    opacity: 0.65;
   }
 }
 
-.stencil-resize-handle.is-collapsed {
-
-  &::before,
-  &::after {
-    display: none;
-  }
-}
-
-.stencil-resize-handle:hover .stencil-collapse-handle-btn,
-.stencil-resize-handle.is-collapsed .stencil-collapse-handle-btn,
-.stencil-collapse-handle-btn:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.stencil-header {
-  display: flex;
-  align-items: center;
-  height: 38px;
-  padding: 0 8px;
-  flex-shrink: 0;
-  border-bottom: 1px solid #f0f0f0;
-
-  .stencil-header-left {
-    display: flex;
-    align-items: center;
-    gap: 1px;
-  }
-
-  .stencil-title {
-    flex: 1;
-    padding-left: 1px;
-    text-align: left;
-    font-size: 16px;
-    font-weight: 500;
-  }
-
-  .stencil-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    margin: 0 3px 0 0;
-    border: none;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: #1e1e1e;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-
-    svg {
-      width: 15px;
-      height: 15px;
-    }
-
-    &:hover {
-      background: $primary-color-hover;
-      color: $primary-color;
-    }
-  }
-
-  .stencil-visibility-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: #1e1e1e;
-    cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-
-    svg {
-      width: 20px;
-      height: 20px;
-      transition: transform 0.25s ease, opacity 0.25s ease;
-    }
-
-    &.is-active svg {
-      transform: rotate(0deg) scale(1);
-      opacity: 1;
-    }
-
-    &:not(.is-active) svg {
-      transform: rotate(-10deg) scale(0.94);
-      opacity: 0.92;
-      color: #a9a7a7;
-    }
-
-    &:hover {
-      background: $primary-color-hover;
-    }
-  }
-
-}
-
-.stencil {
+// 覆盖原生X6样式
+.stencil-mount {
   position: relative;
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  margin: 0 4px 4px;
+  background: $stencil-surface;
+  border: 1px solid $stencil-shell-border-strong;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  z-index: 1;
 
   .x6-widget-stencil {
     background: transparent;
 
     .x6-widget-stencil-search {
-      position: relative;
-      margin: 0;
-      padding: 8px 0 6px;
-
-      &::before {
-        content: '';
-        position: absolute;
-        left: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 14px;
-        height: 14px;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23aaa' stroke-width='1.5' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6.5' cy='6.5' r='4'/%3E%3Cline x1='10' y1='10' x2='14' y2='14' stroke-linecap='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-size: contain;
-        pointer-events: none;
-        z-index: 2;
-      }
-
-      input {
-        display: block !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 2px 0 30px !important;
-        height: 28px !important;
-        line-height: 28px !important;
-        font-size: 12px;
-        color: #333;
-        background: #f7f8fa !important;
-        border: 1px solid transparent !important;
-        border-radius: 6px !important;
-        outline: none;
-        transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-
-        &:hover {
-          background: #f0f2f7 !important;
-          border-color: #d5dcec !important;
-        }
-
-        &:focus {
-          background: #fff !important;
-          border-color: $primary-color !important;
-          box-shadow: 0 0 0 2px rgba($primary-color, 0.12);
-        }
-
-        &::-webkit-search-cancel-button {
-          appearance: none;
-          width: 14px;
-          height: 14px;
-          flex-shrink: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='%23999' stroke-width='1.8' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='4' y1='4' x2='12' y2='12' stroke-linecap='round'/%3E%3Cline x1='12' y1='4' x2='4' y2='12' stroke-linecap='round'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-size: contain;
-          cursor: pointer;
-          margin-inline-end: 6px;
-          margin-inline-start: auto;
-          opacity: 0.6;
-          transition: opacity 0.15s;
-
-          &:hover {
-            opacity: 1;
-          }
-        }
-      }
+      display: none;
     }
 
     .x6-widget-stencil-title {
@@ -322,52 +168,128 @@ $radius-md: 8px;
 
     .x6-widget-stencil-content {
       top: 0;
+      background: $stencil-surface;
+
+      &::-webkit-scrollbar {
+        width: 16px;
+        height: 10px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: rgb(240, 240, 240);
+      }
+
+
+      &::-webkit-scrollbar-thumb {
+        background-color: transparent;
+        background-image: linear-gradient(#8e959d, #8e959d);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: 4px 100%;
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: transparent;
+        background-image: linear-gradient(#767f89, #767f89);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: 6px 100%;
+      }
     }
 
     &.searchable .x6-widget-stencil-content {
-      top: 48px;
+      top: 0;
+    }
+
+    .x6-widget-stencil-group-content {
+      overflow: hidden;
+      padding: 6px 10px 12px;
+      background: #ffffff;
+      border-bottom: 1px solid #edf1f5;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+
+      >.x6-graph,
+      >.x6-graph>.x6-graph-background,
+      >.x6-graph>.x6-graph-grid,
+      >.x6-graph>svg {
+        width: 100% !important;
+      }
     }
 
     .x6-widget-stencil-group {
       background: transparent;
-      margin-bottom: 4px;
-      border-radius: $radius-sm;
+      margin: 0 0 6px;
+      border-radius: 0;
+
+      &:not(.collapsed) {
+        box-shadow: 0 1px 0 rgba(226, 232, 238, 0.92);
+      }
 
       >.x6-widget-stencil-group-title {
-        background: rgb(226, 233, 244) !important;
-        padding-left: 24px !important;
-        border-radius: $radius-sm;
-        transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+        height: 32px;
+        padding-left: 26px !important;
+        padding-right: 12px;
+        border: none;
+        border-bottom: 1px solid #eceff3;
+        border-right: 3px solid transparent;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none;
+        color: #000000;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 32px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        overflow: hidden;
+        transition: color 0.35s, border-right-color 0.4s, background 0.35s;
 
+        // 折叠箭头（chevron）
         &::before {
           content: '';
           position: absolute;
           left: 9px;
           top: 50%;
-          width: 5px;
-          height: 5px;
-          border-right: 1.5px solid #6b7280;
-          border-bottom: 1.5px solid #6b7280;
-          transform: translateY(-70%) rotate(45deg);
-          transition: transform 0.2s ease, border-color 0.15s;
+          width: 7px;
+          height: 7px;
+          border-top: 1.5px solid currentColor;
+          border-right: 1.5px solid currentColor;
+          opacity: 0.55;
+          transform: translateY(-50%) rotate(135deg);
+          transition: transform 0.22s ease, opacity 0.15s, color 0.15s;
+        }
+
+        // 下划线：从左向右键入动画
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 26px;
+          width: 0;
+          height: 1.5px;
+          background: $primary-color;
+          transition: width 0.25s ease;
         }
 
         &:hover {
-          background: rgb(208, 218, 238) !important;
-          color: #374151;
-          box-shadow: inset -3px 0 0 $primary-color;
+          background: #ffffff !important;
+          border-right-color: $primary-color;
+          color: $stencil-text-main;
+
+          &::after {
+            width: calc(100% - 32px);
+          }
 
           &::before {
-            border-color: $primary-color;
+            color: $primary-color;
+            opacity: 1;
           }
         }
       }
 
       &.collapsed>.x6-widget-stencil-group-title {
-        border-radius: $radius-sm;
-
         &::before {
-          transform: translateY(-50%) rotate(-45deg);
+          transform: translateY(-50%) rotate(45deg);
         }
       }
     }

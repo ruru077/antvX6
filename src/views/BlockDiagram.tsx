@@ -1,8 +1,10 @@
+import { LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { ConfigProvider, Splitter } from 'antd'
 import {
   CanvasLeftToolbar,
   CanvasToolbars,
   PaperToolbar,
-  StencilPanel,
+  StencilLayout,
   SubsystemNavBar,
 } from '@/components'
 import { useGraphListener } from '@/hooks/useGraphListener'
@@ -30,34 +32,61 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   }, [])
   useScrollListener(paperContainerRef)
   return (
-    <div className="diagram-wrapper">
-      <StencilPanel />
-      {/* 画布区域 */}
-      <div className="diagram-canvas-area">
-        <div className="paper-toolbar">
-          {/* PaperToolbar */}
-          <PaperToolbar modelName={'OpenLoop'} />
-        </div>
-        <div className="diagram-body">
-          {/* 左侧工具栏 */}
-          <CanvasLeftToolbar
-            navPanelVisible={navPanelVisible}
-            onToggleNavPanel={() => setNavPanelVisible((v) => !v)}
-            toolbarsVisible={toolbarsVisible}
-            onToggleToolbars={() => setToolbarsVisible((v) => !v)}
-          />
-          <div className="diagram-canvas-right">
-            {/* 子系统导航栏 */}
-            {navPanelVisible && <SubsystemNavBar />}
-            <div className="paper-container">
-              <div ref={paperContainerRef} className="paper"></div>
-              {/* 悬浮工具栏 */}
-              <CanvasToolbars visible={toolbarsVisible} />
+    <ConfigProvider
+      theme={{
+        components: {
+          Splitter: {
+            splitBarSize: 4,
+            splitTriggerSize: 12,
+            splitBarDraggableSize: 80,
+          },
+        },
+      }}
+    >
+      <Splitter
+        className="diagram-wrapper"
+        classNames={{ dragger: 'diagram-splitter-dragger' }}
+        collapsible={{
+          icon: { start: <LeftOutlined />, end: <RightOutlined /> },
+        }}
+      >
+        <Splitter.Panel
+          defaultSize={'20%'}
+          min={'10%'}
+          max={'50%'}
+          collapsible={{ start: true, end: true, showCollapsibleIcon: 'auto' }}
+        >
+          <StencilLayout />
+        </Splitter.Panel>
+        <Splitter.Panel>
+          {/* 画布区域 */}
+          <div className="diagram-canvas-area">
+            <div className="paper-toolbar">
+              {/* PaperToolbar */}
+              <PaperToolbar modelName={'OpenLoop'} />
+            </div>
+            <div className="diagram-body">
+              {/* 左侧工具栏 */}
+              <CanvasLeftToolbar
+                navPanelVisible={navPanelVisible}
+                onToggleNavPanel={() => setNavPanelVisible((v) => !v)}
+                toolbarsVisible={toolbarsVisible}
+                onToggleToolbars={() => setToolbarsVisible((v) => !v)}
+              />
+              <div className="diagram-canvas-right">
+                {/* 子系统导航栏 */}
+                {navPanelVisible && <SubsystemNavBar />}
+                <div className="paper-container">
+                  <div ref={paperContainerRef} className="paper"></div>
+                  {/* 悬浮工具栏 */}
+                  <CanvasToolbars visible={toolbarsVisible} />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </Splitter.Panel>
+      </Splitter>
+    </ConfigProvider>
   )
 }
 

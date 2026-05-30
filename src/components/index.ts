@@ -1,6 +1,6 @@
 export { CanvasLeftToolbar } from './layout/CanvasLeftToolbar'
 export { CanvasToolbars } from './layout/CanvasToolbars'
 export { PaperToolbar } from './layout/PaperToolbar'
-export { StencilPanel } from './layout/StencilPanel'
+export { StencilLayout } from './layout/StencilLayout'
 export { SubsystemNavBar } from './layout/SubsystemNavBar'
 export { BlockParamModal } from './ParamModal'
