@@ -40,7 +40,7 @@ function BlockParamModal({
     const options = paramOptions?.[key] ?? []
 
     return (
-      <Form.Item key={key} label={label} name={key}>
+      <Form.Item key={key} label={label} name={key} colon={false}>
         {options.length > 0 ? (
           <Select
             options={options.map((option) => ({
@@ -82,6 +82,7 @@ function BlockParamModal({
         layout="horizontal"
         labelCol={{ span: 6 }}
         wrapperCol={{ span: 14 }}
+        labelWrap
       >
         {paramKeys.map(renderFormItem)}
       </Form>

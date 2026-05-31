@@ -242,7 +242,6 @@ function createStencilService() {
         container.replaceChildren()
       },
     }
-
     resize(container.clientWidth)
     return true
   }
@@ -256,7 +255,8 @@ function createStencilService() {
     keyword: string,
     viewMode: 'library' | 'results',
   ): void {
-    currentKeyword = viewMode === 'results' ? keyword.trim() : ''
+    currentKeyword =
+      viewMode === 'results' ? keyword.trim() || '空串默认全搜确保返回404' : ''
     session?.stencil.setKeyword(currentKeyword)
   }
   /**
@@ -269,15 +269,15 @@ function createStencilService() {
     session.stencilWidth = newWidth
     const areaWidth = getLayoutAreaWidth(session.content, newWidth)
     const { stencil, libraryWithBlock } = session
-    // fix 全局配置 为用户新增同步数据做准备
-    stencil.options.stencilGraphWidth = newWidth
 
-    // 有搜索词时全局Block filter
-    if (currentKeyword) stencil.setKeyword(currentKeyword)
+    // 有搜索词时：layout 由 setKeyword → X6 filter → layout 回调完成
+    if (currentKeyword) {
+      stencil.setKeyword(currentKeyword)
+      return
+    }
 
     // 对每个库分组图直接调整尺寸和节点布局
     for (const libraryName of libraryWithBlock.keys()) {
-      stencil.resizeGroup(libraryName, { width: newWidth, height: 0 })
       const groupGraph = stencil.getManagedGroupGraph(libraryName)
       if (!groupGraph) continue
 

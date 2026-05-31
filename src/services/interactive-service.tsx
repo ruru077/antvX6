@@ -128,8 +128,10 @@ function createInteractiveService() {
       {
         name: 'target-arrowhead',
         args: {
-          ratio: isPreview ? 1.05 : 0.96,
+          // ratio: isPreview ? 1 : 1,
           attrs: {
+            // 使用 d 反转箭头 防止嵌入 Block 造成预期行为错乱
+            ...(isPreview ? {} : { d: 'M 0 -8 -18 0 0 8 Z' }),
             fill: 'transparent',
             stroke: 'transparent',
             'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
