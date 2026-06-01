@@ -1,26 +1,11 @@
-$primary-color: #1677ff;
-$primary-color-hover: #eef5ff;
-$radius-sm: 4px;
-$radius-md: 8px;
-$stencil-shell-border: #d9e1ea;
-$stencil-shell-border-strong: rgb(200,200,200);
-$stencil-shell-bg-top: #ffffff;
-$stencil-shell-bg-bottom: #ffffff;
-$stencil-surface: #ffffff;
-$stencil-surface-soft: #ffffff;
-$stencil-surface-muted: #ffffff;
-$stencil-surface-hover: #ffffff;
-$stencil-text-main: #2f3a45;
-$stencil-text-soft: #6e7b88;
-
 .stencil-wrapper {
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  border: 1px solid $stencil-shell-border;
+  border: 1px solid var(--stencil-border);
   background: #ffffff;
-  border-radius: $radius-md;
+  border-radius: var(--radius-md);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     0 1px 2px rgba(15, 23, 42, 0.04);
@@ -81,15 +66,15 @@ $stencil-text-soft: #6e7b88;
 
   &:hover {
     background: rgba(0, 0, 0, 0.07);
-    color: #3c4249;
+    color: var(--color-text-secondary);
   }
 
   &[data-active='true'] {
-    color: var(--ant-color-primary, #1677ff);
-    background: rgba(22, 119, 255, 0.1);
+    color: var(--ant-color-primary, #13c2c2);
+    background: rgba(19, 194, 194, 0.1);
 
     &:hover {
-      background: rgba(22, 119, 255, 0.16);
+      background: rgba(19, 194, 194, 0.16);
     }
   }
 }
@@ -99,14 +84,25 @@ $stencil-text-soft: #6e7b88;
     margin: 0;
   }
 
+  // 未选中 tab 使用浅色
+  .ant-tabs-tab:not(.ant-tabs-tab-active) .ant-tabs-tab-btn {
+    color: rgba(0, 0, 0, 0.38) !important;
+  }
+
   // 所有卡片边框颜色与内容区一致；translate 过渡
   .ant-tabs-tab {
-    border-color: $stencil-shell-border-strong !important;
-  } 
+    border-color: var(--stencil-border-strong) !important;
+  }
 
   .ant-tabs-tab-active {
     border-bottom-color: transparent !important;
     position: relative;
+    color: var(--color-text) !important;
+
+    // 覆盖 antd 对 .ant-tabs-tab-btn 的选中色
+    .ant-tabs-tab-btn {
+      color: var(--color-text) !important;
+    }
 
     // 蓝色高亮线代替底边框，从中心展开动画
     &::after {
@@ -124,7 +120,7 @@ $stencil-text-soft: #6e7b88;
 
   // 导航栏底部分割线颜色与内容区边框一致，视觉上即内容区顶边
   .ant-tabs-nav::before {
-    border-bottom-color: $stencil-shell-border-strong !important;
+    border-bottom-color: var(--stencil-border-strong) !important;
   }
 }
 
@@ -133,6 +129,7 @@ $stencil-text-soft: #6e7b88;
     transform: scaleX(0);
     opacity: 0;
   }
+
   to {
     transform: scaleX(1);
     opacity: 1;
@@ -146,8 +143,8 @@ $stencil-text-soft: #6e7b88;
   overflow: hidden;
   min-height: 0;
   margin: 0 4px 4px;
-  background: $stencil-surface;
-  border: 1px solid $stencil-shell-border-strong;
+  background: #ffffff;
+  border: 1px solid var(--stencil-border-strong);
   border-top: none;
   border-radius: 0 0 6px 6px;
   box-shadow:
@@ -168,7 +165,7 @@ $stencil-text-soft: #6e7b88;
 
     .x6-widget-stencil-content {
       top: 0;
-      background: $stencil-surface;
+      background: #ffffff;
 
       &::-webkit-scrollbar {
         width: 16px;
@@ -267,21 +264,21 @@ $stencil-text-soft: #6e7b88;
           left: 26px;
           width: 0;
           height: 1.5px;
-          background: $primary-color;
+          background: var(--color-primary);
           transition: width 0.25s ease;
         }
 
         &:hover {
           background: #ffffff !important;
-          border-right-color: $primary-color;
-          color: $stencil-text-main;
+          border-right-color: var(--color-primary);
+          color: var(--stencil-text-main);
 
           &::after {
             width: calc(100% - 32px);
           }
 
           &::before {
-            color: $primary-color;
+            color: var(--color-primary);
             opacity: 1;
           }
         }

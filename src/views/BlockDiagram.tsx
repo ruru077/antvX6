@@ -34,6 +34,11 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   return (
     <ConfigProvider
       theme={{
+        token: {
+          colorPrimary: '#13c2c2', // 明青 cyan-6
+          fontFamily:
+            "'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif",
+        },
         components: {
           Splitter: {
             splitBarSize: 4,
@@ -63,7 +68,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
           <div className="diagram-canvas-area">
             <div className="paper-toolbar">
               {/* PaperToolbar */}
-              <PaperToolbar modelName={'OpenLoop'} />
+              <PaperToolbar />
             </div>
             <div className="diagram-body">
               {/* 左侧工具栏 */}
@@ -75,7 +80,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
               />
               <div className="diagram-canvas-right">
                 {/* 子系统导航栏 */}
-                {navPanelVisible && <SubsystemNavBar />}
+                {navPanelVisible && <SubsystemNavBar modelName={'OpenLoop'} />}
                 <div className="paper-container">
                   <div ref={paperContainerRef} className="paper"></div>
                   {/* 悬浮工具栏 */}

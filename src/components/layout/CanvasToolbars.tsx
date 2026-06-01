@@ -1,5 +1,4 @@
-import { Dropdown } from 'antd'
-import { Tooltip } from 'antd'
+import { Button, Divider, Dropdown, Tooltip } from 'antd'
 import LiquidGlass from 'liquid-glass-react'
 import CanvasToolbarCommentSvg from '@/assets/svg/canvas-toolbar-comment.svg?react'
 import CanvasToolbarEnterFullscreenSvg from '@/assets/svg/canvas-toolbar-enter-fullscreen.svg?react'
@@ -168,38 +167,42 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
             mouseEnterDelay={0.2}
             placement="top"
           >
-            <button className="toolbar-btn" onClick={handleFullscreen}>
+            <Button
+              type="text"
+              className="toolbar-btn"
+              onClick={handleFullscreen}
+            >
               {isFullscreen ? (
                 <CanvasToolbarExitFullscreenSvg />
               ) : (
                 <CanvasToolbarEnterFullscreenSvg />
               )}
-            </button>
+            </Button>
           </Tooltip>
           <Tooltip title="适应画布" mouseEnterDelay={0.2} placement="top">
-            <button className="toolbar-btn" onClick={handleFit}>
+            <Button type="text" className="toolbar-btn" onClick={handleFit}>
               <CanvasToolbarFitSvg />
-            </button>
+            </Button>
           </Tooltip>
-          <span className="toolbar-divider" />
+          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
           <Tooltip title="缩小" mouseEnterDelay={0.2} placement="top">
-            <button className="toolbar-btn" onClick={handleZoomOut}>
+            <Button type="text" className="toolbar-btn" onClick={handleZoomOut}>
               <CanvasToolbarZoomOutSvg />
-            </button>
+            </Button>
           </Tooltip>
           <span className="toolbar-zoom-label">{zoom}%</span>
           <Tooltip title="放大" mouseEnterDelay={0.2} placement="top">
-            <button className="toolbar-btn" onClick={handleZoomIn}>
+            <Button type="text" className="toolbar-btn" onClick={handleZoomIn}>
               <CanvasToolbarZoomInSvg />
-            </button>
+            </Button>
           </Tooltip>
-          <span className="toolbar-divider" />
+          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
           <Tooltip title="注解" mouseEnterDelay={0.2} placement="top">
-            <button className="toolbar-btn">
+            <Button type="text" className="toolbar-btn">
               <CanvasToolbarCommentSvg />
-            </button>
+            </Button>
           </Tooltip>
-          <span className="toolbar-divider" />
+          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
           <Dropdown
             menu={{ items: exportMenuItems }}
             placement="top"
@@ -212,9 +215,9 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
               placement="top"
               open={exportDropdownOpen ? false : undefined}
             >
-              <button className="toolbar-btn">
+              <Button type="text" className="toolbar-btn">
                 <CanvasToolbarExportSvg />
-              </button>
+              </Button>
             </Tooltip>
           </Dropdown>
           <Tooltip
@@ -222,12 +225,13 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
             mouseEnterDelay={0.2}
             placement="top"
           >
-            <button
+            <Button
+              type="text"
               className={`toolbar-btn${minimapVisible ? ' is-active' : ''}`}
               onClick={handleToggleMinimap}
             >
               <CanvasToolbarMinimapSvg />
-            </button>
+            </Button>
           </Tooltip>
         </div>
       </LiquidGlass>

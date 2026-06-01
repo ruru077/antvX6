@@ -1,42 +1,66 @@
-$primary-color: #1677ff;
-$primary-color-active: #e6f4ff;
-$radius-md: 8px;
-
 .subsystem-navbar {
-  display: flex;
-  align-items: center;
-  padding: 0 8px 0 8px;
-  justify-content: space-between;
-  height: 32px;
-  background: rgb(239, 239, 244);
-  border-radius: 0 $radius-md 0 0;
+  height: 34px;
+  background: #fff;
+  border-radius: 0 var(--radius-md) 0 0;
+  border-right: 1px solid #e8e8e8;
+  // 不裁剪，避免编辑态输入框被截断
+  overflow: visible;
 
-  &__breadcrumb-item {
-    display: inline-flex;
-    align-items: center;
-    font-size: 15px;
-    gap: 2px;
-  }
-
-  // 面包屑最后一级（当前层）加粗
-  .ant-breadcrumb-link:last-child .subsystem-navbar__breadcrumb-item,
-  .ant-breadcrumb li:last-child .subsystem-navbar__breadcrumb-item {
-    font-weight: 600;
-  }
-
-  &__expand-btn {
+  &__project {
+    padding: 0 12px;
+    height: 100%;
+    background: rgba(240, 240, 240, 0.5);
     flex-shrink: 0;
-    padding: 2px 4px;
-    cursor: pointer;
-    color: #595959;
-    transition: background 0.2s, color 0.2s;
+    cursor: default;
+    user-select: none;
+    border-radius: 0 var(--radius-md) 0 0;
+    border-top: 2px solid var(--color-primary);
+    border-right: 2px solid var(--color-primary);
 
-    &:hover {
-      background: rgba(0, 0, 0, 0.06);
-      color: $primary-color;
+    // 正常态：项目名
+    .subsystem-navbar__name {
+      font-size: 14px;
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    // 编辑图标
+    .subsystem-navbar__edit-icon {
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    // 编辑态输入框：撑满高度、白底黑字
+    .subsystem-navbar__name-input {
+      width: 120px;
+      height: 24px;
     }
   }
 
+  &__right {
+    height: 100%;
+    border-bottom: 2px solid var(--color-primary);
+  }
+
+  &__path {
+    min-width: 0;
+    padding: 0 2px;
+    overflow: hidden;
+  }
+
+  &__expand-btn {
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+
+  &__breadcrumb-item {
+    font-size: 14px;
+
+    // 覆盖 Breadcrumb 默认的 font-size-sm(12px)
+    .ant-typography {
+      font-size: 14px;
+    }
+  }
 }
 
 .subsystem-tree-highlight {

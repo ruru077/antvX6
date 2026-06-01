@@ -1,54 +1,39 @@
-$primary-color: #1677ff;
-$primary-color-hover: #f5f5f5;
-$primary-color-active: #e6f4ff;
-$radius-md: 8px;
-
 .canvas-left-toolbar {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 32px;
   flex-shrink: 0;
-  padding: 6px 2px;
+  padding: 2px 2px 4px;
   gap: 2px;
-  background: rgb(239, 239, 244);
-  border: 1px solid #f0f0f0;
-  border-radius: $radius-md 0 0 $radius-md;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  background: rgba(240, 240, 240, 0.5);
+  border-top: 2px solid var(--color-primary);
+  border-left: 2px solid var(--color-primary);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 
   &__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #555;
     cursor: pointer;
-    transition:
-      background 0.15s,
-      color 0.15s;
 
     svg {
-      width: 14px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
     }
+  }
 
-    &:hover {
-      background: $primary-color-hover;
-      color: $primary-color;
-    }
-
-    &:active {
-      background: $primary-color-active;
-    }
-
-    &.is-active {
-      color: $primary-color;
-      background: $primary-color-active;
-    }
+  // 分割线，视觉上与 subsystem-navbar 底部对齐
+  &__divider {
+    width: 24px;
+    height: 2px;
+    background: var(--color-primary);
+    flex-shrink: 0;
   }
 }

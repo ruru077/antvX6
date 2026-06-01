@@ -9,9 +9,7 @@ import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import '@/styles/PaperToolbar.scss'
 
-type PaperToolbarProps = {
-  modelName?: string
-}
+type PaperToolbarProps = Record<string, never>
 
 const simulateMenuItems: MenuProps['items'] = [
   {
@@ -63,7 +61,7 @@ const simulateMenuItems: MenuProps['items'] = [
   },
 ]
 
-function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
+function PaperToolbar(_: PaperToolbarProps) {
   const graph = useGraphStore((s) => s.graph)
   const exportEntryGraphModel = useSubGraphStore(
     (state) => state.exportEntryGraphModel,
@@ -119,7 +117,6 @@ function PaperToolbar({ modelName = 'EditModal' }: PaperToolbarProps) {
         <button className="pt-btn">✅运行</button>
       </Tooltip>
       <span className="pt-spacer" />
-      <span className="pt-model-name">{modelName}</span>
     </div>
   )
 }

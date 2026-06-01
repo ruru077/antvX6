@@ -1,9 +1,22 @@
 import {
   DoubleRightOutlined,
   DownOutlined,
+  EditOutlined,
+  SaveOutlined,
   SisternodeOutlined,
+  SyncOutlined,
 } from '@ant-design/icons'
-import { Breadcrumb, Drawer, Input, Tree } from 'antd'
+import {
+  Breadcrumb,
+  Button,
+  Divider,
+  Drawer,
+  Flex,
+  Input,
+  Space,
+  Tree,
+  Typography,
+} from 'antd'
 import type { TreeDataNode } from 'antd'
 import type { SubGraphMap } from '~/types'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -40,7 +53,15 @@ function buildTreeData(
   }
 }
 
-function SubsystemNavBar() {
+function SubsystemNavBar({
+  modelName,
+  modelSaved = true,
+  onRename,
+}: {
+  modelName?: string
+  modelSaved?: boolean
+  onRename?: (name: string) => void
+}) {
   const currentPathIds = useSubGraphStore((s) => s.currentPathIds)
   const subGraphs = useSubGraphStore((s) => s.subGraphs)
   const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
@@ -51,6 +72,19 @@ function SubsystemNavBar() {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(() =>
     useSubGraphStore.getState().currentPathIds.slice(0, -1),
   )
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+
+  function startEdit() {
+    setEditValue(modelName ?? '')
+    setEditing(true)
+  }
+
+  function commitEdit() {
+    const trimmed = editValue.trim()
+    if (trimmed) onRename?.(trimmed)
+    setEditing(false)
+  }
 
   const treeData = [buildTreeData(subGraphs, rootId, searchValue)]
 
@@ -81,10 +115,14 @@ function SubsystemNavBar() {
     const isRoot = index === 0
     const name = subGraphs[id].name
     const label = (
-      <span className="subsystem-navbar__breadcrumb-item">
+      <Space
+        size={2}
+        align="center"
+        className="subsystem-navbar__breadcrumb-item"
+      >
         {isRoot && <SisternodeOutlined />}
-        {name}
-      </span>
+        <Typography.Text strong={isLast}>{name}</Typography.Text>
+      </Space>
     )
     const parentId = index > 0 ? currentPathIds[index - 1] : null
     const siblings = parentId ? subGraphs[parentId].childrenIds : []
@@ -115,16 +153,53 @@ function SubsystemNavBar() {
   }
 
   return (
-    <div className="subsystem-navbar">
-      <Breadcrumb items={items} />
-      <DoubleRightOutlined
-        className="subsystem-navbar__expand-btn"
-        rotate={90}
-        onClick={() => {
-          setExpandedKeys(currentPathIds.slice(0, -1))
-          setDrawerOpen(true)
-        }}
-      />
+    <Flex align="center" className="subsystem-navbar">
+      {/* 项目名区域：品牌色实底，白字，视觉锚点 */}
+      {modelName && (
+        <Flex align="center" gap={6} className="subsystem-navbar__project">
+          {editing ? (
+            <Input
+              size="small"
+              value={editValue}
+              autoFocus
+              className="subsystem-navbar__name-input"
+              onChange={(e) => setEditValue(e.target.value)}
+              onPressEnter={commitEdit}
+              onBlur={commitEdit}
+            />
+          ) : (
+            <>
+              <Typography.Text className="subsystem-navbar__name">
+                {modelName}
+              </Typography.Text>
+              <EditOutlined
+                className="subsystem-navbar__edit-icon"
+                onClick={startEdit}
+              />
+            </>
+          )}
+        </Flex>
+      )}
+
+      {/* 路径 + 展开按钮：底部绿线区域 */}
+      <Flex flex={1} align="center" className="subsystem-navbar__right">
+        {/* 路径面包屑 */}
+        <Flex flex={1} align="center" className="subsystem-navbar__path">
+          <Breadcrumb items={items} />
+        </Flex>
+
+        {/* 展开全局层级 */}
+        <Button
+          type="text"
+          size="small"
+          icon={<DoubleRightOutlined rotate={90} />}
+          className="subsystem-navbar__expand-btn"
+          onClick={() => {
+            setExpandedKeys(currentPathIds.slice(0, -1))
+            setDrawerOpen(true)
+          }}
+        />
+      </Flex>
       <Drawer
         title="全部系统层级"
         placement="bottom"
@@ -173,7 +248,7 @@ function SubsystemNavBar() {
           blockNode
         />
       </Drawer>
-    </div>
+    </Flex>
   )
 }
 

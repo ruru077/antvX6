@@ -13,15 +13,13 @@
   font-display: swap;
 }
 
-$font-family-sans: 'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei',
-  'Helvetica Neue', Arial, sans-serif;
-
 html,
 body {
   height: 100%;
   font-weight: 500;
-  font-size: 16px; //rem
-  font-family: $font-family-sans;
+  font-size: 14px;
+  line-height: 22px;
+  font-family: var(--font-family-sans);
 }
 
 button,
@@ -33,7 +31,7 @@ select {
 
 .x6-graph svg text,
 .x6-graph svg tspan {
-  font-family: $font-family-sans !important;
+  font-family: var(--font-family-sans) !important;
 }
 
 .x6-graph foreignObject ::selection {
@@ -46,22 +44,37 @@ select {
   caret-shape: block;
 }
 
-$text-color: #333;
-$primary-color: #1677ff;
-$primary-color-hover: #f5f5f5;
-$primary-color-active: #e6f4ff;
-$app-main-bg: #fafafa;
-$nav-height: 48px;
-$toolbar-height: 40px;
-$radius-sm: 4px;
-$radius-md: 8px;
-$radius-lg: 12px;
-$radius-xl: 16px;
-$radius-2xl: 24px;
+:root {
+  /* Font */
+  --font-family-sans: 'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-size-base: 14px;   /* 默认最小字号 */
+  --line-height-base: 22px; /* 对应14px 的标准行高 */
+  /* 占位符 — 后期按需指定哪些组件使用 */
+  /* --font-size-md: 16px;   */
+  /* --line-height-md: 24px; */
+  /* Brand color — 明青 cyan-6，Ant Design 规范功能键用 6 级色 */
+  --color-primary: #08979c;
+  --color-primary-hover: #e6fffb;   /* cyan-0：轻量悬停背景 */
+  --color-primary-active: #b5f5ec;  /* cyan-1：按下/激活背景 */
+  /* Text — Ant Design 中性色板 */
+  --color-text: #262626;           /* gray-9：一级文本/标题 */
+  --color-text-secondary: #595959; /* gray-7：二级文本 */
+  /* Layout */
+  --nav-height: 48px;
+  --toolbar-height: 40px;
+  --bg-app: #fafafa;
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  /* Stencil panel */
+  --stencil-border: #d9e1ea;
+  --stencil-border-strong: rgb(200, 200, 200);
+  --stencil-text-main: #2f3a45;
+}
 
 /* --- RootLayout --- */
 .app-header {
-  height: $nav-height;
+  height: var(--nav-height);
   border-bottom: 2px solid red;
   // 垂直居中
   display: flex;
@@ -74,29 +87,29 @@ $radius-2xl: 24px;
     gap: 1rem;
 
     a {
-      color: $text-color;
+      color: var(--color-text);
       text-decoration: none;
       padding: 0.25rem 0.75rem;
       // 内层圆角 = 外层圆角 - 它们之间的 Padding
-      border-radius: $radius-md;
+      border-radius: var(--radius-md);
       transition: all 0.4s;
 
       &:hover {
-        background-color: $primary-color-hover;
+        background-color: var(--color-primary-hover);
       }
 
       &.active {
-        color: $primary-color;
-        background-color: $primary-color-active;
+        color: var(--color-primary);
+        background-color: var(--color-primary-active);
       }
     }
   }
 }
 
 .app-main {
-  height: calc(100vh - #{$nav-height});
+  height: calc(100vh - var(--nav-height));
   overflow: hidden;
-  background-color: $app-main-bg;
+  background-color: var(--bg-app);
 }
 
 /* --- X6 Selection Action Bar  --- */
@@ -127,7 +140,7 @@ $radius-2xl: 24px;
     gap: 5px;
     padding: 3px 10px;
     font-size: 12px;
-    color: #333;
+    color: #333; // action bar 按鈕一级文本色
     background: transparent;
     border: none;
     border-radius: 4px;
@@ -140,12 +153,12 @@ $radius-2xl: 24px;
     }
 
     &:hover {
-      background: #e6f4ff;
-      color: #1677ff;
+      background: #e6fffb; // cyan-1
+      color: #13c2c2; // cyan-6
     }
 
     &:active {
-      background: #bae0ff;
+      background: #b5f5ec; // cyan-2
     }
   }
 }
