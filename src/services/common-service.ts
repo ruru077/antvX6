@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@antv/x6'
 import type { EntryGraphModel } from '~/types/common/subGraph'
+import type { TextMatchOptions } from '~/types/common/text'
 import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
@@ -16,6 +17,51 @@ const PORT_MIN_SPACING = 20
 const PORT_PADDING = 10
 
 function createCommonService() {
+  function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  /**
+   * 文本匹配逻辑：
+   * - keyword 为空时，直接视为匹配
+   * - regex=true 时，把 keyword 当作正则表达式原文使用
+   * - wholeWord=true 时，会加上单词边界 \b，要求完整词命中
+   * - caseSensitive 控制是否区分大小写
+   * - 都不启用时，按普通包含关系匹配
+   */
+  function isTextMatched(
+    text: string,
+    keyword: string,
+    options: TextMatchOptions,
+  ): boolean {
+    if (!keyword) return true
+
+    if (options.regex || options.wholeWord) {
+      // caseSensitive=true 时只加 u；否则同时加 i + u
+      // i: 忽略大小写
+      // u: 启用 Unicode 语义，避免部分字符处理异常
+      const flags = options.caseSensitive ? 'u' : 'iu'
+      const source = options.regex
+        ? options.wholeWord
+          ? // regex + wholeWord：保留原正则内容，但在外层加单词边界
+            `\\b(?:${keyword})\\b`
+          : keyword
+        : // 非 regex：先转义，再加单词边界，避免用户输入把正则语法打乱
+          `\\b${escapeRegExp(keyword)}\\b`
+
+      try {
+        return new RegExp(source, flags).test(text)
+      } catch {
+        return false
+      }
+    }
+
+    // 普通字符串匹配：按包含关系判断，支持大小写敏感/不敏感
+    return options.caseSensitive
+      ? text.includes(keyword)
+      : text.toLowerCase().includes(keyword.toLowerCase())
+  }
+
   /**
    * @description 根据节点端口数量调整节点高度，确保端口之间有足够的间距
    */
@@ -164,13 +210,30 @@ function createCommonService() {
     }
     return zip(obj) as EntryGraphModel
   }
+  /**
+   * svg字符串转换为路径数据，提取d属性值
+   * @param svg import svg from url
+   * @returns svg Path
+   */
+  function svgToPath(svg: string): string | null {
+    const match = svg.match(/\bd="([^"]+)"/)
+    if (match) {
+      return match[1]
+    } else {
+      console.error('无法解析 SVG 路径', { svg })
+      return null
+    }
+  }
+
   return {
     resize,
+    isTextMatched,
     getUnconnectedPorts,
     isMouseOutCell,
     getNodeAtPoint,
     addPort,
     zipGraphModelJson,
+    svgToPath,
   }
 }
 

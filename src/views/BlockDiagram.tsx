@@ -80,7 +80,9 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
               />
               <div className="diagram-canvas-right">
                 {/* 子系统导航栏 */}
-                {navPanelVisible && <SubsystemNavBar modelName={'OpenLoop'} />}
+                {navPanelVisible && (
+                  <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
+                )}
                 <div className="paper-container">
                   <div ref={paperContainerRef} className="paper"></div>
                   {/* 悬浮工具栏 */}

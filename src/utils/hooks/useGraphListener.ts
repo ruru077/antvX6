@@ -7,7 +7,7 @@ import type {
   Node,
   NodeView,
 } from '@antv/x6'
-import { withNodeGuard } from '@hof/withNodeGuard'
+import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
@@ -75,15 +75,6 @@ function useGraphListener() {
  * @description: 事件监听注册函数，返回注销函数
  */
 // ── 子系统 ──────────────────────────────────────────────────────────
-
-/**
- * @param node 节点
- * @returns 是否为子系统
- */
-function isSubsystem(node: Node) {
-  return node.getData()?.blockType === 'Subsystem'
-}
-
 function registerSubsystemListeners(graph: Graph) {
   function dblclickHandler({ node }: EventArgs['node:dblclick']) {
     useSubGraphStore.getState().changeGraphView(node.id)
@@ -96,9 +87,9 @@ function registerSubsystemListeners(graph: Graph) {
     useSubGraphStore.getState().syncSubGraph(node, 'delete')
   }
   return registerListeners(graph, [
-    ['node:dblclick', withNodeGuard(isSubsystem, dblclickHandler)],
-    ['node:added', withNodeGuard(isSubsystem, syncAddSubsystemHandler)],
-    ['node:removed', withNodeGuard(isSubsystem, syncRemoveSubsystemHandler)],
+    ['node:dblclick', withNodeGuard('subsystem', dblclickHandler)],
+    ['node:added', withNodeGuard('subsystem', syncAddSubsystemHandler)],
+    ['node:removed', withNodeGuard('subsystem', syncRemoveSubsystemHandler)],
   ])
 }
 
@@ -272,8 +263,8 @@ function registerOutlineListeners(graph: Graph) {
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
 function registerNodeEditListeners(graph: Graph) {
   function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
-    // 子系统传递双击事件
-    if (isSubsystem(node)) return
+    // 特殊 GUARD_BLOCK_TYPES 跳过
+    if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
 
     const target = e.target as Element
     const nodeView = graph.findViewByCell(node) as NodeView & {
