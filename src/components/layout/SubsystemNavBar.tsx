@@ -75,6 +75,20 @@ function SubsystemNavBar({
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
 
+  function measureTextWidth(text: string) {
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) return 0
+
+    context.font =
+      '15px "OPPO Sans", "OPPOSans", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif'
+    return context.measureText(text || ' ').width
+  }
+
+  const editInputWidth = editing
+    ? Math.max(Math.ceil(measureTextWidth(editValue) + 20), 48)
+    : 120
+
   function startEdit() {
     setEditValue(modelName ?? '')
     setEditing(true)
@@ -162,6 +176,7 @@ function SubsystemNavBar({
               size="small"
               value={editValue}
               autoFocus
+              style={{ width: editInputWidth }}
               className="subsystem-navbar__name-input"
               onChange={(e) => setEditValue(e.target.value)}
               onPressEnter={commitEdit}
