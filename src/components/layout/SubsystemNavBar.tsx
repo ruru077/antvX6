@@ -20,7 +20,7 @@ import {
 import type { TreeDataNode } from 'antd'
 import type { SubGraphMap } from '~/types'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import '@/styles/SubsystemNavBar.scss'
+import '@styles/SubsystemNavBar.scss'
 
 function buildTreeData(
   subGraphs: SubGraphMap,

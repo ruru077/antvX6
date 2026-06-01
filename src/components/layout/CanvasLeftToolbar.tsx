@@ -2,7 +2,7 @@ import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
 import CanvasLeftToolbarHiddenSvg from '@/assets/svg/canvas-left-toolbar-hidden.svg?react'
 import CanvasLeftToolbarVisibleSvg from '@/assets/svg/canvas-left-toolbar-visible.svg?react'
-import '@/styles/CanvasLeftToolbar.scss'
+import '@styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
   navPanelVisible: boolean

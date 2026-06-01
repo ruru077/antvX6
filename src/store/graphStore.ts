@@ -11,7 +11,6 @@ import {
   Shape,
   Snapline,
   Transform,
-  routerPresets,
 } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
@@ -20,13 +19,9 @@ import {
   GAP_SIZE,
   GRAPH_GRID,
   PASTE_OFFSET,
-  RADIUS_SIZE,
   SNAP_RADIUS,
 } from '@/assets/constant'
 import { previewLink } from '@/assets/x6Model'
-import { openAutoPan } from '@/plugin/openAutoPan'
-import { registerRatioAnchorTool } from '@/plugin/ratioAnchorTool'
-import { registerSimulinkSegmentsTool } from '@/plugin/segmentsTool'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
@@ -36,6 +31,13 @@ import {
   setPasteTarget,
 } from '@/store/flags'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import {
+  AVOID_ROUTER_OPTIONS,
+  AvoidLibRouter,
+} from '@/utils/plugin/avoidRouter'
+import { openAutoPan } from '@/utils/plugin/openAutoPan'
+import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
+import { registerSimulinkSegmentsTool } from '@/utils/plugin/segmentsTool'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
@@ -112,29 +114,8 @@ function createGraph(container: HTMLElement): GraphType {
       },
       router: {
         name: 'manhattan',
-        args: {
-          step: GRAPH_GRID,
-          // padding: { top: 0, right: 30, bottom: 0, left: 30 },
-          // padding: 0,
-          // excludeTerminals: ['source', 'target'],
-          // startDirections: ['right'],
-          // endDirections: ['left'],
-          // fallbackRouter: routerPresets.er,
-          // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
-          // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
-          // draggingRouter() {
-          //   return []
-          // },
-        },
       },
-      connector: {
-        name: 'jumpover',
-        args: {
-          type: 'gap',
-          size: GAP_SIZE,
-          radius: RADIUS_SIZE,
-        },
-      }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
+      // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
       createEdge() {
         return new Shape.Edge(previewLink)
       },
@@ -149,13 +130,13 @@ function createGraph(container: HTMLElement): GraphType {
     },
     panning: false,
     virtual: true,
-    interacting: (cellView) => {
-      // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
-      if (cellView.cell.isEdge()) {
-        return { edgeMovable: ctrlHeld }
-      }
-      return {}
-    },
+    // interacting: (cellView) => {
+    //   // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
+    //   if (cellView.cell.isEdge()) {
+    //     return { edgeMovable: ctrlHeld }
+    //   }
+    //   return {}
+    // },
   })
 }
 
@@ -166,6 +147,7 @@ registerSimulinkSegmentsTool()
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
   graph.use(new Export())
+  graph.use(new AvoidLibRouter(AVOID_ROUTER_OPTIONS))
   graph.use(
     new Selection({
       enabled: true,
@@ -256,7 +238,7 @@ function registerKeyBindings(graph: GraphType) {
   DIRS.forEach((dir) => {
     graph.bindKey(dir, moveKeyHandler(dir))
   })
-
+  // Mousetrap 只把 ctrl/shift/alt/meta 当作修饰键
   const space = createSpaceHandlers()
 
   registerKeys(graph, [
@@ -272,17 +254,17 @@ function registerKeyBindings(graph: GraphType) {
     ['space', space.down],
     ['space', space.up, 'keyup'],
     // ── Space + 方向键 平移画布 ───────────────────────────────
-    ['space+left', space.panLeft],
-    ['space+right', space.panRight],
-    ['space+up', space.panUp],
-    ['space+down', space.panDown],
+    ['left', space.panLeft],
+    ['right', space.panRight],
+    ['up', space.panUp],
+    ['down', space.panDown],
     // ── Space + 缩放 ────────────────────────────────────────
-    ['space+=', space.zoomIn],
-    ['space+-', space.zoomOut],
-    ['space+0', space.zoomReset],
+    ['=', space.zoomIn],
+    ['-', space.zoomOut],
+    ['0', space.zoomReset],
     // ── Space + 视图适应 ─────────────────────────────────────
-    ['space+g', space.zoomToFit],
-    ['space+f', space.zoomToSelection],
+    ['g', space.zoomToFit],
+    ['f', space.zoomToSelection],
     // ── 撤销 / 重做 ─────────────────────────────────────────
     [
       ['ctrl+z', 'meta+z'],
@@ -466,8 +448,10 @@ function createSpaceHandlers() {
 
   function used(fn: () => void) {
     return () => {
+      if (!spaceHeld) return false
       comboUsed = true
       fn()
+      return false
     }
   }
 

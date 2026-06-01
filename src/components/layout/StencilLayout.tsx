@@ -5,7 +5,7 @@ import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
-import '@/styles/StencilPanel.scss'
+import '@styles/StencilPanel.scss'
 
 // type ----------------------------------------------------
 interface SearchRuleItem {

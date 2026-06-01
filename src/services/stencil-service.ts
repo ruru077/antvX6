@@ -60,6 +60,10 @@ function createStencilService() {
   } | null = null
   let currentKeyword = ''
   let searchOptions: TextMatchOptions = { ...SEARCH_OPTIONS }
+  // 进入搜索模式前暂存的标准库各分组折叠状态（true = 已折叠）
+  let savedLibraryGroupStates: Map<string, boolean> | null = null
+  // 上一次的视图模式，用于检测 library ↔ results 切换
+  let prevViewMode: 'library' | 'results' = 'library'
 
   /**
    * @description 删去边距和滚动条占位后剩余的宽度，作为 greedy layout 的可用宽度
@@ -255,8 +259,36 @@ function createStencilService() {
     keyword: string,
     viewMode: 'library' | 'results',
   ): void {
+    const enteringSearch = prevViewMode === 'library' && viewMode === 'results'
+    const leavingSearch = prevViewMode === 'results' && viewMode === 'library'
+    prevViewMode = viewMode
+
     currentKeyword =
       viewMode === 'results' ? keyword.trim() || '空串默认全搜确保返回404' : ''
+
+    if (session) {
+      if (enteringSearch) {
+        // 进入搜索模式：保存当前各分组折叠状态，然后全部展开
+        savedLibraryGroupStates = new Map(
+          Array.from(session.libraryWithBlock.keys()).map((name) => [
+            name,
+            session!.stencil.isGroupCollapsed(name),
+          ]),
+        )
+        session.stencil.expandGroups()
+      } else if (leavingSearch && savedLibraryGroupStates) {
+        // 离开搜索模式：恢复标准库保存的折叠状态
+        for (const [name, collapsed] of savedLibraryGroupStates) {
+          if (collapsed) {
+            session.stencil.collapseGroup(name)
+          } else {
+            session.stencil.expandGroup(name)
+          }
+        }
+        savedLibraryGroupStates = null
+      }
+    }
+
     session?.stencil.setKeyword(currentKeyword)
   }
   /**

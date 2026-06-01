@@ -5,6 +5,13 @@
     "target": "es2023",
     "lib": ["ES2023"],
     "module": "esnext",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@hooks/*": ["./src/utils/hooks/*"],
+      "@hof/*": ["./src/utils/hof/*"],
+      "@hoc/*": ["./src/utils/hoc/*"],
+      "~/*": ["./*"]
+    },
     "types": ["vitest/globals", "node"],
     "skipLibCheck": true,
     "moduleResolution": "bundler",

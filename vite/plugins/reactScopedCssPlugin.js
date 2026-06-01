@@ -4,9 +4,9 @@ import { reactScopedCssPlugin } from 'rollup-plugin-react-scoped-css'
 
 /**
  * React Scoped CSS 功能，支持别名路径解析
- * @param {Record<string, string>} aliases - 别名映射，例如 { '@/': 'src/' }
+ * @param {Record<string, string>} aliases - 别名映射，例如 { '@styles': 'src/components/styles/' }
  */
-export function createScopedCssPlugin(aliases = { '@/': 'src/' }) {
+export function createScopedCssPlugin(aliases = { '@styles': 'src/components/styles/' }) {
   const resolvedAliases = Object.fromEntries(
     Object.entries(aliases).map(([k, v]) => [k, resolve(process.cwd(), v)]),
   )

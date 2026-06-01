@@ -2,7 +2,7 @@
  * 测试脚本：获取并解析 blocks 数据
  * 复用 blocks.ts 中的方法
  */
-import { fetchBlocks, parseBlock } from '../src/api/blocks.ts'
+import { fetchBlocks, parseBlock } from '../../src/api/blocks.ts'
 
 // AntV X6 节点定义示例（自定义数据放在 data 字段）
 const DerivativeBlockNode = {

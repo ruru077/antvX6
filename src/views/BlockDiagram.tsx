@@ -1,4 +1,6 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { useGraphListener } from '@hooks/useGraphListener'
+import { useScrollListener } from '@hooks/useScrollListener'
 import { ConfigProvider, Splitter } from 'antd'
 import {
   CanvasLeftToolbar,
@@ -7,10 +9,8 @@ import {
   StencilLayout,
   SubsystemNavBar,
 } from '@/components'
-import { useGraphListener } from '@/hooks/useGraphListener'
-import { useScrollListener } from '@/hooks/useScrollListener'
 import { useGraphStore } from '@/store/graphStore'
-import '@/styles/BlockDiagram.spoced.scss'
+import '@styles/BlockDiagram.spoced.scss'
 
 /**
  * @description 图编辑入口

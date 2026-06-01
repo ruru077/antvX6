@@ -3,7 +3,7 @@ import App from '@/App'
 import enUS from '@/assets/i18n/en-US.json'
 import zhCN from '@/assets/i18n/zh-CN.json'
 import zhTW from '@/assets/i18n/zh-TW.json'
-import '@/styles/global.scss'
+import '@styles/global.scss'
 
 // react-intl-universal 文案切换
 const locales = {

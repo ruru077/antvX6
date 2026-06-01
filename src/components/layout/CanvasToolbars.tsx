@@ -10,7 +10,7 @@ import CanvasToolbarZoomInSvg from '@/assets/svg/canvas-toolbar-zoom-in.svg?reac
 import CanvasToolbarZoomOutSvg from '@/assets/svg/canvas-toolbar-zoom-out.svg?react'
 import { createMinimapService } from '@/services/minimap-service'
 import { useGraphStore } from '@/store/graphStore'
-import '@/styles/CanvasToolbars.scss'
+import '@styles/CanvasToolbars.scss'
 
 type CanvasToolbarsProps = {
   visible: boolean
