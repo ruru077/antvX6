@@ -44,7 +44,7 @@ function useGraphListener() {
   useEffect(() => {
     if (!graph) return
     const cleanups = [
-      // TODO 任务调度统一注册 顺序分离
+      // TODO 任务调度Emit 顺序分离
       // ── Node ──────────────────────────────────────────────────────
       registerNodeEditListeners(graph),
       // ── Edge ──────────────────────────────────────────────────────
@@ -262,26 +262,21 @@ function registerOutlineListeners(graph: Graph) {
 
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
 function registerNodeEditListeners(graph: Graph) {
-  function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
+  function nodeDblClickHandler({ node, e, view }: EventArgs['node:dblclick']) {
     // 特殊 GUARD_BLOCK_TYPES 跳过
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
 
-    const target = e.target as Element
-    const nodeView = graph.findViewByCell(node) as NodeView & {
-      selectors?: Record<string, Element>
-    }
-    console.log(nodeView)
-    // 优先判断是否点击了文本 selector → 内联编辑
-    if (nodeView?.selectors) {
-      const entry = Object.entries(nodeView.selectors).find(
-        ([, el]) => el === target || el.contains(target),
-      )
-      if (entry) {
-        const [selector, el] = entry
-        if (el.tagName.toLowerCase() === 'text') {
-          return
-        }
-      }
+    const target = e.target
+    console.log(target)
+    const dom = Object.values(view._getSelectors).find((el) =>
+      el.contains(target),
+    )
+    // 拿到点击元素的 dom 信息，进行区分处理
+    if (!dom) return
+    if (dom.tagName.toLowerCase() === 'text') {
+      // 文本双击，打开文本编辑工具 老版本兼容
+      console.log('hello')
+      return
     }
     // 默认：打开参数设置弹窗
     interactiveService.openBlockParamModal(node)

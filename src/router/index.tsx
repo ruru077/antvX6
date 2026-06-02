@@ -15,6 +15,22 @@ const router = createBrowserRouter([
         path: '/model',
         lazy: () => import('@/views/DiagramModel'),
       },
+      {
+        path: '/model2',
+        lazy: () => import('@/views/DiagramModel2'),
+      },
+      {
+        path: '/model3',
+        lazy: () => import('@/views/DiagramModel3'),
+      },
+      {
+        path: '/model4',
+        lazy: () => import('@/views/DiagramModel4'),
+      },
+      {
+        path: '/model5',
+        lazy: () => import('@/views/DiagramModel5'),
+      },
     ],
   },
 ])

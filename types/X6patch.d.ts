@@ -10,3 +10,11 @@ declare module '@antv/x6/lib/graph/events' {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface EventArgs extends SelectionImplBoxEventArgsRecord {}
 }
+
+// ── 自定义补丁：公开 CellView 的 protected selectors ── //
+declare module '@antv/x6' {
+  interface CellView {
+    /** 自定义补丁：公开访问 protected selectors */
+    _getSelectors(): Record<string, Element | Element[]>
+  }
+}

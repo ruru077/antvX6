@@ -44,6 +44,12 @@ select {
   caret-shape: block;
 }
 
+/* 对齐 .x6-node foreignObject 的行为, 使 edge label fo 也可自适应内容 */
+.x6-edge foreignObject {
+  display: block;
+  overflow: visible;
+}
+
 :root {
   /* Font */
   --font-family-sans: 'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
