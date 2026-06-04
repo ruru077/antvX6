@@ -7,7 +7,7 @@
 import type { SelectionImplBoxEventArgsRecord } from '@antv/x6/lib/plugin/selection/selection'
 
 declare module '@antv/x6/lib/graph/events' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  // oxlint-disable-next-line @typescript-eslint/no-empty-object-type
   interface EventArgs extends SelectionImplBoxEventArgsRecord {}
 }
 

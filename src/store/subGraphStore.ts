@@ -1,7 +1,11 @@
-import type { Cell, Edge, Graph, History, Node } from '@antv/x6'
 import { Model, StringExt } from '@antv/x6'
-import type { HistoryCommands } from '@antv/x6/lib/plugin/history/type'
 import { create } from 'zustand'
+import { formalLink, signalPortGroups } from '@/assets/x6Model'
+import { createCommonService } from '@/services/common-service'
+import { snapshotToDataURL } from '@/services/snapshot-service'
+import { useGraphStore } from './graphStore'
+import type { Cell, Edge, Graph, History, Node } from '@antv/x6'
+import type { HistoryCommands } from '@antv/x6/lib/plugin/history/type'
 import type {
   EntryGraphModel,
   GraphJSON,
@@ -9,10 +13,6 @@ import type {
   SubGraphItem,
   SubGraphMap,
 } from '~/types'
-import { formalLink, signalPortGroups } from '@/assets/x6Model'
-import { createCommonService } from '@/services/common-service'
-import { snapshotToDataURL } from '@/services/snapshot-service'
-import { useGraphStore } from './graphStore'
 
 /**
  * @description 子系统全局数据 Store
@@ -236,7 +236,8 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       }
       history['undoStack'] = saved.undoStack
       history['redoStack'] = saved.redoStack
-      graph.trigger('history:change', { cmds: null, options: {} })
+      // 无需等待 history:change 更新撤销/重做按钮状态
+      void graph.trigger('history:change', { cmds: null, options: {} })
     }
 
     graph.centerContent()

@@ -1,4 +1,3 @@
-import type { Cell, Edge, EdgeView, Node } from '@antv/x6'
 import { createRoot } from 'react-dom/client'
 import {
   RED,
@@ -7,6 +6,7 @@ import {
 } from '@/assets/constant'
 import { BlockParamModal } from '@/components/ParamModal'
 import { useGraphStore } from '@/store/graphStore'
+import type { Cell, Edge, EdgeView, Node } from '@antv/x6'
 
 function createInteractiveService() {
   function addOutline(cell: Cell) {

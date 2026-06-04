@@ -1,10 +1,10 @@
 import Icon, { SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import { Button, ConfigProvider, Input, Tabs, Tooltip } from 'antd'
-import type { TextMatchOptions } from '~/types/common/text'
 import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
+import type { TextMatchOptions } from '~/types/common/text'
 import '@styles/StencilPanel.scss'
 
 // type ----------------------------------------------------

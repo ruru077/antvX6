@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* oxlint-disable @typescript-eslint/no-explicit-any */
 import { Dom, Graph, Line, Point, View, edgeToolRegistry } from '@antv/x6'
 
 const DRAG_THRESHOLD = 4
@@ -81,7 +81,7 @@ class SegmentHandle extends View<SegmentHandleEventArgs> {
       this.dragging = true
       this.removePendingListeners?.()
       this.options.graph.view.undelegateDocumentEvents()
-      this.trigger('change', { e: evt, handle: this })
+      void this.trigger('change', { e: evt, handle: this })
       evt.preventDefault()
       this.options.graph.view.undelegateEvents()
       this.delegateDocumentEvents(
@@ -111,11 +111,11 @@ class SegmentHandle extends View<SegmentHandleEventArgs> {
   }
 
   protected onMouseMove(evt: any) {
-    this.emit('changing', { e: evt, handle: this })
+    void this.emit('changing', { e: evt, handle: this })
   }
 
   protected onMouseUp(evt: any) {
-    this.emit('changed', { e: evt, handle: this })
+    void this.emit('changed', { e: evt, handle: this })
     this.undelegateDocumentEvents()
     this.options.graph.view.delegateEvents()
     if (this.dragging) this.suppressNextClick()

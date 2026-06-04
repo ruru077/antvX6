@@ -10,7 +10,7 @@ import {
   SubsystemNavBar,
 } from '@/components'
 import { useGraphStore } from '@/store/graphStore'
-import '@styles/BlockDiagram.spoced.scss'
+import '@styles/BlockDiagram.scss'
 
 /**
  * @description 图编辑入口

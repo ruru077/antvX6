@@ -1,8 +1,5 @@
 import { Stencil, StringExt } from '@antv/x6'
-import type { Graph, Model, Node } from '@antv/x6'
 import { debounce } from 'lodash-es'
-import type { TextMatchOptions } from '~/types/common/text'
-import type { Block } from '~/types/vo/block'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
 import {
   MIN_RESIZABLE_WIDTH,
@@ -15,6 +12,9 @@ import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { createPermissionService } from '@/services/permission-service'
 import { useGraphStore } from '@/store/graphStore'
+import type { Graph, Model, Node } from '@antv/x6'
+import type { TextMatchOptions } from '~/types/common/text'
+import type { Block } from '~/types/vo/block'
 
 // 模块常量 ----------------------------------------------------
 const permissionService = createPermissionService()

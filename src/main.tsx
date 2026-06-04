@@ -12,7 +12,8 @@ const locales = {
   'zh-CN': zhCN,
   'zh-TW': zhTW,
 }
-intl.init({ currentLocale: 'zh-CN', locales })
+// 异步加载当前语言环境的文案，默认使用中文
+void intl.init({ currentLocale: 'zh-CN', locales })
 
 createRoot(document.getElementById('root')!).render(
   // Dev确定后开启严格模型测试依赖

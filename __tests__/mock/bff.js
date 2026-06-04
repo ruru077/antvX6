@@ -146,7 +146,7 @@ async function main() {
     console.log(`✓ 成功获取 ${blocks.length} 个 blocks\n`)
 
     const parsedBlocks = blocks.map((block) => ({
-      parsed: block?.antvBlock ? parseBlock(block.antvBlock) : null  ,
+      parsed: block?.antvBlock ? parseBlock(block.antvBlock) : null,
       // icon: block.icon,
       libraryId: block.libraryId,
       userId: block.userId,
@@ -160,4 +160,4 @@ async function main() {
 }
 
 // 直接执行
-main()
+await main()

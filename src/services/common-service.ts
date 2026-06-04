@@ -1,9 +1,9 @@
-import type { Edge, Node } from '@antv/x6'
-import type { EntryGraphModel } from '~/types/common/subGraph'
-import type { TextMatchOptions } from '~/types/common/text'
 import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
+import type { Edge, Node } from '@antv/x6'
+import type { EntryGraphModel } from '~/types/common/subGraph'
+import type { TextMatchOptions } from '~/types/common/text'
 
 type UnconnectedPortInfo = {
   nodeId: string

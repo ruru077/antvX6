@@ -1,8 +1,8 @@
-import type { Edge, EdgeView } from '@antv/x6'
 import { Dom, Graph, ToolItem } from '@antv/x6'
-import type { ToolItemOptions } from '@antv/x6/lib/view/tool/tool-item'
 import { SOURCE_ARROWHEAD_STROKE_WIDTH } from '@/assets/constant'
 import { setActiveToolEdgeId } from '@/store/flags'
+import type { Edge, EdgeView } from '@antv/x6'
+import type { ToolItemOptions } from '@antv/x6/lib/view/tool/tool-item'
 
 interface RatioAnchorOptions extends ToolItemOptions {
   r?: number

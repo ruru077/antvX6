@@ -1,6 +1,6 @@
 import { Graph } from '@antv/x6'
-import type { Edge, EdgeLabel } from '@antv/x6'
 import { getTextBlockMarkup } from '@antv/x6/es/shape/text-block'
+import type { Edge, EdgeLabel } from '@antv/x6'
 
 const _tmpl = getTextBlockMarkup(true)
 

@@ -1,7 +1,7 @@
-import type { Node } from '@antv/x6'
 import { Alert, Form, Input, Modal, Select } from 'antd'
-import type { BlockData } from '~/types/vo/block'
 import { CONTACT_ME_EMAIL } from '@/assets/constant'
+import type { Node } from '@antv/x6'
+import type { BlockData } from '~/types/vo/block'
 
 /**
  * @description 模块参数设置 Modal 组件
@@ -25,14 +25,16 @@ function BlockParamModal({
 
   useEffect(() => {
     form.setFieldsValue(paramValues)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleOk = () => {
-    // 更新业务数据
-    form.validateFields().then((values) => {
+  })
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields()
       node.setData({ paramValues: values })
       setOpen(false)
-    })
+    } catch (error) {
+      // 处理验证失败或其他的错误
+      console.error('表单验证失败:', error)
+    }
   }
 
   function renderFormItem(key: string) {

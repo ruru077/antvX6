@@ -52,18 +52,20 @@ select {
 
 :root {
   /* Font */
-  --font-family-sans: 'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-  --font-size-base: 14px;   /* 默认最小字号 */
+  --font-family-sans:
+    'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-size-base: 14px; /* 默认最小字号 */
   --line-height-base: 22px; /* 对应14px 的标准行高 */
   /* 占位符 — 后期按需指定哪些组件使用 */
   /* --font-size-md: 16px;   */
   /* --line-height-md: 24px; */
   /* Brand color — 明青 cyan-6，Ant Design 规范功能键用 6 级色 */
   --color-primary: #08979c;
-  --color-primary-hover: #e6fffb;   /* cyan-0：轻量悬停背景 */
-  --color-primary-active: #b5f5ec;  /* cyan-1：按下/激活背景 */
+  --color-primary-hover: #e6fffb; /* cyan-0：轻量悬停背景 */
+  --color-primary-active: #b5f5ec; /* cyan-1：按下/激活背景 */
   /* Text — Ant Design 中性色板 */
-  --color-text: #262626;           /* gray-9：一级文本/标题 */
+  --color-text: #262626; /* gray-9：一级文本/标题 */
   --color-text-secondary: #595959; /* gray-7：二级文本 */
   /* Layout */
   --nav-height: 48px;
@@ -152,7 +154,9 @@ select {
     border-radius: 4px;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
 
     svg {
       flex-shrink: 0;
@@ -174,7 +178,7 @@ select {
   padding: 0;
 }
 
-.x6-widget-transform>div {
+.x6-widget-transform > div {
   width: 10px;
   height: 10px;
   border: 1px solid rgb(140, 140, 140);
@@ -184,7 +188,6 @@ select {
   //   background-color: rgba(21, 255, 0, 0.9);
   // }
 }
-
 
 .x6-widget-transform-resize {
   border-radius: 0;

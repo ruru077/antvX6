@@ -1,4 +1,3 @@
-import type { Graph as GraphType } from '@antv/x6'
 import {
   Clipboard,
   Export,
@@ -38,6 +37,7 @@ import {
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { registerSimulinkSegmentsTool } from '@/utils/plugin/segmentsTool'
+import type { Graph as GraphType } from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()

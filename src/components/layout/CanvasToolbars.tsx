@@ -74,11 +74,11 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
       document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
-  const handleFullscreen = () => {
+  const handleFullscreen = async () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen()
+      await document.documentElement.requestFullscreen()
     } else {
-      document.exitFullscreen()
+      await document.exitFullscreen()
     }
   }
 

@@ -1,12 +1,3 @@
-import type {
-  Cell,
-  EdgeView,
-  EventArgs,
-  Graph,
-  History,
-  Node,
-  NodeView,
-} from '@antv/x6'
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
@@ -21,6 +12,15 @@ import {
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import type {
+  Cell,
+  EdgeView,
+  EventArgs,
+  Graph,
+  History,
+  Node,
+  NodeView,
+} from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()

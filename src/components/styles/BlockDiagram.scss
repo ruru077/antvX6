@@ -56,7 +56,9 @@
   // 左侧面板折叠后，展开按钮（end 侧）脱离 hover-only 限制，常驻显示
   // ant-splitter-panel-hidden 是 antd 在 size=0 时自动加到 Panel 上的 class
   // 同时取消 -50% 水平居中，让按钮完全展示在画布侧（避免被左边缘裁剪）
-  .ant-splitter-panel-hidden+.ant-splitter-bar .ant-splitter-bar-collapse-bar-end {
+  .ant-splitter-panel-hidden
+    + .ant-splitter-bar
+    .ant-splitter-bar-collapse-bar-end {
     opacity: 1 !important;
     transform: translateX(0) !important;
   }

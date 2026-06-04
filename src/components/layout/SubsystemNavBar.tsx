@@ -2,14 +2,11 @@ import {
   DoubleRightOutlined,
   DownOutlined,
   EditOutlined,
-  SaveOutlined,
   SisternodeOutlined,
-  SyncOutlined,
 } from '@ant-design/icons'
 import {
   Breadcrumb,
   Button,
-  Divider,
   Drawer,
   Flex,
   Input,
@@ -17,9 +14,9 @@ import {
   Tree,
   Typography,
 } from 'antd'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import type { TreeDataNode } from 'antd'
 import type { SubGraphMap } from '~/types'
-import { useSubGraphStore } from '@/store/subGraphStore'
 import '@styles/SubsystemNavBar.scss'
 
 function buildTreeData(

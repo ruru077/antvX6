@@ -1,7 +1,7 @@
 import { Export, Graph } from '@antv/x6'
-import '@antv/x6/lib/plugin/export/api'
 import type { ExportToImageOptions } from '@antv/x6/lib/plugin/export/type'
 import type { GraphJSON } from '~/types'
+import '@antv/x6/lib/plugin/export/api'
 
 /**
  * 离屏渲染 graphJson，返回 PNG data URL

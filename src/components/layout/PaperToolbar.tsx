@@ -1,4 +1,3 @@
-import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import PaperToolbarBackSvg from '@/assets/svg/paper-toolbar-back.svg?react'
 import PaperToolbarChevronDownSvg from '@/assets/svg/paper-toolbar-chevron-down.svg?react'
@@ -7,6 +6,7 @@ import PaperToolbarSaveSvg from '@/assets/svg/paper-toolbar-save.svg?react'
 import PaperToolbarSimulateSvg from '@/assets/svg/paper-toolbar-simulate.svg?react'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import type { MenuProps } from 'antd'
 import '@styles/PaperToolbar.scss'
 
 type PaperToolbarProps = Record<string, never>

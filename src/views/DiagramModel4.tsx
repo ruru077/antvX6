@@ -1,10 +1,10 @@
 import { Graph, Node } from '@antv/x6'
+import { Button, Input, Space } from 'antd'
 import type {
   PortLayoutCommonArgs,
   PortLayoutResult,
   Rectangle,
 } from '@antv/x6'
-import { Button, Input, Space } from 'antd'
 
 interface LeftArcArgs extends PortLayoutCommonArgs {
   compensateRotate?: boolean
@@ -183,7 +183,7 @@ function DiagramModel() {
     syncPorts(node, signs)
 
     return () => graph.dispose()
-  }, [])
+  })
 
   // ── 控制 ── //
   const handleSignsChange = (val: string) => {

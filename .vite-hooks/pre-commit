@@ -1,2 +1,2 @@
 echo 'Happy coding!'
-pnpm precommit
+vp staged
