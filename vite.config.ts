@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite-plus'
 import { createVitePlugins } from './vite'
+import type { UserConfig } from 'vite-plus'
 
 const baseUrl = 'http://localhost:8080' // 后端接口
 
@@ -47,6 +48,7 @@ export default defineConfig(({ mode }) => {
     staged: {
       '**/*.{js,jsx,ts,tsx}': ['vp lint --fix', 'vp fmt'],
       '**/*.{css,html}': ['vp fmt'],
+      '!libavoid-js/**': [],
     },
     // oxc lint 配置
     lint: {
@@ -110,5 +112,5 @@ export default defineConfig(({ mode }) => {
       sortPackageJson: true, // 自动按规范排序 package.json 字段
       ignorePatterns: ['*.md', '*.json'], // 跳过 Markdown 和 JSON
     },
-  }
+  } as UserConfig
 })

@@ -30,10 +30,6 @@ import {
   setPasteTarget,
 } from '@/store/flags'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import {
-  AVOID_ROUTER_OPTIONS,
-  AvoidLibRouter,
-} from '@/utils/plugin/avoidRouter'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { registerSimulinkSegmentsTool } from '@/utils/plugin/segmentsTool'
@@ -147,7 +143,7 @@ registerSimulinkSegmentsTool()
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
   graph.use(new Export())
-  graph.use(new AvoidLibRouter(AVOID_ROUTER_OPTIONS))
+  // graph.use(new AvoidLibRouter(AVOID_ROUTER_OPTIONS))
   graph.use(
     new Selection({
       enabled: true,
