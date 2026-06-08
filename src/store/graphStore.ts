@@ -126,13 +126,13 @@ function createGraph(container: HTMLElement): GraphType {
     },
     panning: false,
     virtual: true,
-    // interacting: (cellView) => {
-    //   // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
-    //   if (cellView.cell.isEdge()) {
-    //     return { edgeMovable: ctrlHeld }
-    //   }
-    //   return {}
-    // },
+    interacting: (cellView) => {
+      // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
+      if (cellView.cell.isEdge()) {
+        return { edgeMovable: ctrlHeld }
+      }
+      return {}
+    },
   })
 }
 

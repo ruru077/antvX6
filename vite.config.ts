@@ -48,7 +48,6 @@ export default defineConfig(({ mode }) => {
     staged: {
       '**/*.{js,jsx,ts,tsx}': ['vp lint --fix', 'vp fmt'],
       '**/*.{css,html}': ['vp fmt'],
-      '!libavoid-js/**': [],
     },
     // oxc lint 配置
     lint: {

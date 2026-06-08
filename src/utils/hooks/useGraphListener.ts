@@ -108,7 +108,6 @@ function registerPasteTargetListeners(graph: Graph) {
     // cell点击，修改粘贴目标位置
     const { x, y } = cell.getBBox().getCenter()
     setPasteTarget(x, y)
-    interactiveService.addOutline(cell)
     setIsSelectionByKey(false)
     useGraphStore
       .getState()
@@ -251,11 +250,15 @@ function registerOutlineListeners(graph: Graph) {
       prevCells = curr
     }
   }
+  function cellSelectedHandler({ cell }: EventArgs['cell:selected']) {
+    interactiveService.addOutline(cell)
+  }
   function cellUnselectedHandler({ cell }: EventArgs['cell:unselected']) {
     interactiveService.removeOutline(cell)
   }
   return registerListeners(graph, [
     ['box:mousemove', mouseMoveHandler()],
+    ['cell:selected', cellSelectedHandler],
     ['cell:unselected', cellUnselectedHandler],
   ])
 }

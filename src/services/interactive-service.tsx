@@ -89,21 +89,21 @@ function createInteractiveService() {
 
     // 将 X6 视图层动态计算的折点物化为模型 vertices
     // 仅对正式连线处理；previewLink（红色临时线）不物化，避免影响后续连接的寻线结果
-    const edgeView = graph.findViewByCell(edge) as EdgeView
-    if (
-      !isPreview &&
-      !edge.getRouter() &&
-      edge.getVertices().length === 0 &&
-      edgeView?.routePoints
-    ) {
-      const pts = edgeView.routePoints
-      // routePoints 已是纯中间折点，不含 source/target
-      const intermediates = pts.map((p) => ({ x: p.x, y: p.y }))
-      if (intermediates.length > 0) {
-        edge.setVertices(intermediates, { undo: false })
-        edge.setRouter('orth', { undo: false })
-      }
-    }
+    // const edgeView = graph.findViewByCell(edge) as EdgeView
+    // if (
+    //   !isPreview &&
+    //   !edge.getRouter() &&
+    //   edge.getVertices().length === 0 &&
+    //   edgeView?.routePoints
+    // ) {
+    //   const pts = edgeView.routePoints
+    //   // routePoints 已是纯中间折点，不含 source/target
+    //   const intermediates = pts.map((p) => ({ x: p.x, y: p.y }))
+    //   if (intermediates.length > 0) {
+    //     edge.setVertices(intermediates, { undo: false })
+    //     edge.setRouter('orth', { undo: false })
+    //   }
+    // }
 
     const sourceCell = graph.getCellById(edge.getSourceCellId())
     const isBranchEdge = sourceCell.isEdge()
