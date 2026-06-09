@@ -8,6 +8,7 @@ import CanvasToolbarFitSvg from '@/assets/svg/canvas-toolbar-fit.svg?react'
 import CanvasToolbarMinimapSvg from '@/assets/svg/canvas-toolbar-minimap.svg?react'
 import CanvasToolbarZoomInSvg from '@/assets/svg/canvas-toolbar-zoom-in.svg?react'
 import CanvasToolbarZoomOutSvg from '@/assets/svg/canvas-toolbar-zoom-out.svg?react'
+import { createInteractiveService } from '@/services/interactive-service'
 import { createMinimapService } from '@/services/minimap-service'
 import { useGraphStore } from '@/store/graphStore'
 import '@styles/CanvasToolbars.scss'
@@ -32,11 +33,10 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
 
   const handleZoomIn = () => graph?.zoom(0.1)
   const handleZoomOut = () => graph?.zoom(-0.1)
-  const handleFit = () =>
-    graph?.zoomToFit({
-      padding: 16,
-      useCellGeometry: false,
-    })
+  const handleFit = () => {
+    if (!graph) return
+    createInteractiveService().zoomToFitWithVirtual(graph, { padding: 16 })
+  }
   const handleExportSVG = () => {
     graph.exportSVG('diagram', {
       copyStyles: false,

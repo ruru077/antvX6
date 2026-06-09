@@ -1,10 +1,12 @@
 import {
+  Cell,
   Clipboard,
   Export,
   Graph,
   History,
   Keyboard,
   Node,
+  Rectangle,
   Scroller,
   Selection,
   Shape,
@@ -434,6 +436,14 @@ function selectAllHandler() {
   if (cells.length) graph.resetSelection(cells)
 }
 
+/** 对所有 cell 做 zoomToFit，关虚拟渲染 + 同步 renderViews 全量创建 view */
+function zoomToFitWithVirtual(graph: GraphType): void {
+  interactiveService.zoomToFitWithVirtual(graph, {
+    scaleGrid: 0.05,
+    padding: 20,
+  })
+}
+
 // ── Space 键闭包 ────────────────────────────────────────────────────────────
 /**
  * - 单键：space keyup → zoomToFit
@@ -472,7 +482,7 @@ function createSpaceHandlers() {
     up() {
       spaceHeld = false
       if (!comboUsed) {
-        useGraphStore.getState().graph.zoomToFit({ padding: 20 })
+        zoomToFitWithVirtual(useGraphStore.getState().graph)
       }
     },
     // ── Space + 方向键 平移画布 ───────────────────────────────
@@ -485,15 +495,15 @@ function createSpaceHandlers() {
     zoomOut: used(() => useGraphStore.getState().graph.zoom(-0.1)),
     zoomReset: used(() => useGraphStore.getState().graph.zoomTo(1)),
     // ── 视图适应 ──────────────────────────────────────────
-    zoomToFit: used(() =>
-      useGraphStore.getState().graph.zoomToFit({ padding: 20 }),
-    ),
+    zoomToFit: used(() => zoomToFitWithVirtual(useGraphStore.getState().graph)),
     zoomToSelection: used(() => {
       const graph = useGraphStore.getState().graph
       const cells =
         graph.getPlugin<Selection>('selection')?.getSelectedCells() ?? []
       if (cells.length > 0) {
-        graph.zoomToRect(graph.getCellsBBox(cells)!, { padding: 20 })
+        graph.zoomToRect(graph.getCellsBBox(cells)!, {
+          padding: 20,
+        })
       }
     }),
   }

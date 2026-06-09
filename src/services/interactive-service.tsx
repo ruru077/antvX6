@@ -6,7 +6,8 @@ import {
 } from '@/assets/constant'
 import { BlockParamModal } from '@/components/ParamModal'
 import { useGraphStore } from '@/store/graphStore'
-import type { Cell, Edge, EdgeView, Node } from '@antv/x6'
+import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
+import type { ScaleContentToFitOptions } from '@antv/x6'
 
 function createInteractiveService() {
   function addOutline(cell: Cell) {
@@ -183,12 +184,33 @@ function createInteractiveService() {
     root.render(<BlockParamModal node={node} onDestroy={destroy} />)
   }
 
+  /**
+   * zoomToFit with virtual render support.
+   * Temporarily disables virtual rendering & async to ensure all cell views are
+   * in the DOM so useCellGeometry:false can read the full visual bounding box.
+   */
+  function zoomToFitWithVirtual(
+    graph: Graph,
+    options?: ScaleContentToFitOptions,
+  ) {
+    graph.options.async = false
+    graph.disableVirtualRender()
+    ;(graph as any).renderer.schedule.renderViews(graph.getCells())
+    graph.zoomToFit({
+      useCellGeometry: false,
+      ...options,
+    })
+    graph.options.async = true
+    graph.enableVirtualRender()
+  }
+
   return {
     addOutline,
     removeOutline,
     addBoundaryTool,
     addEdgeTools,
     openBlockParamModal,
+    zoomToFitWithVirtual,
   }
 }
 

@@ -230,8 +230,8 @@ importers:
         specifier: ^6.4.3
         version: 6.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       libavoid-js:
-        specifier: file:./libavoid-js
-        version: file:libavoid-js
+        specifier: file:../libavoid-js
+        version: file:../libavoid-js
       liquid-glass-react:
         specifier: ^1.1.1
         version: 1.1.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1956,8 +1956,8 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  libavoid-js@file:libavoid-js:
-    resolution: {directory: libavoid-js, type: directory}
+  libavoid-js@file:../libavoid-js:
+    resolution: {directory: ../libavoid-js, type: directory}
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -4055,7 +4055,7 @@ snapshots:
 
   json5@2.2.3: {}
 
-  libavoid-js@file:libavoid-js: {}
+  libavoid-js@file:../libavoid-js: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true
