@@ -156,7 +156,6 @@ function registerEdgeBranchListeners(graph: Graph) {
         x: startPos.x,
         y: startPos.y,
         isNewEdge: true,
-        fallbackAction: 'remove',
       }),
     )
     setTimeout(() => {
@@ -164,10 +163,16 @@ function registerEdgeBranchListeners(graph: Graph) {
       if (e.data?.[key]) e.data[key].currentView = tempEdgeView
     }, 0)
   }
-  function edgeConnectedHandler({ edge }: EventArgs['edge:connected']) {
-    // 临时分支线连接成功后，恢复为正式连线样式
-    if (edge.getAttrs()?.line?.stroke == RED) {
+  // 连接和断联均触发
+  function edgeConnectedHandler({
+    edge,
+    currentCell,
+  }: EventArgs['edge:connected']) {
+    // 连接成功 → formal，断联 → preview
+    if (currentCell) {
       edge.setAttrs(formalLink.attrs)
+    } else {
+      edge.setAttrs(previewLink.attrs)
     }
   }
   return registerListeners(graph, [
