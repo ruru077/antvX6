@@ -127,7 +127,8 @@ function createGraph(container: HTMLElement): GraphType {
       factor: 1.1,
     },
     panning: false,
-    virtual: true,
+    // TODO: 开启虚拟渲染后 画布边缘AUTOResize 会出现闪烁
+    virtual: false,
     interacting: (cellView) => {
       // 按住 Ctrl 时允许 edge 整体移动（用于 branchEdge 拖拽），否则禁用
       if (cellView.cell.isEdge()) {
