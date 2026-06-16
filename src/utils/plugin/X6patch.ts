@@ -16,7 +16,10 @@ CellView.prototype._getSelectors = function () {
  */
 export function _patchScrollerOnUpdate(scroller: Scroller) {
   const impl = (scroller as unknown as Record<string, any>).scrollerImpl
-  if (!impl) return
+  if (!impl) {
+    console.warn('[X6patch] _patchScrollerOnUpdate: scrollerImpl 不存在，跳过')
+    return
+  }
 
   const proto = Object.getPrototypeOf(impl) as Record<string, Function>
   const originalOnUpdate = proto.onUpdate as Function
@@ -26,4 +29,26 @@ export function _patchScrollerOnUpdate(scroller: Scroller) {
   proto.stopListening.call(impl)
   impl.onUpdate = FunctionExt.throttle(originalOnUpdate.bind(impl), 60)
   proto.startListening.call(impl)
+}
+
+/**
+ * 强制 scroller 立即重新计算内容尺寸和 page 分页。
+ * 用于 fromJSON 切换图层后，确保 scroller 同步新图层的内容范围。
+ */
+export function _patchScrollerForceUpdate(scroller: Scroller) {
+  const impl = (scroller as unknown as Record<string, any>).scrollerImpl
+  if (!impl) {
+    console.warn(
+      '[X6patch] _patchScrollerForceUpdate: scrollerImpl 不存在，跳过',
+    )
+    return
+  }
+  const { graph, options } = impl
+  // 更新 graph size
+  graph?.fitToContent({
+    gridWidth: options?.pageWidth,
+    gridHeight: options?.pageHeight,
+    allowNewOrigin: 'negative',
+    useCellGeometry: true,
+  })
 }

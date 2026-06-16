@@ -3,8 +3,9 @@ import { create } from 'zustand'
 import { formalLink, signalPortGroups } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
+import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import { useGraphStore } from './graphStore'
-import type { Cell, Edge, Graph, History, Node } from '@antv/x6'
+import type { Cell, Edge, Graph, History, Node, Scroller } from '@antv/x6'
 import type { HistoryCommands } from '@antv/x6/lib/plugin/history/type'
 import type {
   EntryGraphModel,
@@ -236,9 +237,12 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       }
       history['undoStack'] = saved.undoStack
       history['redoStack'] = saved.redoStack
-      // 无需等待 history:change 更新撤销/重做按钮状态
+      // 通知X6 更新撤销/重做按钮状态
       void graph.trigger('history:change', { cmds: null, options: {} })
     }
+    // 强制刷新视图，确保 centerContent 拿到正确的滚动范围。
+    const scrollerPlugin = graph.getPlugin<Scroller>('scroller')
+    if (scrollerPlugin) _patchScrollerForceUpdate(scrollerPlugin)
 
     graph.centerContent()
     set({

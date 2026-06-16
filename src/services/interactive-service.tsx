@@ -193,6 +193,14 @@ function createInteractiveService() {
     graph: Graph,
     options?: ScaleContentToFitOptions,
   ) {
+    // 兼容非开启 virtual
+    if (!graph.options.virtual) {
+      graph.zoomToFit({
+        useCellGeometry: false,
+        ...options,
+      })
+      return
+    }
     graph.options.async = false
     graph.disableVirtualRender()
     ;(graph as any).renderer.schedule.renderViews(graph.getCells())
