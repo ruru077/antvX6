@@ -3,7 +3,7 @@ import { useGraphListener } from '@hooks/useGraphListener'
 import { useScrollListener } from '@hooks/useScrollListener'
 import { ConfigProvider, Splitter } from 'antd'
 import {
-  CanvasContextMenu,
+  ContextMenu,
   CanvasLeftToolbar,
   CanvasToolbars,
   PaperToolbar,
@@ -84,14 +84,16 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
                 {navPanelVisible && (
                   <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
                 )}
-                <div className="paper-container">
-                  {/* 右键菜单 */}
-                  <CanvasContextMenu>
+                <ContextMenu
+                  toolbarsVisible={toolbarsVisible}
+                  onToggleToolbars={() => setToolbarsVisible((v) => !v)}
+                >
+                  <div className="paper-container">
                     <div ref={paperContainerRef} className="paper"></div>
-                  </CanvasContextMenu>
-                  {/* 悬浮工具栏 */}
-                  <CanvasToolbars visible={toolbarsVisible} />
-                </div>
+                    {/* 悬浮工具栏 */}
+                    <CanvasToolbars visible={toolbarsVisible} />
+                  </div>
+                </ContextMenu>
               </div>
             </div>
           </div>
