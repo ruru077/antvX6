@@ -165,21 +165,48 @@ function registerEdgeBranchListeners(graph: Graph) {
       if (e.data?.[key]) e.data[key].currentView = tempEdgeView
     }, 0)
   }
-  // 连接和断联均触发
+  // 连接成功 → formal，若反接（in→out）则自动交换 source/target
   function edgeConnectedHandler({
     edge,
     currentCell,
   }: EventArgs['edge:connected']) {
-    // 连接成功 → formal，断联 → preview
-    if (currentCell) {
-      edge.setAttrs(formalLink.attrs)
-    } else {
-      edge.setAttrs(previewLink.attrs)
+    if (!currentCell) return
+
+    const srcCell = edge.getSourceCell() as Node | null
+    const tgtCell = edge.getTargetCell() as Node | null
+    const srcGroup = commonService.getPortGroup(
+      srcCell?.getPort(edge.getSourcePortId()),
+    )
+    const tgtGroup = commonService.getPortGroup(
+      tgtCell?.getPort(edge.getTargetPortId()),
+    )
+
+    // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
+    if (srcGroup === 'in' && tgtGroup === 'out') {
+      const source = edge.getSource()
+      const target = edge.getTarget()
+      edge.setSource(target)
+      edge.setTarget(source)
     }
+
+    edge.setAttrs(formalLink.attrs)
   }
+
+  // 实时检测断联：change:source / change:target 在拖拽中立即触发
+  function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
+    if (!cell.isEdge()) return
+    cell.setAttrs(cell.getSourceCell() ? formalLink.attrs : previewLink.attrs)
+  }
+  function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
+    if (!cell.isEdge()) return
+    cell.setAttrs(cell.getTargetCell() ? formalLink.attrs : previewLink.attrs)
+  }
+
   return registerListeners(graph, [
     ['edge:mousedown', edgeMousedownHandler],
     ['edge:connected', edgeConnectedHandler],
+    ['cell:change:source', edgeSourceChangedHandler],
+    ['cell:change:target', edgeTargetChangedHandler],
   ])
 }
 
@@ -317,7 +344,7 @@ function registerScrollerSyncListener(graph: Graph) {
     const graphW = graph.options.width
     const graphH = graph.options.height
 
-    // 节点超出当前 graph 边界（含负坐标），强制用模型几何刷新 scroller
+    // 节点超出当前 graph 边界，强制用模型几何刷新 scroller
     if (
       pos.x + size.width > graphW ||
       pos.y + size.height > graphH ||

@@ -224,6 +224,20 @@ function createCommonService() {
       return null
     }
   }
+  /**
+   *
+   * @param group
+   * @returns
+   */
+  function getPortGroup(
+    port: { group?: string } | undefined | null,
+  ): 'in' | 'out' | null {
+    if (!port?.group) return null
+    const lower = port.group.toLowerCase()
+    if (lower.startsWith('in')) return 'in'
+    if (lower.startsWith('out')) return 'out'
+    return null
+  }
 
   return {
     resize,
@@ -234,6 +248,7 @@ function createCommonService() {
     addPort,
     zipGraphModelJson,
     svgToPath,
+    getPortGroup,
   }
 }
 
