@@ -12,6 +12,7 @@ import {
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
   EdgeView,
@@ -20,6 +21,7 @@ import type {
   History,
   Node,
   NodeView,
+  Scroller,
 } from '@antv/x6'
 
 const commonService = createCommonService()
@@ -57,6 +59,7 @@ function useGraphListener() {
       registerOutlineListeners(graph),
       registerPasteTargetListeners(graph),
       registerHistoryListeners(graph),
+      registerScrollerSyncListener(graph),
     ]
 
     // ── #5 鼠标移动（X6未注册 DOM 原生事件，节流）──────────────────────────────
@@ -300,6 +303,32 @@ function registerHistoryListeners(graph: Graph) {
     console.log(history['undoStack'])
   }
   return registerListeners(graph, [['history:change', historyChangeHandler]])
+}
+
+// ── Scroller 区域同步 ──────────────────────────────────────────────────────
+/** 拖拽模块到非画布空白区域时，强制 scroller 同步扩展 graph 尺寸 */
+function registerScrollerSyncListener(graph: Graph) {
+  function nodeAddedHandler({ node }: EventArgs['node:added']) {
+    const scroller = graph.getPlugin<Scroller>('scroller')
+    if (!scroller) return
+
+    const pos = node.getPosition()
+    const size = node.getSize()
+    const graphW = graph.options.width
+    const graphH = graph.options.height
+
+    // 节点超出当前 graph 边界（含负坐标），强制用模型几何刷新 scroller
+    if (
+      pos.x + size.width > graphW ||
+      pos.y + size.height > graphH ||
+      pos.x < 0 ||
+      pos.y < 0
+    ) {
+      _patchScrollerForceUpdate(scroller)
+    }
+  }
+
+  return registerListeners(graph, [['node:added', nodeAddedHandler]])
 }
 
 // ── 事件注册工具 ──────────────────────────────────────────────────────────
