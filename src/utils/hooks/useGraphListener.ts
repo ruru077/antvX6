@@ -147,7 +147,6 @@ function registerEdgeBranchListeners(graph: Graph) {
       target: { x: startPos.x, y: startPos.y },
       ...previewLink,
     })
-
     // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
     const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
     tempEdgeView.setEventData(

@@ -35,6 +35,7 @@ import { useSubGraphStore } from '@/store/subGraphStore'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { registerSimulinkSegmentsTool } from '@/utils/plugin/segmentsTool'
+import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
 import type { Graph as GraphType } from '@antv/x6'
 
 const commonService = createCommonService()
@@ -183,19 +184,20 @@ function registerPlugins(graph: GraphType) {
       },
     }),
   )
-  graph.use(
-    new Scroller({
-      enabled: true,
-      pannable: true,
-      pageWidth: 1000,
-      pageHeight: 1000,
-      pageBreak: false,
-      pageVisible: true,
-      autoResizeOptions: {
-        useCellGeometry: false,
-      },
-    }),
-  )
+  const scroller = new Scroller({
+    enabled: true,
+    pannable: true,
+    pageWidth: 1000,
+    pageHeight: 1000,
+    pageBreak: false,
+    pageVisible: true,
+    autoResizeOptions: {
+      useCellGeometry: false,
+    },
+  })
+  graph.use(scroller)
+  // 这里在实例上重新用 throttle 60ms 覆盖，使滚动/缩放响应更即时。
+  _patchScrollerOnUpdate(scroller)
 
   const transformPlugin = new Transform({
     resizing: {
