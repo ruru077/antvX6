@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { formalLink, signalPortGroups } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
+import { addMaskToNode } from '@/utils/plugin/maskTool'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import { useGraphStore } from './graphStore'
 import type { Cell, Edge, Graph, History, Node, Scroller } from '@antv/x6'
@@ -41,6 +42,8 @@ interface SubGraphStore {
   changeGraphView: (subGraphId: string) => void
   // 将框选的节点转为子系统
   mergeToSubsystem: (cells: Cell[]) => void
+  // 添加 mask 工具
+  addMaskToSubsystem: (node: Node) => void
 }
 
 interface CreateSubGraphItemOptions {
@@ -406,6 +409,9 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
         node?.setAttrs({ thumb: { xlinkHref: dataUrl } })
       })
       .catch((e) => console.warn('[snapshot] 子系统缩略图生成失败', e))
+  },
+  addMaskToSubsystem: (node) => {
+    addMaskToNode(node)
   },
   // exportGraphModelDTO: () => {
   //   const { rootId, subGraphs } = get()
