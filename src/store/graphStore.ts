@@ -118,6 +118,25 @@ function createGraph(container: HTMLElement): GraphType {
       createEdge() {
         return new Shape.Edge(previewLink)
       },
+      // 同组 port（in↔in、out↔out）禁止连接，只允许 in↔out
+      validateConnection({ sourceCell, targetCell, sourcePort, targetPort }) {
+        // 不拦截，交给其他规则处理
+        if (!sourceCell || !targetCell || !sourcePort || !targetPort)
+          return true
+        const srcDir = commonService.getPortGroup(
+          (sourceCell as Node).getPort(sourcePort),
+        )
+        const tgtDir = commonService.getPortGroup(
+          (targetCell as Node).getPort(targetPort),
+        )
+        if (!srcDir || !tgtDir) {
+          console.warn(
+            '[validateConnection] port group 未定义，无法验证连接合法性',
+            { sourceCell, targetCell, sourcePort, targetPort },
+          )
+        }
+        return srcDir !== tgtDir
+      },
     },
     grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
     scaling: { min: 0.5, max: 5 },
