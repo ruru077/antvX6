@@ -1,11 +1,12 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { useContextMenu } from '@hooks/useContextMenu'
 import { useGraphListener } from '@hooks/useGraphListener'
 import { useScrollListener } from '@hooks/useScrollListener'
 import { ConfigProvider, Splitter } from 'antd'
 import {
-  ContextMenu,
   CanvasLeftToolbar,
   CanvasToolbars,
+  ContextMenu,
   PaperToolbar,
   StencilLayout,
   SubsystemNavBar,
@@ -22,6 +23,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
   useGraphListener()
+  useContextMenu()
   useEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
@@ -84,10 +86,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
                 {navPanelVisible && (
                   <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
                 )}
-                <ContextMenu
-                  toolbarsVisible={toolbarsVisible}
-                  onToggleToolbars={() => setToolbarsVisible((v) => !v)}
-                >
+                <ContextMenu>
                   <div className="paper-container">
                     <div ref={paperContainerRef} className="paper"></div>
                     {/* 悬浮工具栏 */}
