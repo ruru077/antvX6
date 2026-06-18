@@ -2,8 +2,9 @@
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  // @tailwind @layer base 中已重置 margin 和 padding
+  // margin: 0;
+  // padding: 0;
 }
 
 @font-face {
@@ -17,7 +18,7 @@ html,
 body {
   height: 100%;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 22px;
   font-family: var(--font-family-sans);
 }
@@ -55,18 +56,24 @@ select {
   --font-family-sans:
     'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue',
     Arial, sans-serif;
-  --font-size-base: 14px; /* 默认最小字号 */
-  --line-height-base: 22px; /* 对应14px 的标准行高 */
+  --font-size-base: 14px;
+  /* 默认最小字号 */
+  --line-height-base: 22px;
+  /* 对应14px 的标准行高 */
   /* 占位符 — 后期按需指定哪些组件使用 */
   /* --font-size-md: 16px;   */
   /* --line-height-md: 24px; */
   /* Brand color — 明青 cyan-6，Ant Design 规范功能键用 6 级色 */
   --color-primary: #08979c;
-  --color-primary-hover: #e6fffb; /* cyan-0：轻量悬停背景 */
-  --color-primary-active: #b5f5ec; /* cyan-1：按下/激活背景 */
+  --color-primary-hover: #e6fffb;
+  /* cyan-0：轻量悬停背景 */
+  --color-primary-active: #b5f5ec;
+  /* cyan-1：按下/激活背景 */
   /* Text — Ant Design 中性色板 */
-  --color-text: #262626; /* gray-9：一级文本/标题 */
-  --color-text-secondary: #595959; /* gray-7：二级文本 */
+  --color-text: #262626;
+  /* gray-9：一级文本/标题 */
+  --color-text-secondary: #595959;
+  /* gray-7：二级文本 */
   /* Layout */
   --nav-height: 48px;
   --toolbar-height: 40px;
@@ -178,7 +185,7 @@ select {
   padding: 0;
 }
 
-.x6-widget-transform > div {
+.x6-widget-transform>div {
   width: 10px;
   height: 10px;
   border: 1px solid rgb(140, 140, 140);
