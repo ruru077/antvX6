@@ -21,8 +21,6 @@ import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { Cell, Edge, EventArgs, Graph, Node } from '@antv/x6'
 
-type ContextType = 'blank' | 'toolbar' | 'node' | 'edge'
-
 type ContextInfo =
   | { type: 'blank' }
   | { type: 'toolbar' }
@@ -46,7 +44,7 @@ function ContextMenu({
 }) {
   const graph = useGraphStore((s) => s.graph)
   const ctxRef = useRef<ContextInfo>({ type: 'blank' })
-  const [ctxType, setCtxType] = useState<ContextType>('blank')
+  const [, forceUpdate] = useReducer((n: number) => n + 1, 0)
 
   // ── X6 事件 → 更新菜单上下文 ─────────────────────────────────────────
   useEffect(() => {
@@ -54,7 +52,7 @@ function ContextMenu({
 
     function onBlank() {
       ctxRef.current = { type: 'blank' }
-      setCtxType('blank')
+      forceUpdate()
     }
     function onCell(args: EventArgs['cell:contextmenu']) {
       const isNode = args.cell.isNode()
@@ -62,7 +60,7 @@ function ContextMenu({
         type: isNode ? 'node' : 'edge',
         cell: args.cell,
       }
-      setCtxType(isNode ? 'node' : 'edge')
+      forceUpdate()
     }
 
     graph.on('blank:contextmenu', onBlank)
@@ -78,7 +76,7 @@ function ContextMenu({
     function onContextMenu(e: MouseEvent) {
       if ((e.target as HTMLElement)?.closest?.('.canvas-float-toolbar')) {
         ctxRef.current = { type: 'toolbar' }
-        setCtxType('toolbar')
+        forceUpdate()
       }
     }
     document.addEventListener('contextmenu', onContextMenu, true)
@@ -158,7 +156,7 @@ function ToolbarMenu({
 
 function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
   const isSubsystem = node.getData()?.blockType === 'Subsystem'
-
+  console.log(isSubsystem)
   return (
     <>
       <ContextMenuGroup>
