@@ -86,7 +86,10 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
                 {navPanelVisible && (
                   <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
                 )}
-                <ContextMenu>
+                <ContextMenu
+                  toolbarsVisible={toolbarsVisible}
+                  onToggleToolbars={() => setToolbarsVisible((v) => !v)}
+                >
                   <div className="paper-container">
                     <div ref={paperContainerRef} className="paper"></div>
                     {/* 悬浮工具栏 */}

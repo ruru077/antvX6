@@ -1,19 +1,28 @@
 import {
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  EyeInvisibleOutlined,
-  EyeOutlined,
-  MergeCellsOutlined,
-  ScissorOutlined,
-  SnippetsOutlined,
-} from '@ant-design/icons'
-import { Dropdown, message } from 'antd'
-import { CircleDashed } from 'lucide-react'
+  Copy,
+  Eye,
+  EyeOff,
+  GitMerge,
+  Scissors,
+  Trash2,
+  ZoomIn,
+  CircleDashed,
+} from 'lucide-react'
+import {
+  ContextMenu as ContextMenu_,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { Cell, Edge, EventArgs, Graph, Node } from '@antv/x6'
-import type { MenuProps } from 'antd'
+
+type ContextType = 'blank' | 'toolbar' | 'node' | 'edge'
+
 type ContextInfo =
   | { type: 'blank' }
   | { type: 'toolbar' }
@@ -21,11 +30,10 @@ type ContextInfo =
   | { type: 'edge'; cell: Cell }
 
 /**
- * 画布右键菜单。
+ * 画布右键菜单（shadcn/Radix 实现）。
  *
- * Dropdown 包裹 paper-container（非 paper div），X6 Scroller 不会移动它。
- * 手动控制 open 并补充 mousedown 关闭 + scroller 滚动关闭，
- * 弥补 trigger=['contextMenu'] 在自定义滚动容器中的不足。
+ * useContextMenu hook 负责桥接 X6 右键事件到 paper-container（trigger），
+ * 本组件根据右键目标类型分发不同的菜单内容。
  */
 function ContextMenu({
   children,
@@ -38,23 +46,23 @@ function ContextMenu({
 }) {
   const graph = useGraphStore((s) => s.graph)
   const ctxRef = useRef<ContextInfo>({ type: 'blank' })
-  const [, forceUpdate] = useState(0)
-  const [open, setOpen] = useState(false)
+  const [ctxType, setCtxType] = useState<ContextType>('blank')
 
-  // X6 事件 → 更新菜单上下文
+  // ── X6 事件 → 更新菜单上下文 ─────────────────────────────────────────
   useEffect(() => {
     if (!graph) return
 
     function onBlank() {
       ctxRef.current = { type: 'blank' }
-      forceUpdate((n) => n + 1)
+      setCtxType('blank')
     }
     function onCell(args: EventArgs['cell:contextmenu']) {
+      const isNode = args.cell.isNode()
       ctxRef.current = {
-        type: args.cell.isNode() ? 'node' : 'edge',
+        type: isNode ? 'node' : 'edge',
         cell: args.cell,
       }
-      forceUpdate((n) => n + 1)
+      setCtxType(isNode ? 'node' : 'edge')
     }
 
     graph.on('blank:contextmenu', onBlank)
@@ -65,12 +73,12 @@ function ContextMenu({
     }
   }, [graph])
 
-  // 捕获阶段检测右键落点：悬浮工具栏上的右键 → toolbar 菜单
+  // ── 捕获阶段检测工具栏右键 ──────────────────────────────────────────
   useEffect(() => {
     function onContextMenu(e: MouseEvent) {
       if ((e.target as HTMLElement)?.closest?.('.canvas-float-toolbar')) {
         ctxRef.current = { type: 'toolbar' }
-        forceUpdate((n) => n + 1)
+        setCtxType('toolbar')
       }
     }
     document.addEventListener('contextmenu', onContextMenu, true)
@@ -78,195 +86,160 @@ function ContextMenu({
       document.removeEventListener('contextmenu', onContextMenu, true)
   }, [])
 
-  // 补充关闭行为：mousedown（不等 mouseup） + scroller 滚动
-  useEffect(() => {
-    if (!graph) return
-
-    function onMouseDown(e: MouseEvent) {
-      if (e.button === 2) return // 右键交给 contextmenu
-      if (
-        document
-          .querySelector('.ant-dropdown')
-          ?.contains(e.target as HTMLElement)
-      )
-        return
-      setOpen(false)
-    }
-
-    function onScrollerScroll() {
-      setOpen(false)
-    }
-
-    document.addEventListener('mousedown', onMouseDown, true)
-
-    // scroller 由 X6 异步创建，轮询一次
-    const timer = setInterval(() => {
-      const el = graph.container?.closest?.(
-        '.x6-graph-scroller',
-      ) as HTMLElement | null
-      if (el) {
-        clearInterval(timer)
-        el.addEventListener('scroll', onScrollerScroll, { passive: true })
-      }
-    }, 100)
-
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown, true)
-      clearInterval(timer)
-      const el = graph.container?.closest?.(
-        '.x6-graph-scroller',
-      ) as HTMLElement | null
-      el?.removeEventListener('scroll', onScrollerScroll)
-    }
-  }, [graph])
-
   const ctx = ctxRef.current
-  const items =
-    ctx.type === 'blank'
-      ? buildBlankMenu(graph)
-      : ctx.type === 'toolbar'
-        ? buildToolbarMenu(toolbarsVisible, onToggleToolbars)
-        : ctx.type === 'node'
-          ? buildNodeMenu(graph, ctx.cell! as Node)
-          : buildEdgeMenu(graph, ctx.cell! as Edge)
 
   return (
-    <Dropdown
-      open={open}
-      onOpenChange={setOpen}
-      trigger={['contextMenu']}
-      menu={{ items }}
-    >
-      {children}
-    </Dropdown>
+    <ContextMenu_>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        {ctx.type === 'blank' ? (
+          <BlankMenu graph={graph} />
+        ) : ctx.type === 'toolbar' ? (
+          <ToolbarMenu visible={toolbarsVisible} onToggle={onToggleToolbars} />
+        ) : ctx.type === 'node' ? (
+          <NodeMenu graph={graph} node={ctx.cell as Node} />
+        ) : (
+          <EdgeMenu graph={graph} edge={ctx.cell as Edge} />
+        )}
+      </ContextMenuContent>
+    </ContextMenu_>
   )
 }
 
-// ── 空白区域右键菜单 ──────────────────────────────────────────────────────
+// ── 空白区域 ─────────────────────────────────────────────────────────────
 
-function buildBlankMenu(graph: Graph | null): MenuProps['items'] {
-  return [
-    {
-      key: 'paste',
-      icon: <SnippetsOutlined />,
-      label: '粘贴',
-      disabled: graph?.isClipboardEmpty() ?? true,
-      onClick() {
-        if (graph?.isClipboardEmpty()) return
-        graph?.paste({ offset: 30 })
-        message.success('粘贴成功')
-      },
-    },
-    {
-      key: 'fit-content',
-      icon: <EditOutlined />,
-      label: '适应内容',
-      onClick() {
-        graph?.zoomToFit({ padding: 20 })
-      },
-    },
-  ]
+function BlankMenu({ graph }: { graph: Graph | null }) {
+  return (
+    <ContextMenuGroup>
+      <ContextMenuItem
+        disabled={graph?.isClipboardEmpty() ?? true}
+        onClick={() => {
+          if (graph?.isClipboardEmpty()) return
+          graph?.paste({ offset: 30 })
+        }}
+      >
+        <Copy className="mr-2 size-4" />
+        粘贴
+        <ContextMenuShortcut>⌘V</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => graph?.zoomToFit({ padding: 20 })}>
+        <ZoomIn className="mr-2 size-4" />
+        适应内容
+      </ContextMenuItem>
+    </ContextMenuGroup>
+  )
 }
 
-// ── 悬浮工具栏右键菜单 ──────────────────────────────────────────────────
+// ── 悬浮工具栏 ──────────────────────────────────────────────────────────
 
-function buildToolbarMenu(
-  toolbarsVisible?: boolean,
-  onToggle?: () => void,
-): MenuProps['items'] {
-  if (!onToggle) return []
-  return [
-    {
-      key: 'toggle-toolbars',
-      icon: toolbarsVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />,
-      label: toolbarsVisible ? '隐藏悬浮工具' : '显示悬浮工具',
-      onClick: onToggle,
-    },
-  ]
+function ToolbarMenu({
+  visible,
+  onToggle,
+}: {
+  visible?: boolean
+  onToggle?: () => void
+}) {
+  if (!onToggle) return null
+  return (
+    <ContextMenuGroup>
+      <ContextMenuItem onClick={onToggle}>
+        {visible ? (
+          <EyeOff className="mr-2 size-4" />
+        ) : (
+          <Eye className="mr-2 size-4" />
+        )}
+        {visible ? '隐藏悬浮工具' : '显示悬浮工具'}
+      </ContextMenuItem>
+    </ContextMenuGroup>
+  )
 }
 
-// ── Node 右键菜单 ─────────────────────────────────────────────────────────
+// ── Node ────────────────────────────────────────────────────────────────
 
-function buildNodeMenu(graph: Graph | null, node: Node): MenuProps['items'] {
+function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
   const isSubsystem = node.getData()?.blockType === 'Subsystem'
-  const items: Exclude<MenuProps['items'], undefined> = []
 
-  items.push(
-    {
-      key: 'copy',
-      icon: <CopyOutlined />,
-      label: '复制',
-      onClick() {
-        graph?.copy([node])
-        message.success('已复制')
-      },
-    },
-    {
-      key: 'cut',
-      icon: <ScissorOutlined />,
-      label: '剪切',
-      onClick() {
-        graph?.cut([node])
-        message.success('已剪切')
-      },
-    },
+  return (
+    <>
+      <ContextMenuGroup>
+        <ContextMenuItem
+          onClick={() => {
+            graph?.copy([node])
+          }}
+        >
+          <Copy className="mr-2 size-4" />
+          复制
+          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            graph?.cut([node])
+          }}
+        >
+          <Scissors className="mr-2 size-4" />
+          剪切
+          <ContextMenuShortcut>⌘X</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuGroup>
+      {isSubsystem && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuGroup>
+            <ContextMenuItem
+              onClick={() => {
+                useSubGraphStore.getState().changeGraphView(node.id)
+              }}
+            >
+              <GitMerge className="mr-2 size-4" />
+              进入子系统
+            </ContextMenuItem>
+          </ContextMenuGroup>
+          <ContextMenuSeparator />
+          <ContextMenuGroup>
+            <ContextMenuItem
+              onClick={() => {
+                useSubGraphStore.getState().addMaskToSubsystem(node)
+              }}
+            >
+              <CircleDashed className="mr-2 size-4" />
+              增加系统封装
+            </ContextMenuItem>
+          </ContextMenuGroup>
+        </>
+      )}
+      <ContextMenuSeparator />
+      <ContextMenuGroup>
+        <ContextMenuItem
+          variant="destructive"
+          onClick={() => {
+            graph?.removeCell(node)
+          }}
+        >
+          <Trash2 className="mr-2 size-4" />
+          删除
+          <ContextMenuShortcut>⌫</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuGroup>
+    </>
   )
-
-  if (isSubsystem) {
-    items.push(
-      { type: 'divider' },
-      {
-        key: 'enter-subsystem',
-        icon: <MergeCellsOutlined />,
-        label: '进入子系统',
-        onClick() {
-          useSubGraphStore.getState().changeGraphView(node.id)
-        },
-      },
-    )
-    items.push(
-      { type: 'divider' },
-      {
-        key: 'add-mask',
-        icon: <CircleDashed size={14} />,
-        label: '增加系统封装',
-        onClick() {
-          useSubGraphStore.getState().addMaskToSubsystem(node)
-        },
-      },
-    )
-  }
-
-  items.push(
-    { type: 'divider' },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      danger: true,
-      label: '删除',
-      onClick() {
-        graph?.removeCell(node)
-      },
-    },
-  )
-
-  return items
 }
 
-// ── Edge 右键菜单 ─────────────────────────────────────────────────────────
+// ── Edge ────────────────────────────────────────────────────────────────
 
-function buildEdgeMenu(graph: Graph | null, edge: Edge): MenuProps['items'] {
-  return [
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      danger: true,
-      label: '删除连线',
-      onClick() {
-        graph?.removeCell(edge)
-      },
-    },
-  ]
+function EdgeMenu({ graph, edge }: { graph: Graph | null; edge: Cell }) {
+  return (
+    <ContextMenuGroup>
+      <ContextMenuItem
+        variant="destructive"
+        onClick={() => {
+          graph?.removeCell(edge)
+        }}
+      >
+        <Trash2 className="mr-2 size-4" />
+        删除连线
+      </ContextMenuItem>
+    </ContextMenuGroup>
+  )
 }
 
 export { ContextMenu }
