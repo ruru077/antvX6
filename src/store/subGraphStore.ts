@@ -1,9 +1,14 @@
 import { Model, StringExt } from '@antv/x6'
 import { create } from 'zustand'
-import { formalLink, signalPortGroups } from '@/assets/x6Model'
+import {
+  arrowMarkup,
+  formalLink,
+  maskArrowAttrs,
+  MASK_SELECTOR,
+  signalPortGroups,
+} from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
-import { addMaskToNode } from '@/utils/plugin/maskTool'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import { useGraphStore } from './graphStore'
 import type { Cell, Edge, Graph, History, Node, Scroller } from '@antv/x6'
@@ -411,7 +416,15 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       .catch((e) => console.warn('[snapshot] 子系统缩略图生成失败', e))
   },
   addMaskToSubsystem: (node) => {
-    addMaskToNode(node)
+    const raw = node.getMarkup()
+    // 暂不使用 XML 作为 markup
+    if (typeof raw === 'string') return
+    const markup = Array.isArray(raw) ? raw : [raw]
+    // 已有则跳过
+    if (markup.some((m) => m.selector === MASK_SELECTOR)) return
+
+    node.setMarkup([...markup, ...arrowMarkup])
+    node.attr(maskArrowAttrs)
   },
   // exportGraphModelDTO: () => {
   //   const { rootId, subGraphs } = get()

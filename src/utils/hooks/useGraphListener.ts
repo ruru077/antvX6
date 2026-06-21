@@ -83,6 +83,12 @@ function registerSubsystemListeners(graph: Graph) {
     useSubGraphStore.getState().changeGraphView(node.id)
     setPasteTarget(0, 30)
   }
+  function maskClickHandler({ node, e }: EventArgs['node:click']) {
+    const inMask = !!e.target.closest('[data-mask="subsystem"]')
+    if (inMask) {
+      useSubGraphStore.getState().changeGraphView(node.id)
+    }
+  }
   function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
     useSubGraphStore.getState().syncSubGraph(node, 'add')
   }
@@ -91,6 +97,7 @@ function registerSubsystemListeners(graph: Graph) {
   }
   return registerListeners(graph, [
     ['node:dblclick', withNodeGuard('subsystem', dblclickHandler)],
+    ['node:click', withNodeGuard('subsystem', maskClickHandler)],
     ['node:added', withNodeGuard('subsystem', syncAddSubsystemHandler)],
     ['node:removed', withNodeGuard('subsystem', syncRemoveSubsystemHandler)],
   ])

@@ -10,8 +10,55 @@ import { createCommonService } from '@/services/common-service'
 
 const commonService = createCommonService()
 
+// ── 子系统 mask 箭头 ──────────────────────────────────────────────────────────
+
+/** lucide arrow-big-down */
+const ARROW_D =
+  'M9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 0 1 1h3.293a.707.707 0 0 1 .5 1.207l-7.086 7.086a1 1 0 0 1-1.414 0l-7.086-7.086a.707.707 0 0 1 .5-1.207H8a1 1 0 0 0 1-1z'
+
+export const MASK_SELECTOR = 'mask'
+
+/** 箭头按钮 SVG 结构（仅结构，attrs 由 node.attr 写入 model） */
+export const arrowMarkup = [
+  {
+    tagName: 'g',
+    selector: MASK_SELECTOR,
+    children: [
+      { tagName: 'title', textContent: '查看内部封装' },
+      { tagName: 'rect', selector: 'maskBg' },
+      { tagName: 'path', selector: 'maskArrow' },
+    ],
+  },
+]
+
+/** mask 箭头 attrs */
+export const maskArrowAttrs = {
+  [MASK_SELECTOR]: {
+    refX: 2,
+    refDy: -22,
+    cursor: 'pointer',
+    'data-mask': 'subsystem',
+  },
+  maskBg: {
+    width: 20,
+    height: 20,
+    rx: 4,
+    fill: 'transparent',
+    stroke: 'transparent',
+  },
+  maskArrow: {
+    d: ARROW_D,
+    fill: '#D1D1D1',
+    stroke: '#AEAEAE',
+    'stroke-width': 2,
+    transform: 'translate(2, 3) scale(0.75)',
+  },
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 /** 拖拽连线时的预览线样式 */
-const previewLink = {
+export const previewLink = {
   attrs: {
     wrap: {
       strokeWidth: EDGE_WRAPPER_WIDTH,
@@ -30,7 +77,7 @@ const previewLink = {
 }
 
 /** 正式连线样式 */
-const formalLink = {
+export const formalLink = {
   attrs: {
     wrap: {
       strokeWidth: EDGE_WRAPPER_WIDTH,
@@ -50,7 +97,7 @@ const formalLink = {
 }
 
 /** 信号端口组定义 */
-const signalPortGroups = {
+export const signalPortGroups = {
   in: {
     markup: [
       {
@@ -96,7 +143,7 @@ const signalPortGroups = {
 }
 
 /** 电气端口组定义（圆形造型） */
-const electricalPortGroups = {
+export const electricalPortGroups = {
   ine: {
     markup: [
       {
@@ -138,5 +185,3 @@ const electricalPortGroups = {
     label: { position: { name: 'right' } },
   },
 }
-
-export { previewLink, formalLink, signalPortGroups, electricalPortGroups }
