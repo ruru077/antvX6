@@ -45,6 +45,29 @@ function ContextMenu({
   const graph = useGraphStore((s) => s.graph)
   const ctxRef = useRef<ContextInfo>({ type: 'blank' })
   const [, forceUpdate] = useReducer((n: number) => n + 1, 0)
+  const [open, setOpen] = useState(false)
+
+  // ── 菜单打开时拦截滚轮，防止画布缩放/平移（键盘已由 modal=false 原生拦截）──
+  useEffect(() => {
+    if (!open) return
+    function onWheel(e: WheelEvent) {
+      const target = e.target instanceof Element ? e.target : null
+      const insideMenu = target?.closest('[data-slot="context-menu-content"]')
+      if (!target) return
+      // 菜单内容内的滚轮放行
+      if (insideMenu) return
+      e.preventDefault()
+    }
+
+    document.addEventListener('wheel', onWheel, {
+      passive: false,
+      capture: true,
+    })
+    return () => {
+      console.log('[ContextMenu] 滚轮拦截已注销')
+      document.removeEventListener('wheel', onWheel, { capture: true })
+    }
+  }, [open])
 
   // ── X6 事件 → 更新菜单上下文 ─────────────────────────────────────────
   useEffect(() => {
@@ -87,7 +110,12 @@ function ContextMenu({
   const ctx = ctxRef.current
 
   return (
-    <ContextMenu_>
+    <ContextMenu_
+      modal={false}
+      onOpenChange={(o) => {
+        setOpen(o)
+      }}
+    >
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         {ctx.type === 'blank' ? (
