@@ -20,7 +20,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "libavoid-js": "file:../libavoid-js",
     "liquid-glass-react": "^1.1.1",
     "lodash-es": "^4.18.1",
     "lucide-react": "^1.18.0",
