@@ -1,4 +1,5 @@
-import { Transfer } from 'antd'
+import { ConfigProvider, Transfer } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
 import {
   Box,
   ChevronRight,
@@ -278,6 +279,7 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
   const store = useConfigStore()
   const [open, setOpen] = useState(false)
   const [keys, setKeys] = useState<string[]>([])
+  const transferRef = useRef<HTMLDivElement>(null)
   const names = getLibraryNames()
   const hidden = store.hiddenStencilGroups
   const count = names.length - hidden.length
@@ -304,38 +306,43 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
           </Button>
         </div>
         {open && (
-          <div className="mt-3 flex justify-center">
-            <Transfer
-              titles={['当前显示', '隐藏分组']}
-              showSearch
-              filterOption={(inputValue, item) =>
-                item.title.toLowerCase().includes(inputValue.toLowerCase())
-              }
-              dataSource={data}
-              targetKeys={hidden}
-              selectedKeys={keys}
-              onChange={(next) =>
-                store.setHiddenStencilGroups(next as string[])
-              }
-              onSelectChange={(s, t) => setKeys([...s, ...t] as string[])}
-              render={(item) => item.title}
-              listStyle={{ width: 220, height: 270 }}
-              footer={(_, info) =>
-                info?.direction === 'right' ? (
-                  <Button
-                    size="sm"
-                    style={{
-                      display: 'flex',
-                      margin: 8,
-                      marginInlineStart: 'auto',
-                    }}
-                    onClick={() => store.setHiddenStencilGroups([])}
-                  >
-                    全部显示
-                  </Button>
-                ) : null
-              }
-            />
+          <div ref={transferRef} className="relative mt-3 flex justify-center">
+            <ConfigProvider
+              locale={zhCN}
+              getPopupContainer={() => transferRef.current || document.body}
+            >
+              <Transfer
+                titles={['当前显示', '隐藏分组']}
+                showSearch
+                filterOption={(inputValue, item) =>
+                  item.title.toLowerCase().includes(inputValue.toLowerCase())
+                }
+                dataSource={data}
+                targetKeys={hidden}
+                selectedKeys={keys}
+                onChange={(next) =>
+                  store.setHiddenStencilGroups(next as string[])
+                }
+                onSelectChange={(s, t) => setKeys([...s, ...t] as string[])}
+                render={(item) => item.title}
+                listStyle={{ width: 220, height: 270 }}
+                footer={(_, info) =>
+                  info?.direction === 'right' ? (
+                    <Button
+                      size="sm"
+                      style={{
+                        display: 'flex',
+                        margin: 8,
+                        marginInlineStart: 'auto',
+                      }}
+                      onClick={() => store.setHiddenStencilGroups([])}
+                    >
+                      全部显示
+                    </Button>
+                  ) : null
+                }
+              />
+            </ConfigProvider>
           </div>
         )}
       </div>
