@@ -5,17 +5,6 @@ import { persist } from 'zustand/middleware'
 type Theme = 'light' | 'dark' | 'system'
 type Locale = 'zh-CN' | 'en-US'
 
-interface LibrarySettings {
-  /** 数学函数 */
-  mathFunctions: boolean
-  /** 逻辑模块 */
-  logicModules: boolean
-  /** 信号源 */
-  signalSources: boolean
-  /** 自定义函数 */
-  customFunctions: boolean
-}
-
 interface ConfigValues {
   // 外观
   theme: Theme
@@ -25,8 +14,10 @@ interface ConfigValues {
   locale: Locale
   timezone: string
   dateFormat: string
-  // 库函数
-  library: LibrarySettings
+  // Stencil
+  stencilDefaultExpand: boolean
+  // 过滤/隐藏的分组列表（空 = 全部显示）
+  hiddenStencilGroups: string[]
 }
 
 interface ConfigStore extends ConfigValues {
@@ -36,23 +27,20 @@ interface ConfigStore extends ConfigValues {
   setLocale: (locale: Locale) => void
   setTimezone: (tz: string) => void
   setDateFormat: (fmt: string) => void
-  setLibrary: (key: keyof LibrarySettings, enabled: boolean) => void
+  setStencilDefaultExpand: (enabled: boolean) => void
+  setHiddenStencilGroups: (groups: string[]) => void
 }
 
 // 默认值 ----------------------------------------------------
 const DEFAULT_VALUES: ConfigValues = {
   theme: 'system',
-  fontSize: 14,
+  fontSize: 16,
   compactMode: false,
   locale: 'zh-CN',
   timezone: 'Asia/Shanghai',
   dateFormat: 'YYYY-MM-DD',
-  library: {
-    mathFunctions: true,
-    logicModules: true,
-    signalSources: true,
-    customFunctions: false,
-  },
+  stencilDefaultExpand: false,
+  hiddenStencilGroups: [],
 }
 
 // 主题工具 ----------------------------------------------------
@@ -83,10 +71,10 @@ const useConfigStore = create<ConfigStore>()(
       setLocale: (locale) => set({ locale }),
       setTimezone: (timezone) => set({ timezone }),
       setDateFormat: (dateFormat) => set({ dateFormat }),
-      setLibrary: (key, enabled) =>
-        set((s) => ({
-          library: { ...s.library, [key]: enabled },
-        })),
+      setStencilDefaultExpand: (stencilDefaultExpand) =>
+        set({ stencilDefaultExpand }),
+      setHiddenStencilGroups: (hiddenStencilGroups) =>
+        set({ hiddenStencilGroups }),
     }),
     { name: 'antv-link-config' },
   ),
@@ -98,4 +86,4 @@ useConfigStore.subscribe((state) => {
 })
 
 export { useConfigStore }
-export type { ConfigValues, ConfigStore, LibrarySettings, Locale, Theme }
+export type { ConfigValues, ConfigStore, Locale, Theme }

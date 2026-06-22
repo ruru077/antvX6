@@ -11,6 +11,7 @@ import {
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { createPermissionService } from '@/services/permission-service'
+import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
 import type { Graph, Model, Node } from '@antv/x6'
 import type { TextMatchOptions } from '~/types/common/text'
@@ -26,6 +27,11 @@ const SEARCH_OPTIONS: TextMatchOptions = {
   wholeWord: false,
 }
 const STENCIL_CONTENT_SELECTOR = '.x6-widget-stencil-content'
+
+// 模块级：供外部读取当前已加载的库名列表
+let loadedLibraryNames: string[] = []
+// 模块级：供外部读取当前已加载的库 → Block[] 映射
+let loadedLibraryWithBlocks: Map<string, Block[]> = new Map()
 class ManagedStencil extends Stencil {
   public getManagedGroupGraph(groupName: string): Graph | undefined {
     return this.getGraph(groupName)
@@ -132,6 +138,8 @@ function createStencilService() {
   async function create(container: HTMLElement): Promise<boolean> {
     const graph = useGraphStore.getState().graph
     if (!graph) return false
+    const { hiddenStencilGroups, stencilDefaultExpand } =
+      useConfigStore.getState()
     const [blocks, libraries] = await Promise.all([
       fetchBlocks(),
       fetchBlockLibrary(),
@@ -148,6 +156,10 @@ function createStencilService() {
         ]),
     )
 
+    // 缓存库名和 Block 列表供外部读取
+    loadedLibraryNames = Array.from(libraryWithBlock.keys())
+    loadedLibraryWithBlocks = libraryWithBlock
+
     const stencilWidth = container.clientWidth
     const stencil = new ManagedStencil({
       target: graph,
@@ -160,7 +172,11 @@ function createStencilService() {
           : Math.max(0, stencilWidth - 2 * STENCIL_SIDE_PADDING)
         applyGreedyLayout(model, areaWidth)
       },
-      groups: Array.from(libraryWithBlock, ([name]) => ({ name, title: name })),
+      groups: Array.from(libraryWithBlock, ([name]) => ({
+        name,
+        title: name,
+        collapsed: !stencilDefaultExpand,
+      })),
       search(cell, keyword) {
         const labelText = cell.attr<string>('label/text')
         return commonService.isTextMatched(labelText, keyword, searchOptions)
@@ -187,6 +203,7 @@ function createStencilService() {
       },
     })
 
+    // 加载全部分组节点（隐藏组通过 display:none 控制）
     for (const [libraryName, blockList] of libraryWithBlock) {
       stencil.load(
         blockList.map((block) => graph.createNode(block)),
@@ -194,6 +211,14 @@ function createStencilService() {
       )
     }
     container.appendChild(stencil.container)
+
+    // 初始隐藏已配置的分组
+    for (const libraryName of hiddenStencilGroups) {
+      const groupElem = container.querySelector<HTMLElement>(
+        `[data-name="${libraryName}"]`,
+      )
+      if (groupElem) groupElem.style.display = 'none'
+    }
 
     // ── 所有 per-session 的 observer / debounce 在此创建，统一在 session.dispose() 中卸载 ──
     const content = container.querySelector<HTMLElement>(
@@ -247,6 +272,23 @@ function createStencilService() {
       },
     }
     resize(container.clientWidth)
+
+    // 配置变化时自动同步
+    const unsub = useConfigStore.subscribe((state, prev) => {
+      if (state.stencilDefaultExpand !== prev.stencilDefaultExpand) {
+        syncStencilDefaultExpand()
+      }
+      if (state.hiddenStencilGroups !== prev.hiddenStencilGroups) {
+        syncHiddenGroups()
+      }
+    })
+    // session dispose 时取消订阅
+    const origDispose = session.dispose
+    session.dispose = () => {
+      unsub()
+      origDispose()
+    }
+
     return true
   }
 
@@ -341,6 +383,44 @@ function createStencilService() {
     searchOptions = { ...searchOptions, ...nextOptions }
   }
 
+  function getLibraryNames(): string[] {
+    return loadedLibraryNames
+  }
+
+  function syncStencilDefaultExpand(): void {
+    if (!session) return
+    const { stencilDefaultExpand } = useConfigStore.getState()
+    const firstGroup = session.libraryWithBlock.keys().next().value as
+      | string
+      | undefined
+    if (!firstGroup) return
+
+    const currentlyExpanded = !session.stencil.isGroupCollapsed(firstGroup)
+    if (currentlyExpanded === stencilDefaultExpand) return
+
+    if (stencilDefaultExpand) {
+      session.stencil.expandGroups()
+    } else {
+      session.stencil.collapseGroups()
+    }
+  }
+
+  function syncHiddenGroups(): void {
+    if (!session) return
+
+    const { hiddenStencilGroups } = useConfigStore.getState()
+
+    for (const libraryName of session.libraryWithBlock.keys()) {
+      const isHidden = hiddenStencilGroups.includes(libraryName)
+      const groupElem = session.container.querySelector<HTMLElement>(
+        `[data-name="${libraryName}"]`,
+      )
+      if (groupElem) {
+        groupElem.style.display = isHidden ? 'none' : ''
+      }
+    }
+  }
+
   return {
     create,
     dispose,
@@ -350,7 +430,13 @@ function createStencilService() {
     onCollapsedChange,
     configSearchOptions,
     syncSearchKeyword,
+    syncHiddenGroups,
+    syncStencilDefaultExpand,
+    getLibraryNames,
   }
 }
 
-export { createStencilService }
+const getLibraryNames = () => loadedLibraryNames
+const getLibraryWithBlocks = () => loadedLibraryWithBlocks
+
+export { createStencilService, getLibraryNames, getLibraryWithBlocks }

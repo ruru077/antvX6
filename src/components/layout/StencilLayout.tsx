@@ -2,6 +2,7 @@ import Icon, { SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import { Button, ConfigProvider, Input, Tabs, Tooltip } from 'antd'
 import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
+import { SettingDialog } from '@/components/SettingDialog'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { TextMatchOptions } from '~/types/common/text'
@@ -119,23 +120,27 @@ function usePanelController(): StencilController {
 // UI ---------------------------------------------------------
 function StencilLayout() {
   const { actions, search, stencilContainerRef } = usePanelController()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   //TODO 参考百度贴吧的 hover悬浮效果，增加用户交互体验
   return (
     // 左侧面板禁用波纹 按需使用
     <ConfigProvider wave={{ disabled: true }}>
       <div className="stencil-wrapper">
-        <Actions {...actions} />
+        <Actions {...actions} onOpenSettings={() => setSettingsOpen(true)} />
         <SearchBar {...search} />
         <div ref={stencilContainerRef} className="stencil-mount"></div>
       </div>
+      <SettingDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </ConfigProvider>
   )
 }
 
 // Stencil actions 组件，包含展开和折叠分组按钮
-function Actions(props: ActionsProps) {
-  const { collapseAll, expandAll } = props
-
+function Actions({
+  collapseAll,
+  expandAll,
+  onOpenSettings,
+}: ActionsProps & { onOpenSettings: () => void }) {
   return (
     <div className="stencil-actions">
       <Tooltip title="展开分组" mouseEnterDelay={0.2} placement="bottom">
@@ -160,7 +165,7 @@ function Actions(props: ActionsProps) {
           className="stencil-icon-btn"
           style={{ marginLeft: 'auto' }}
           icon={<SettingOutlined />}
-          onClick={() => alert('模块设置功能开发中，敬请期待！')}
+          onClick={onOpenSettings}
         />
       </Tooltip>
     </div>
