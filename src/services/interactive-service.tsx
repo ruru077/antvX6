@@ -1,13 +1,16 @@
+import { StringExt } from '@antv/x6'
 import { createRoot } from 'react-dom/client'
 import {
   RED,
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
+import { AddBlockModal } from '@/components/AddBlockModal'
 import { BlockParamModal } from '@/components/ParamModal'
 import { useGraphStore } from '@/store/graphStore'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
+import type { Block } from '~/types/vo/block'
 
 function createInteractiveService() {
   function addOutline(cell: Cell) {
@@ -185,6 +188,73 @@ function createInteractiveService() {
   }
 
   /**
+   * 根据 Block 元数据创建节点并添加到画布指定位置（居中于点击点）
+   * 复用 stencil getDragNode 的后处理逻辑：端口 ID 唯一化、尺寸兜底、阴影
+   */
+  function addNodeFromBlock(block: Block, x: number, y: number): void {
+    const graph = useGraphStore.getState().graph
+    if (!graph) return
+
+    const node = graph.createNode(block)
+
+    // 阴影（新节点默认外观）
+    removeOutline(node)
+
+    // 子系统不做端口/尺寸处理，方便解构
+    if (node.getData()?.blockType !== 'Subsystem') {
+      // 更新 port id 确保唯一性
+      node.getPorts().forEach((port) => {
+        if (port.id) node.portProp(port.id, 'id', StringExt.uuid())
+      })
+      // 宽高相等时设为最小 60×60
+      const { width, height } = node.getSize()
+      if (width === height) {
+        node.size(Math.max(60, width), Math.max(60, height))
+      }
+    }
+
+    // 居中于双击位置
+    const { width, height } = node.getSize()
+    node.setPosition(x - width / 2, y - height / 2)
+
+    graph.addNode(node)
+  }
+
+  /**
+   * 命令式打开"添加模块"浮动面板，双击画布空白处触发
+   * @param graphX 画布坐标 X（用于节点放置）
+   * @param graphY 画布坐标 Y（用于节点放置）
+   * @param screenX 屏幕坐标 X（用于面板定位，clientX）
+   * @param screenY 屏幕坐标 Y（用于面板定位，clientY）
+   */
+  function openAddBlockModal(
+    graphX: number,
+    graphY: number,
+    screenX: number,
+    screenY: number,
+  ) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    const destroy = () => {
+      requestAnimationFrame(() => {
+        root.unmount()
+        container.remove()
+      })
+    }
+
+    root.render(
+      <AddBlockModal
+        screenX={screenX}
+        screenY={screenY}
+        onDestroy={destroy}
+        onSelect={(block) => addNodeFromBlock(block, graphX, graphY)}
+      />,
+    )
+  }
+
+  /**
    * zoomToFit with virtual render support.
    * Temporarily disables virtual rendering & async to ensure all cell views are
    * in the DOM so useCellGeometry:false can read the full visual bounding box.
@@ -218,6 +288,8 @@ function createInteractiveService() {
     addBoundaryTool,
     addEdgeTools,
     openBlockParamModal,
+    openAddBlockModal,
+    addNodeFromBlock,
     zoomToFitWithVirtual,
   }
 }

@@ -1,3 +1,4 @@
+export { AddBlockModal } from './AddBlockModal'
 export { CanvasLeftToolbar } from './layout/CanvasLeftToolbar'
 export { CanvasToolbars } from './layout/CanvasToolbars'
 export { PaperToolbar } from './layout/PaperToolbar'

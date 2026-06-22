@@ -54,6 +54,8 @@ function useGraphListener() {
       registerEdgeToolListeners(graph),
       // ── 子系统 ──────────────────────────────────────────────────────
       registerSubsystemListeners(graph),
+      // ── 空白区域 ────────────────────────────────────────────────────
+      registerBlankPaperListeners(graph),
       // ── 插件 ──────────────────────────────────────────────────────────────
       registerTransformListeners(graph),
       registerOutlineListeners(graph),
@@ -101,6 +103,14 @@ function registerSubsystemListeners(graph: Graph) {
     ['node:added', withNodeGuard('subsystem', syncAddSubsystemHandler)],
     ['node:removed', withNodeGuard('subsystem', syncRemoveSubsystemHandler)],
   ])
+}
+
+// ── 空白双击 → 添加模块 ──────────────────────────────────────────────
+function registerBlankPaperListeners(graph: Graph) {
+  function blankDblClickHandler({ x, y, e }: EventArgs['blank:dblclick']) {
+    interactiveService.openAddBlockModal(x, y, e.clientX, e.clientY)
+  }
+  return registerListeners(graph, [['blank:dblclick', blankDblClickHandler]])
 }
 
 // ── 粘贴坐标 ───────────────────────────────────────────────────────────

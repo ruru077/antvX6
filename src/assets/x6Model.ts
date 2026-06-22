@@ -71,7 +71,7 @@ export const previewLink = {
         d: commonService.svgToPath(previewArrowRaw),
         transform: 'rotate(-90) scale(0.015)',
       },
-      strokeDasharray: '4 2',
+      strokeDasharray: '6 3',
     },
   },
 }
