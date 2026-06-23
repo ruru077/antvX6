@@ -273,19 +273,20 @@ function createStencilService() {
     }
     resize(container.clientWidth)
 
-    // 配置变化时自动同步
-    const unsub = useConfigStore.subscribe((state, prev) => {
-      if (state.stencilDefaultExpand !== prev.stencilDefaultExpand) {
-        syncStencilDefaultExpand()
-      }
-      if (state.hiddenStencilGroups !== prev.hiddenStencilGroups) {
-        syncHiddenGroups()
-      }
-    })
+    // 配置变化时自动同步（subscribeWithSelector 自动过滤无关字段）
+    const unsubExpand = useConfigStore.subscribe(
+      (state) => state.stencilDefaultExpand,
+      () => syncStencilDefaultExpand(),
+    )
+    const unsubHidden = useConfigStore.subscribe(
+      (state) => state.hiddenStencilGroups,
+      () => syncHiddenGroups(),
+    )
     // session dispose 时取消订阅
     const origDispose = session.dispose
     session.dispose = () => {
-      unsub()
+      unsubExpand()
+      unsubHidden()
       origDispose()
     }
 

@@ -14,6 +14,9 @@ import {
   Tree,
   Typography,
 } from 'antd'
+import { useShallow } from 'zustand/shallow'
+import { changeGraphView } from '@/services/subsystem-service'
+import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { TreeDataNode } from 'antd'
 import type { SubGraphMap } from '~/types'
@@ -59,10 +62,17 @@ function SubsystemNavBar({
   modelSaved?: boolean
   onRename?: (name: string) => void
 }) {
-  const currentPathIds = useSubGraphStore((s) => s.currentPathIds)
-  const subGraphs = useSubGraphStore((s) => s.subGraphs)
-  const changeGraphView = useSubGraphStore((s) => s.changeGraphView)
-  const rootId = useSubGraphStore((s) => s.rootId)
+  const { currentPathIds, subGraphs, rootId } = useSubGraphStore(
+    useShallow((s) => ({
+      currentPathIds: s.currentPathIds,
+      subGraphs: s.subGraphs,
+      rootId: s.rootId,
+    })),
+  )
+
+  function navigateTo(subGraphId: string) {
+    changeGraphView(subGraphId, useGraphStore.getState().graph)
+  }
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -139,11 +149,7 @@ function SubsystemNavBar({
     const siblings = parentId ? subGraphs[parentId].childrenIds : []
 
     return {
-      title: isLast ? (
-        label
-      ) : (
-        <a onClick={() => changeGraphView(id)}>{label}</a>
-      ),
+      title: isLast ? label : <a onClick={() => navigateTo(id)}>{label}</a>,
       menu:
         siblings.length > 1
           ? {
@@ -152,14 +158,14 @@ function SubsystemNavBar({
                 key: sibId,
                 label: subGraphs[sibId].name || sibId,
               })),
-              onClick: ({ key }: { key: string }) => changeGraphView(key),
+              onClick: ({ key }: { key: string }) => navigateTo(key),
             }
           : undefined,
     }
   })
 
   function handleTreeSelect(keys: React.Key[]) {
-    changeGraphView(keys[0] as string)
+    navigateTo(keys[0] as string)
     setDrawerOpen(false)
   }
 

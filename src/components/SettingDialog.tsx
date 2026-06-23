@@ -9,6 +9,7 @@ import {
   Paintbrush,
   Plus,
 } from 'lucide-react'
+import { useShallow } from 'zustand/shallow'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -152,8 +153,25 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
 }
 
 // 工具 ----------------------------------------------------
+/** GenericSettings 所需的配置切片类型 */
+type ConfigSlice = Pick<
+  ConfigStore,
+  | 'theme'
+  | 'fontSize'
+  | 'compactMode'
+  | 'locale'
+  | 'timezone'
+  | 'dateFormat'
+  | 'setTheme'
+  | 'setFontSize'
+  | 'setCompactMode'
+  | 'setLocale'
+  | 'setTimezone'
+  | 'setDateFormat'
+>
+
 function getConfigValue(
-  store: ConfigStore,
+  store: ConfigSlice,
   key: string,
 ): boolean | string | number {
   return (store as unknown as Record<string, unknown>)[key] as
@@ -163,7 +181,7 @@ function getConfigValue(
 }
 
 function setConfigValue(
-  store: ConfigStore,
+  store: ConfigSlice,
   key: string,
   val: string | number,
 ): void {
@@ -174,8 +192,6 @@ function setConfigValue(
   else if (key === 'locale') store.setLocale(val as Locale)
   else if (key === 'timezone') store.setTimezone(val as string)
   else if (key === 'dateFormat') store.setDateFormat(val as string)
-  else if (key === 'stencilDefaultExpand')
-    store.setStencilDefaultExpand(val as unknown as boolean)
 }
 
 // 子组件 ----------------------------------------------------
@@ -276,12 +292,24 @@ function SelectRow({
 }
 
 function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
-  const store = useConfigStore()
+  const {
+    hiddenStencilGroups,
+    stencilDefaultExpand,
+    setStencilDefaultExpand,
+    setHiddenStencilGroups,
+  } = useConfigStore(
+    useShallow((s) => ({
+      hiddenStencilGroups: s.hiddenStencilGroups,
+      stencilDefaultExpand: s.stencilDefaultExpand,
+      setStencilDefaultExpand: s.setStencilDefaultExpand,
+      setHiddenStencilGroups: s.setHiddenStencilGroups,
+    })),
+  )
   const [open, setOpen] = useState(false)
   const [keys, setKeys] = useState<string[]>([])
   const transferRef = useRef<HTMLDivElement>(null)
   const names = getLibraryNames()
-  const hidden = store.hiddenStencilGroups
+  const hidden = hiddenStencilGroups
   const count = names.length - hidden.length
   const data = names.map((n) => ({ key: n, title: n }))
 
@@ -289,8 +317,8 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
     <>
       <ToggleRow
         item={SETTING_SCHEMA['库函数'][0]}
-        value={store.stencilDefaultExpand}
-        onChange={(v) => store.setStencilDefaultExpand(v)}
+        value={stencilDefaultExpand}
+        onChange={(v) => setStencilDefaultExpand(v)}
       />
 
       <div>
@@ -320,9 +348,7 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
                 dataSource={data}
                 targetKeys={hidden}
                 selectedKeys={keys}
-                onChange={(next) =>
-                  store.setHiddenStencilGroups(next as string[])
-                }
+                onChange={(next) => setHiddenStencilGroups(next as string[])}
                 onSelectChange={(s, t) => setKeys([...s, ...t] as string[])}
                 render={(item) => item.title}
                 listStyle={{ width: 220, height: 270 }}
@@ -335,7 +361,7 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
                         margin: 8,
                         marginInlineStart: 'auto',
                       }}
-                      onClick={() => store.setHiddenStencilGroups([])}
+                      onClick={() => setHiddenStencilGroups([])}
                     >
                       全部显示
                     </Button>

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, subscribeWithSelector } from 'zustand/middleware'
 
 // type ----------------------------------------------------
 type Theme = 'light' | 'dark' | 'system'
@@ -44,7 +44,7 @@ const DEFAULT_VALUES: ConfigValues = {
 }
 
 // 主题工具 ----------------------------------------------------
-function resolveThemeClass(theme: Theme) {
+export function resolveThemeClass(theme: Theme) {
   const resolved =
     theme === 'system'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -58,32 +58,35 @@ function resolveThemeClass(theme: Theme) {
 
 // Store ----------------------------------------------------
 const useConfigStore = create<ConfigStore>()(
-  persist(
-    (set) => ({
-      ...DEFAULT_VALUES,
+  subscribeWithSelector(
+    persist(
+      (set) => ({
+        ...DEFAULT_VALUES,
 
-      setTheme: (theme) => {
-        resolveThemeClass(theme)
-        set({ theme })
-      },
-      setFontSize: (fontSize) => set({ fontSize }),
-      setCompactMode: (compactMode) => set({ compactMode }),
-      setLocale: (locale) => set({ locale }),
-      setTimezone: (timezone) => set({ timezone }),
-      setDateFormat: (dateFormat) => set({ dateFormat }),
-      setStencilDefaultExpand: (stencilDefaultExpand) =>
-        set({ stencilDefaultExpand }),
-      setHiddenStencilGroups: (hiddenStencilGroups) =>
-        set({ hiddenStencilGroups }),
-    }),
-    { name: 'antv-link-config' },
+        setTheme: (theme) => set({ theme }),
+        setFontSize: (fontSize) => set({ fontSize }),
+        setCompactMode: (compactMode) => set({ compactMode }),
+        setLocale: (locale) => set({ locale }),
+        setTimezone: (timezone) => set({ timezone }),
+        setDateFormat: (dateFormat) => set({ dateFormat }),
+        setStencilDefaultExpand: (stencilDefaultExpand) =>
+          set({ stencilDefaultExpand }),
+        setHiddenStencilGroups: (hiddenStencilGroups) =>
+          set({ hiddenStencilGroups }),
+      }),
+      { name: 'antv-link-config' },
+    ),
   ),
 )
 
-// 页面加载时同步持久化的主题到 DOM（persist 异步 hydration 后触发）
-useConfigStore.subscribe((state) => {
-  resolveThemeClass(state.theme)
-})
+// 初始主题同步（persist hydration 后 theme 已是持久化值）
+resolveThemeClass(useConfigStore.getState().theme)
+
+// 主题变化时同步 DOM（subscribeWithSelector 只在 theme 字段变化时触发）
+useConfigStore.subscribe(
+  (state) => state.theme,
+  (theme) => resolveThemeClass(theme),
+)
 
 export { useConfigStore }
 export type { ConfigValues, ConfigStore, Locale, Theme }

@@ -17,6 +17,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { changeGraphView } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { Cell, Edge, EventArgs, Graph, Node } from '@antv/x6'
@@ -213,7 +214,7 @@ function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
           <ContextMenuGroup>
             <ContextMenuItem
               onClick={() => {
-                useSubGraphStore.getState().changeGraphView(node.id)
+                changeGraphView(node.id, graph!)
               }}
             >
               <GitMerge className="mr-2 size-4" />

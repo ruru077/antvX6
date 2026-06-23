@@ -1,96 +1,49 @@
-import { create } from 'zustand'
 import { useShallow } from 'zustand/shallow'
+import { resolveThemeClass, useConfigStore } from '@/store/configStore'
+import type { Theme } from '@/store/configStore'
 
-type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
 
-const STORAGE_KEY = 'theme'
 const COLOR_SCHEME_QUERY = '(prefers-color-scheme: dark)'
-const THEME_VALUES: Theme[] = ['dark', 'light', 'system']
+const CONFIG_STORAGE_KEY = 'antv-link-config'
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
-
-function isTheme(value: string | null): value is Theme {
-  if (value === null) return false
-  return THEME_VALUES.includes(value as Theme)
-}
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia(COLOR_SCHEME_QUERY).matches ? 'dark' : 'light'
 }
 
-function resolveTheme(theme: Theme): ResolvedTheme {
-  return theme === 'system' ? getSystemTheme() : theme
+function isTheme(value: string | null): value is Theme {
+  return value === 'dark' || value === 'light' || value === 'system'
 }
 
-function applyThemeClass(resolved: ResolvedTheme) {
-  const root = document.documentElement
-  root.classList.remove('light', 'dark')
-  root.classList.add(resolved)
+/** 在三态之间循环切换 */
+function toggle() {
+  const current = useConfigStore.getState().theme
+  const next: Theme =
+    current === 'dark'
+      ? 'light'
+      : current === 'light'
+        ? 'dark'
+        : getSystemTheme() === 'dark'
+          ? 'light'
+          : 'dark'
+  useConfigStore.getState().setTheme(next)
 }
-
-// ── Store ────────────────────────────────────────────────────────────────────
-
-interface ThemeStore {
-  theme: Theme
-  /** 设置主题并持久化到 localStorage */
-  setTheme: (theme: Theme) => void
-  /** 在三态之间循环切换 */
-  toggle: () => void
-}
-
-const useThemeToggleStore = create<ThemeStore>((set) => {
-  // 初始化
-  const stored = localStorage.getItem(STORAGE_KEY)
-  const initial: Theme = isTheme(stored) ? stored : 'system'
-
-  // 首次应用
-  applyThemeClass(resolveTheme(initial))
-
-  return {
-    theme: initial,
-
-    setTheme: (next) => {
-      localStorage.setItem(STORAGE_KEY, next)
-      set({ theme: next })
-    },
-
-    toggle: () => {
-      set((s) => {
-        const next =
-          s.theme === 'dark'
-            ? 'light'
-            : s.theme === 'light'
-              ? 'dark'
-              : getSystemTheme() === 'dark'
-                ? 'light'
-                : 'dark'
-        localStorage.setItem(STORAGE_KEY, next)
-        return { theme: next }
-      })
-    },
-  }
-})
 
 // ── 副作用（模块级，import 即生效）─────────────────────────────────────────
 
-// 主题变化时同步 DOM class
-useThemeToggleStore.subscribe((s) => {
-  applyThemeClass(resolveTheme(s.theme))
-})
-
-// 监听系统主题变化
+// 监听系统主题变化：当 theme === 'system' 时同步 DOM
 if (typeof window !== 'undefined') {
   const mql = window.matchMedia(COLOR_SCHEME_QUERY)
   mql.addEventListener('change', () => {
-    const state = useThemeToggleStore.getState()
-    if (state.theme === 'system') {
-      applyThemeClass(getSystemTheme())
+    if (useConfigStore.getState().theme === 'system') {
+      resolveThemeClass('system')
     }
   })
 }
 
-// D 快捷键切换
+// D 快捷键切换主题
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return
@@ -103,18 +56,25 @@ if (typeof window !== 'undefined') {
       if (target.closest("input, textarea, select, [contenteditable='true']"))
         return
     }
-    useThemeToggleStore.getState().toggle()
+    toggle()
   })
 }
 
-// 跨标签页同步
+// 跨标签页同步：监听 configStore 的 persist key
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.storageArea !== localStorage || e.key !== STORAGE_KEY) return
-    const store = useThemeToggleStore.getState()
-    const incoming = isTheme(e.newValue) ? e.newValue : 'system'
-    if (incoming !== store.theme) {
-      store.setTheme(incoming)
+    if (e.key !== CONFIG_STORAGE_KEY || !e.newValue) return
+    try {
+      const parsed = JSON.parse(e.newValue)
+      const incomingTheme = parsed?.state?.theme
+      if (
+        isTheme(incomingTheme) &&
+        incomingTheme !== useConfigStore.getState().theme
+      ) {
+        useConfigStore.getState().setTheme(incomingTheme)
+      }
+    } catch {
+      // ignore parse errors
     }
   })
 }
@@ -126,11 +86,11 @@ if (typeof window !== 'undefined') {
  * 在 App 层调用一次即可激活所有副作用（class、快捷键、跨标签页同步）。
  */
 function useThemeToggle() {
-  return useThemeToggleStore(
+  return useConfigStore(
     useShallow((s) => ({
       theme: s.theme,
       setTheme: s.setTheme,
-      toggle: s.toggle,
+      toggle,
     })),
   )
 }

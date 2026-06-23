@@ -4,6 +4,7 @@ import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
+import { changeGraphView } from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
   setActiveToolEdgeId,
@@ -82,13 +83,13 @@ function useGraphListener() {
 // ── 子系统 ──────────────────────────────────────────────────────────
 function registerSubsystemListeners(graph: Graph) {
   function dblclickHandler({ node }: EventArgs['node:dblclick']) {
-    useSubGraphStore.getState().changeGraphView(node.id)
+    changeGraphView(node.id, graph)
     setPasteTarget(0, 30)
   }
   function maskClickHandler({ node, e }: EventArgs['node:click']) {
     const inMask = !!e.target.closest('[data-mask="subsystem"]')
     if (inMask) {
-      useSubGraphStore.getState().changeGraphView(node.id)
+      changeGraphView(node.id, graph)
     }
   }
   function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
