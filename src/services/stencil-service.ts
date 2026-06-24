@@ -43,6 +43,68 @@ class ManagedStencil extends Stencil {
   }
 }
 
+// ── 测试：Subsystem block 数据（来自 DiagramModel.tsx 验证通过） ──────────────
+const SUBSYSTEM_TEST_BLOCK = {
+  shape: 'subsystem-block',
+  width: 100,
+  height: 60,
+  text: 'Subsystem',
+  ports: {
+    items: [
+      { id: 'i1', group: 'inSYS' },
+      { id: 'o1', group: 'outSYS' },
+    ],
+    groups: {
+      inSYS: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z' },
+          },
+        ],
+        z: 1,
+        attrs: {
+          portBody: { magnet: true, strokeWidth: 10, strokeOpacity: 0 },
+          text: { fontSize: 12, fontWeight: 'bold' },
+        },
+        position: { name: 'left' },
+        label: {
+          markup: { tagName: 'text', selector: 'text', textContent: 'In1' },
+          position: { name: 'right', args: { x: 2 } },
+        },
+      },
+      outSYS: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z' },
+          },
+        ],
+        z: 1,
+        attrs: {
+          portBody: {
+            magnet: true,
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+          text: { fontSize: 12, fontWeight: 'bold' },
+        },
+        position: { name: 'right' },
+        label: {
+          markup: { tagName: 'text', selector: 'text', textContent: 'Out1' },
+          position: { name: 'left', args: { x: -2 } },
+        },
+      },
+    },
+  },
+} as unknown as Block
+
+// 测试组
+const TEST_GROUP_NAME = 'test'
+
 // ── StencilService ───────────────────────────────────────────────────────────
 function createStencilService() {
   /**
@@ -65,6 +127,8 @@ function createStencilService() {
     dispose(): void
   } | null = null
   let currentKeyword = ''
+  // 拖拽中间变量：暂存 label，拖拽时清空避免 foreignObject 裁剪，drop 时恢复
+  let pendingLabelText = ''
   let searchOptions: TextMatchOptions = { ...SEARCH_OPTIONS }
   // 进入搜索模式前暂存的标准库各分组折叠状态（true = 已折叠）
   let savedLibraryGroupStates: Map<string, boolean> | null = null
@@ -156,6 +220,9 @@ function createStencilService() {
         ]),
     )
 
+    // ── 测试：push 测试组（独立分组，不干扰后端数据） ──
+    libraryWithBlock.set(TEST_GROUP_NAME, [SUBSYSTEM_TEST_BLOCK])
+
     // 缓存库名和 Block 列表供外部读取
     loadedLibraryNames = Array.from(libraryWithBlock.keys())
     loadedLibraryWithBlocks = libraryWithBlock
@@ -189,8 +256,12 @@ function createStencilService() {
         const res = node.clone()
         // 节点阴影
         interactiveService.removeOutline(res)
-        // 子系统不做处理方便解构
-        if (node.getData()?.blockType === 'Subsystem') return res
+        // 子系统：暂存 label 并清空，避免拖拽时 foreignObject 裁剪
+        if (node.shape === 'subsystem-block') {
+          pendingLabelText = res.attr<string>('label/text') ?? ''
+          res.attr('label/text', '')
+          return res
+        }
         // 更新port id 确保唯一性
         res.getPorts().forEach((port) => {
           if (port.id) res.portProp(port.id, 'id', StringExt.uuid())
@@ -200,6 +271,62 @@ function createStencilService() {
         return width !== height
           ? res
           : res.size(Math.max(60, width), Math.max(60, height))
+      },
+      // 拖拽结束放置到画布时：确保 label 唯一性，相同类型模块自动递增编号
+      getDropNode(draggingNode, options) {
+        const res = draggingNode.clone()
+        const { targetGraph } = options
+        // 恢复拖拽时清空的 label
+        if (pendingLabelText) {
+          res.attr('label/text', pendingLabelText)
+          pendingLabelText = ''
+        }
+        const baseLabel = res.attr<string>('label/text') ?? ''
+        if (baseLabel) {
+          const existingLabels = new Set<string>()
+          targetGraph.getNodes().forEach((n) => {
+            const label = n.attr<string>('label/text')
+            if (label) existingLabels.add(label)
+          })
+          if (existingLabels.has(baseLabel)) {
+            let counter = 1
+            while (existingLabels.has(`${baseLabel}${counter}`)) counter++
+            res.attr('label/text', `${baseLabel}${counter}`)
+          }
+        }
+        // subsystem-block: 双重 rAF 等待视图渲染完成后绑定可编辑事件
+        if (res.shape === 'subsystem-block') {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const view = targetGraph.findViewByCell(res)
+              if (!view) return
+              const selectors = view._getSelectors()
+              if (!selectors) {
+                console.warn('[getDropNode rAF×2] selectors 仍未就绪', {
+                  nodeId: res.id,
+                  shape: res.shape,
+                })
+                return
+              }
+              const labelDiv = selectors['label']
+              if (!(labelDiv instanceof HTMLElement)) return
+              Object.assign(labelDiv.style, {
+                cursor: 'text',
+                userSelect: 'text',
+                outline: 'none',
+              })
+              labelDiv.contentEditable = 'plaintext-only'
+              labelDiv.addEventListener('mousedown', (ev) =>
+                ev.stopPropagation(),
+              )
+              labelDiv.addEventListener('blur', () => {
+                res.attr('label/text', labelDiv.textContent ?? '')
+                window.getSelection()?.removeAllRanges()
+              })
+            })
+          })
+        }
+        return res
       },
     })
 
