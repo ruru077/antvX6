@@ -21,6 +21,7 @@ function BlockParamModal({
   const paramValues = data?.paramValues ?? {}
   const paramLables = data?.paramLables ?? {}
   const paramOptions = data?.paramOptions ?? {}
+  const maskParam = data?.maskParam ?? {}
   const paramKeys = Object.keys(paramValues)
 
   useEffect(() => {

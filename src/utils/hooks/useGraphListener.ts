@@ -317,20 +317,18 @@ function registerOutlineListeners(graph: Graph) {
 
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
 function registerNodeEditListeners(graph: Graph) {
-  function nodeDblClickHandler({ node, e, view }: EventArgs['node:dblclick']) {
+  function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
     // 特殊 GUARD_BLOCK_TYPES 跳过
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
 
-    const target = e.target
-    console.log(target)
-    const dom = Object.values(view._getSelectors).find((el) =>
-      el.contains(target),
-    )
-    // 拿到点击元素的 dom 信息，进行区分处理
-    if (!dom) return
-    if (dom.tagName.toLowerCase() === 'text') {
+    const target = e.target as Element
+    // 判断双击目标是否为文本元素（兼容 SVG text / tspan）
+    const isTextElement =
+      target.closest('text') !== null || target.closest('foreignObject')
+
+    if (isTextElement) {
       // 文本双击，打开文本编辑工具 老版本兼容
-      console.log('hello')
+      console.log('object')
       return
     }
     // 默认：打开参数设置弹窗

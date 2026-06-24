@@ -15,6 +15,6 @@ declare module '@antv/x6/lib/graph/events' {
 declare module '@antv/x6' {
   interface CellView {
     /** 自定义补丁：公开访问 protected selectors */
-    _getSelectors(): Record<string, Element | Element[]>
+    _getSelectors(): Record<string, Element>
   }
 }
