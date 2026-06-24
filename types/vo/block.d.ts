@@ -29,6 +29,7 @@ interface BlockData {
     | boolean
     | Record<string, string>
     | Record<string, string[]>
+    | string[]
     | undefined
 }
 

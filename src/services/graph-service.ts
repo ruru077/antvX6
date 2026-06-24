@@ -219,10 +219,20 @@ function registerPlugins(graph: GraphType) {
 // ── 快捷键注册 ────────────────────────────────────────────────────────────────
 
 function registerKeyBindings(graph: GraphType) {
-  DIRS.forEach((dir) => {
-    graph.bindKey(dir, moveKeyHandler(dir))
-  })
   const space = createSpaceHandlers()
+
+  // 方向键合并：Space 按住时走 pan，否则走 move
+  DIRS.forEach((dir) => {
+    const move = moveKeyHandler(dir)
+    const pan = [space.panLeft, space.panRight, space.panUp, space.panDown][
+      DIRS.indexOf(dir)
+    ]
+    graph.bindKey(dir, () => {
+      if (isEditingElement()) return
+      if (spaceHeld) return pan()
+      return move()
+    })
+  })
 
   registerKeys(graph, [
     [['ctrl+c', 'meta+c'], copyHandler],
@@ -233,10 +243,6 @@ function registerKeyBindings(graph: GraphType) {
     [['ctrl+a', 'meta+a'], selectAllHandler],
     ['space', space.down],
     ['space', space.up, 'keyup'],
-    ['left', space.panLeft],
-    ['right', space.panRight],
-    ['up', space.panUp],
-    ['down', space.panDown],
     ['=', space.zoomIn],
     ['-', space.zoomOut],
     ['0', space.zoomReset],
@@ -264,6 +270,17 @@ function setupDevTools(graph: GraphType) {
   window.__x6_instances__ = []
   // @ts-expect-error AntV X6 插件
   window.__x6_instances__.push(graph)
+}
+
+/**
+ * @description 检查当前焦点是否在可编辑元素上，若是则应跳过快捷键处理
+ */
+function isEditingElement(): boolean {
+  const el = document.activeElement
+  if (!el || !(el instanceof HTMLElement)) return false
+  if (el.isContentEditable) return true
+  if (el.closest('input, textarea, select')) return true
+  return false
 }
 
 // ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
@@ -310,6 +327,8 @@ function moveKeyHandler(dir: ArrowDir) {
     isBatching = false
   }, 700)
   return () => {
+    // 编辑态：直接 return（不 return false），避免 Mousetrap 调 preventDefault
+    if (isEditingElement()) return
     if (spaceHeld) return false
     const graph = useGraphStore.getState().graph
     if (!graph.getNodes().length) return false
@@ -482,6 +501,8 @@ function registerKeys(graph: GraphType, entries: KeyEntry[]) {
     graph.bindKey(
       keys,
       function () {
+        // 编辑态：不执行 handler，不 return false（避免 Mousetrap 调 preventDefault）
+        if (isEditingElement()) return
         handler()
         return false
       },
