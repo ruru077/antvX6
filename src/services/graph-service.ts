@@ -95,22 +95,54 @@ function createGraph(container: HTMLElement): GraphType {
       createEdge() {
         return new Shape.Edge(previewLink)
       },
-      validateConnection({ sourceCell, targetCell, sourcePort, targetPort }) {
+      validateConnection({
+        sourceCell,
+        targetCell,
+        sourcePort,
+        targetPort,
+        edge,
+      }) {
         if (!sourceCell || !targetCell || !sourcePort || !targetPort)
           return true
-        const srcDir = commonService.getPortGroup(
-          (sourceCell as Node).getPort(sourcePort),
-        )
-        const tgtDir = commonService.getPortGroup(
-          (targetCell as Node).getPort(targetPort),
-        )
-        if (!srcDir || !tgtDir) {
-          console.warn(
-            '[validateConnection] port group 未定义，无法验证连接合法性',
-            { sourceCell, targetCell, sourcePort, targetPort },
+        if (sourceCell.isEdge()) {
+          const tgtDir = commonService.getPortGroup(
+            (targetCell as Node).getPort(targetPort),
           )
+          return tgtDir !== 'in'
+        } else if (sourceCell.isNode()) {
+          const srcDir = commonService.getPortGroup(
+            (sourceCell as Node).getPort(sourcePort),
+          )
+          const tgtDir = commonService.getPortGroup(
+            (targetCell as Node).getPort(targetPort),
+          )
+          if (!srcDir || !tgtDir) {
+            console.warn(
+              '[validateConnection] port group 未定义，无法验证连接合法性',
+              { sourceCell, targetCell, sourcePort, targetPort },
+            )
+          }
+          if (srcDir === tgtDir) return false
         }
-        return srcDir !== tgtDir
+
+        // 每个端口只允许一条连接（重连时排除当前 edge）
+        const sourceEdges =
+          sourceCell.model?.getConnectedEdges(sourceCell) ?? []
+        const targetEdges =
+          targetCell.model?.getConnectedEdges(targetCell) ?? []
+        const sourceBusy = sourceEdges.some(
+          (e) =>
+            e !== edge &&
+            (e.getSourcePortId() === sourcePort ||
+              e.getTargetPortId() === sourcePort),
+        )
+        const targetBusy = targetEdges.some(
+          (e) =>
+            e !== edge &&
+            (e.getSourcePortId() === targetPort ||
+              e.getTargetPortId() === targetPort),
+        )
+        return !sourceBusy && !targetBusy
       },
     },
     grid: { visible: true, size: GRAPH_GRID, type: 'dot' },

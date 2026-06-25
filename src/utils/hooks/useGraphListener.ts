@@ -25,6 +25,7 @@ import type {
   NodeView,
   Scroller,
 } from '@antv/x6'
+import type { Edge } from '@antv/x6/es'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
@@ -194,21 +195,23 @@ function registerEdgeBranchListeners(graph: Graph) {
   }: EventArgs['edge:connected']) {
     if (!currentCell) return
 
-    const srcCell = edge.getSourceCell() as Node | null
+    const srcCell = edge.getSourceCell() as Node | Edge
     const tgtCell = edge.getTargetCell() as Node | null
-    const srcGroup = commonService.getPortGroup(
-      srcCell?.getPort(edge.getSourcePortId()),
-    )
-    const tgtGroup = commonService.getPortGroup(
-      tgtCell?.getPort(edge.getTargetPortId()),
-    )
+    if (srcCell.isNode()) {
+      const srcGroup = commonService.getPortGroup(
+        srcCell?.getPort(edge.getSourcePortId()),
+      )
+      const tgtGroup = commonService.getPortGroup(
+        tgtCell?.getPort(edge.getTargetPortId()),
+      )
 
-    // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
-    if (srcGroup === 'in' && tgtGroup === 'out') {
-      const source = edge.getSource()
-      const target = edge.getTarget()
-      edge.setSource(target)
-      edge.setTarget(source)
+      // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
+      if (srcGroup === 'in' && tgtGroup === 'out') {
+        const source = edge.getSource()
+        const target = edge.getTarget()
+        edge.setSource(target)
+        edge.setTarget(source)
+      }
     }
 
     edge.setAttrs(formalLink.attrs)
