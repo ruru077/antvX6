@@ -88,8 +88,14 @@ function useGraphListener() {
 // ── 子系统 ──────────────────────────────────────────────────────────
 function registerSubsystemListeners(graph: Graph) {
   function dblclickHandler({ node }: EventArgs['node:dblclick']) {
-    changeGraphView(node.id, graph)
-    setPasteTarget(0, 30)
+    if (commonService.hasSubsystemMask(node)) {
+      // 已封装 → 打开子系统参数弹窗
+      interactiveService.openNodeModal(node)
+    } else {
+      // 未封装 → 进入子系统
+      changeGraphView(node.id, graph)
+      setPasteTarget(0, 30)
+    }
   }
   function maskClickHandler({ node, e }: EventArgs['node:click']) {
     const inMask = !!e.target.closest('[data-mask="subsystem"]')
@@ -339,7 +345,7 @@ function registerNodeEditListeners(graph: Graph) {
       return
     }
     // 默认：打开参数设置弹窗
-    interactiveService.openBlockParamModal(node)
+    interactiveService.openNodeModal(node)
   }
 
   return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])

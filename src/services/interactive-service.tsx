@@ -6,11 +6,14 @@ import {
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
 import { AddBlockModal } from '@/components/AddBlockModal'
-import { BlockParamModal } from '@/components/ParamModal'
+import { BlockParamModal, SubsystemParamModal } from '@/components/Modal'
+import { createCommonService } from '@/services/common-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
+
+const commonService = createCommonService()
 
 function createInteractiveService() {
   function addOutline(cell: Cell) {
@@ -170,9 +173,16 @@ function createInteractiveService() {
   }
 
   /**
-   * 命令式打开模块参数弹窗，无需在组件树中挂载占位符
+   * 统一节点参数弹窗入口。
+   * - 已封装子系统 → SubsystemParamModal（读取 maskParam）
+   * - 其他 block → BlockParamModal（读取 paramValues）
+   * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
-  function openBlockParamModal(node: Node) {
+  function openNodeModal(node: Node) {
+    const ModalComponent = commonService.hasSubsystemMask(node)
+      ? SubsystemParamModal
+      : BlockParamModal
+
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -184,7 +194,7 @@ function createInteractiveService() {
       })
     }
 
-    root.render(<BlockParamModal node={node} onDestroy={destroy} />)
+    root.render(<ModalComponent node={node} onDestroy={destroy} />)
   }
 
   /**
@@ -287,7 +297,7 @@ function createInteractiveService() {
     removeOutline,
     addBoundaryTool,
     addEdgeTools,
-    openBlockParamModal,
+    openNodeModal,
     openAddBlockModal,
     addNodeFromBlock,
     zoomToFitWithVirtual,

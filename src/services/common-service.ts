@@ -1,5 +1,9 @@
 import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
-import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
+import {
+  MASK_SELECTOR,
+  electricalPortGroups,
+  signalPortGroups,
+} from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
 import type { Edge, Node } from '@antv/x6'
 import type { EntryGraphModel } from '~/types/common/subGraph'
@@ -239,6 +243,16 @@ function createCommonService() {
     return null
   }
 
+  /**
+   * 判断子系统节点是否已添加封装（markup 中存在 MASK_SELECTOR）
+   */
+  function hasSubsystemMask(node: Node): boolean {
+    const raw = node.getMarkup()
+    if (typeof raw === 'string') return false
+    const markup = Array.isArray(raw) ? raw : [raw]
+    return markup.some((m) => m.selector === MASK_SELECTOR)
+  }
+
   return {
     resize,
     isTextMatched,
@@ -249,6 +263,7 @@ function createCommonService() {
     zipGraphModelJson,
     svgToPath,
     getPortGroup,
+    hasSubsystemMask,
   }
 }
 

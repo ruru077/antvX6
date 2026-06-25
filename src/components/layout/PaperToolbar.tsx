@@ -1,13 +1,38 @@
-import { Dropdown, Tooltip } from 'antd'
-import PaperToolbarBackSvg from '@/assets/svg/paper-toolbar-back.svg?react'
-import PaperToolbarChevronDownSvg from '@/assets/svg/paper-toolbar-chevron-down.svg?react'
-import PaperToolbarDownloadSvg from '@/assets/svg/paper-toolbar-download.svg?react'
-import PaperToolbarSaveSvg from '@/assets/svg/paper-toolbar-save.svg?react'
-import PaperToolbarSimulateSvg from '@/assets/svg/paper-toolbar-simulate.svg?react'
+import {
+  Button as AntdButton,
+  Divider,
+  Dropdown,
+  Space,
+  Tooltip,
+  message,
+} from 'antd'
+import {
+  ArrowLeft,
+  ChevronDown,
+  Download,
+  FileJson2,
+  Play,
+  PlayCircle,
+  Save,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  loadEntryGraphModel,
+  changeGraphView,
+} from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { MenuProps } from 'antd'
-import '@styles/PaperToolbar.scss'
+import type { EntryGraphModel } from '~/types'
 
 type PaperToolbarProps = Record<string, never>
 
@@ -46,15 +71,12 @@ const simulateMenuItems: MenuProps['items'] = [
     ),
   },
   { type: 'divider' },
-  {
-    key: 'verify-model',
-    label: '验证模型',
-  },
+  { key: 'verify-model', label: '验证模型' },
   {
     key: 'download-to-device',
     label: (
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <PaperToolbarDownloadSvg width={14} height={14} />
+        <Download size={14} />
         下载到目标设备
       </span>
     ),
@@ -63,61 +85,127 @@ const simulateMenuItems: MenuProps['items'] = [
 
 function PaperToolbar(_: PaperToolbarProps) {
   const graph = useGraphStore((s) => s.graph)
-  const exportEntryGraphModel = useSubGraphStore(
-    (state) => state.exportEntryGraphModel,
-  )
-  const syncGraph = useSubGraphStore((state) => state.syncGraph)
+  const exportEntryGraphModel = useSubGraphStore((s) => s.exportEntryGraphModel)
+  const syncGraph = useSubGraphStore((s) => s.syncGraph)
+
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
+  const [jsonText, setJsonText] = useState('')
+
+  function handleLoadFromJson() {
+    if (!graph) return
+    try {
+      const model = JSON.parse(jsonText) as EntryGraphModel
+      if (!model.subGraphs || !model.currentGraphId || !model.rootId) {
+        message.error(
+          'JSON 格式不正确，缺少 subGraphs / currentGraphId / rootId',
+        )
+        return
+      }
+      syncGraph(graph.toJSON())
+      loadEntryGraphModel(model, graph)
+      changeGraphView(model.currentGraphId, graph)
+      setJsonDialogOpen(false)
+      setJsonText('')
+      message.success('图加载成功')
+    } catch (e) {
+      message.error(
+        `JSON 解析失败：${e instanceof Error ? e.message : String(e)}`,
+      )
+    }
+  }
 
   return (
-    <div className="paper-toolbar-inner">
-      <Tooltip title="返回" mouseEnterDelay={0.3} placement="bottom">
-        <button className="pt-btn">
-          <PaperToolbarBackSvg />
-          返回
-        </button>
-      </Tooltip>
+    <>
+      <Space size={4} align="center" style={{ width: '100%' }}>
+        <Tooltip title="返回" mouseEnterDelay={0.3}>
+          <AntdButton size="small" icon={<ArrowLeft size={14} />}>
+            返回
+          </AntdButton>
+        </Tooltip>
 
-      <Tooltip title="保存 (Ctrl+S)" mouseEnterDelay={0.3} placement="bottom">
-        <button
-          className="pt-btn"
-          onClick={() => {
-            syncGraph(graph.toJSON())
-            console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
-          }}
-        >
-          <PaperToolbarSaveSvg />
-          保存
-        </button>
-      </Tooltip>
-      <Tooltip title="导出 DTO" mouseEnterDelay={0.3} placement="bottom">
-        <button
-          className="pt-btn"
-          onClick={() => {
-            syncGraph(graph.toJSON())
-          }}
-        >
-          <PaperToolbarSaveSvg />
-          DTO
-        </button>
-      </Tooltip>
-      <span className="pt-divider" />
+        <Tooltip title="保存 (Ctrl+S)" mouseEnterDelay={0.3}>
+          <AntdButton
+            size="small"
+            icon={<Save size={14} />}
+            onClick={() => {
+              if (!graph) return
+              syncGraph(graph.toJSON())
+              console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
+            }}
+          >
+            保存
+          </AntdButton>
+        </Tooltip>
 
-      <Dropdown
-        menu={{ items: simulateMenuItems }}
-        trigger={['click']}
-        placement="bottomLeft"
-      >
-        <button className="pt-btn-simulate">
-          <PaperToolbarSimulateSvg width={14} height={14} />
-          仿真
-          <PaperToolbarChevronDownSvg width={10} height={10} />
-        </button>
-      </Dropdown>
-      <Tooltip title="运行" mouseEnterDelay={0.3} placement="bottom">
-        <button className="pt-btn">✅运行</button>
-      </Tooltip>
-      <span className="pt-spacer" />
-    </div>
+        <Tooltip title="测试DTO" mouseEnterDelay={0.3}>
+          <AntdButton
+            size="small"
+            icon={<FileJson2 size={14} />}
+            onClick={() => {
+              if (!graph) return
+              syncGraph(graph.toJSON())
+              console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
+            }}
+          >
+            测试DTO
+          </AntdButton>
+        </Tooltip>
+
+        <Tooltip title="从 JSON 加载图" mouseEnterDelay={0.3}>
+          <AntdButton
+            size="small"
+            icon={<FileJson2 size={14} />}
+            onClick={() => setJsonDialogOpen(true)}
+          >
+            加载图
+          </AntdButton>
+        </Tooltip>
+
+        <Divider orientation="vertical" />
+
+        <Dropdown
+          menu={{ items: simulateMenuItems }}
+          trigger={['click']}
+          placement="bottomLeft"
+        >
+          <AntdButton type="primary" size="small" icon={<Play size={14} />}>
+            仿真
+            <ChevronDown size={10} style={{ marginLeft: 2 }} />
+          </AntdButton>
+        </Dropdown>
+
+        <Tooltip title="运行" mouseEnterDelay={0.3}>
+          <AntdButton size="small" icon={<PlayCircle size={14} />}>
+            运行
+          </AntdButton>
+        </Tooltip>
+      </Space>
+
+      {/* 从 JSON 加载图弹窗 */}
+      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>从 JSON 加载图</DialogTitle>
+            <DialogDescription>
+              粘贴 EntryGraphModel JSON 数据，点击加载
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            placeholder='{"currentGraphId": "root", "rootId": "root", "subGraphs": {...}}'
+            rows={14}
+            className="font-mono text-xs max-h-[60vh] overflow-y-auto"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJsonDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleLoadFromJson}>加载</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
