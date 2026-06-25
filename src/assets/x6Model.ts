@@ -1,4 +1,4 @@
-import { Shape } from '@antv/x6'
+import { Graph } from '@antv/x6'
 import {
   BLACK,
   EDGE_STROKE_WIDTH,
@@ -13,25 +13,29 @@ const commonService = createCommonService()
 
 // ── 注册 subsystem-block shape ──────────────────────────────────────────────
 // 继承 text-block（foreignObject + div label），默认 attrs 定位 label 到节点下方
-Shape.TextBlock.define({
-  shape: 'subsystem-block',
-  attrs: {
-    foreignObject: {
-      refWidth: '100%',
-      refHeight: null,
-      refY: '100%',
-    },
-    label: {
-      style: {
-        width: 'fit-content',
-        height: 'auto',
-        whiteSpace: 'pre',
-        marginLeft: '50%',
-        transform: 'translateX(-50%)',
+Graph.registerNode(
+  'subsystem-block',
+  {
+    inherit: 'text-block',
+    attrs: {
+      foreignObject: {
+        refWidth: '100%',
+        refHeight: null,
+        refY: '100%',
+      },
+      label: {
+        style: {
+          width: 'fit-content',
+          height: 'auto',
+          whiteSpace: 'pre',
+          marginLeft: '50%',
+          transform: 'translateX(-50%)',
+        },
       },
     },
   },
-})
+  true, // HMR 更新
+)
 
 // ── 子系统 mask 箭头 ──────────────────────────────────────────────────────────
 

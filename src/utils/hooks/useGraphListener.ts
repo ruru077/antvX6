@@ -4,6 +4,7 @@ import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
+import { ensureLabelUnique } from '@/services/stencil-service'
 import { changeGraphView } from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
@@ -63,6 +64,9 @@ function useGraphListener() {
       registerPasteTargetListeners(graph),
       registerHistoryListeners(graph),
       registerScrollerSyncListener(graph),
+      // ── Label 唯一性与可编辑 ──────────────────────────────────────
+      registerLabelUniqueListeners(graph),
+      registerEditableLabelListeners(graph),
     ]
 
     // ── #5 鼠标移动（X6未注册 DOM 原生事件，节流）──────────────────────────────
@@ -372,6 +376,46 @@ function registerScrollerSyncListener(graph: Graph) {
   }
 
   return registerListeners(graph, [['node:added', nodeAddedHandler]])
+}
+
+// ── Label 唯一性（node:added 统一处理）─────────────────────────────────
+function registerLabelUniqueListeners(graph: Graph) {
+  function nodeAddedHandler({ node }: EventArgs['node:added']) {
+    ensureLabelUnique(graph, node)
+  }
+
+  return registerListeners(graph, [['node:added', nodeAddedHandler]])
+}
+
+// ── 可编辑 Label（subsystem-block，mouseenter 惰性设置）─────────────────
+function registerEditableLabelListeners(graph: Graph) {
+  function nodeMouseEnterHandler({ node }: EventArgs['node:mouseenter']) {
+    if (node.shape !== 'subsystem-block') return
+
+    const view = graph.findViewByCell(node)
+    if (!view) return
+    const selectors = view._getSelectors()
+    if (!selectors) return
+    const labelDiv = selectors['label']
+    if (!(labelDiv instanceof HTMLElement)) return
+
+    // 已设置过则跳过，避免重复绑定事件监听器
+    if (labelDiv.contentEditable === 'plaintext-only') return
+
+    Object.assign(labelDiv.style, {
+      cursor: 'text',
+      userSelect: 'text',
+      outline: 'none',
+    })
+    labelDiv.contentEditable = 'plaintext-only'
+    labelDiv.addEventListener('mousedown', (ev) => ev.stopPropagation())
+    labelDiv.addEventListener('blur', () => {
+      node.attr('label/text', labelDiv.textContent ?? '')
+      window.getSelection()?.removeAllRanges()
+    })
+  }
+
+  return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
 }
 
 // ── 事件注册工具 ──────────────────────────────────────────────────────────

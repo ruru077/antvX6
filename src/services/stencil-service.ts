@@ -103,7 +103,7 @@ const SUBSYSTEM_TEST_BLOCK = {
 } as unknown as Block
 
 // 测试组
-const TEST_GROUP_NAME = 'test'
+const TEST_GROUP_NAME = 'beta'
 
 // ── StencilService ───────────────────────────────────────────────────────────
 function createStencilService() {
@@ -273,59 +273,15 @@ function createStencilService() {
           : res.size(Math.max(60, width), Math.max(60, height))
       },
       // 拖拽结束放置到画布时：确保 label 唯一性，相同类型模块自动递增编号
-      getDropNode(draggingNode, options) {
+      getDropNode(draggingNode) {
         const res = draggingNode.clone()
-        const { targetGraph } = options
         // 恢复拖拽时清空的 label
         if (pendingLabelText) {
           res.attr('label/text', pendingLabelText)
           pendingLabelText = ''
         }
-        const baseLabel = res.attr<string>('label/text') ?? ''
-        if (baseLabel) {
-          const existingLabels = new Set<string>()
-          targetGraph.getNodes().forEach((n) => {
-            const label = n.attr<string>('label/text')
-            if (label) existingLabels.add(label)
-          })
-          if (existingLabels.has(baseLabel)) {
-            let counter = 1
-            while (existingLabels.has(`${baseLabel}${counter}`)) counter++
-            res.attr('label/text', `${baseLabel}${counter}`)
-          }
-        }
-        // subsystem-block: 双重 rAF 等待视图渲染完成后绑定可编辑事件
-        if (res.shape === 'subsystem-block') {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const view = targetGraph.findViewByCell(res)
-              if (!view) return
-              const selectors = view._getSelectors()
-              if (!selectors) {
-                console.warn('[getDropNode rAF×2] selectors 仍未就绪', {
-                  nodeId: res.id,
-                  shape: res.shape,
-                })
-                return
-              }
-              const labelDiv = selectors['label']
-              if (!(labelDiv instanceof HTMLElement)) return
-              Object.assign(labelDiv.style, {
-                cursor: 'text',
-                userSelect: 'text',
-                outline: 'none',
-              })
-              labelDiv.contentEditable = 'plaintext-only'
-              labelDiv.addEventListener('mousedown', (ev) =>
-                ev.stopPropagation(),
-              )
-              labelDiv.addEventListener('blur', () => {
-                res.attr('label/text', labelDiv.textContent ?? '')
-                window.getSelection()?.removeAllRanges()
-              })
-            })
-          })
-        }
+        // label 唯一性检查与 contentEditable 设置已移至
+        // useGraphListener 的 node:added / node:mouseenter 监听器统一处理
         return res
       },
     })
@@ -567,4 +523,36 @@ function createStencilService() {
 const getLibraryNames = () => loadedLibraryNames
 const getLibraryWithBlocks = () => loadedLibraryWithBlocks
 
-export { createStencilService, getLibraryNames, getLibraryWithBlocks }
+/**
+ * 确保节点 label 在画布上唯一，重复时自动递增编号
+ * @param graph 目标画布
+ * @param node 待检查的节点
+ */
+function ensureLabelUnique(graph: Graph, node: Node): void {
+  const rawLabel = node.attr<string>('label/text') ?? ''
+  if (!rawLabel) return
+
+  // 去掉末尾数字，提取基础名称作为递增基数
+  // 避免复制已递增的节点时把数字当作名称的一部分追加
+  const baseLabel = rawLabel.replace(/\d+$/, '')
+
+  const existingLabels = new Set<string>()
+  graph.getNodes().forEach((n) => {
+    if (n.id === node.id) return
+    const label = n.attr<string>('label/text')
+    if (label) existingLabels.add(label)
+  })
+
+  if (existingLabels.has(rawLabel)) {
+    let counter = 1
+    while (existingLabels.has(`${baseLabel}${counter}`)) counter++
+    node.attr('label/text', `${baseLabel}${counter}`)
+  }
+}
+
+export {
+  createStencilService,
+  getLibraryNames,
+  getLibraryWithBlocks,
+  ensureLabelUnique,
+}
