@@ -95,6 +95,7 @@ function createGraph(container: HTMLElement): GraphType {
       createEdge() {
         return new Shape.Edge(previewLink)
       },
+      highlight: true,
       validateConnection({
         sourceCell,
         targetCell,
@@ -102,14 +103,26 @@ function createGraph(container: HTMLElement): GraphType {
         targetPort,
         edge,
       }) {
-        if (!sourceCell || !targetCell || !sourcePort || !targetPort)
-          return true
+        if (!sourceCell || !targetCell || !targetPort) return true
+
+        // 从 edge 拉出新线：sourceCell 是 Edge，无 sourcePort
+        // 只需验证目标端口是 in 方向且未被占用
         if (sourceCell.isEdge()) {
           const tgtDir = commonService.getPortGroup(
             (targetCell as Node).getPort(targetPort),
           )
-          return tgtDir !== 'in'
+          if (tgtDir !== 'in') return false
+          const targetEdges =
+            targetCell.model?.getConnectedEdges(targetCell) ?? []
+          return !targetEdges.some(
+            (e) =>
+              e !== edge &&
+              (e.getSourcePortId() === targetPort ||
+                e.getTargetPortId() === targetPort),
+          )
         } else if (sourceCell.isNode()) {
+          // 从 node 端口创建/重连：sourceCell 是 Node
+          if (!sourcePort || !targetPort) return true
           const srcDir = commonService.getPortGroup(
             (sourceCell as Node).getPort(sourcePort),
           )
@@ -122,7 +135,8 @@ function createGraph(container: HTMLElement): GraphType {
               { sourceCell, targetCell, sourcePort, targetPort },
             )
           }
-          if (srcDir === tgtDir) return false
+          // 只允许 out → in
+          if (srcDir !== 'out' || tgtDir !== 'in') return false
         }
 
         // 每个端口只允许一条连接（重连时排除当前 edge）
@@ -145,7 +159,31 @@ function createGraph(container: HTMLElement): GraphType {
         return !sourceBusy && !targetBusy
       },
     },
-    grid: { visible: true, size: GRAPH_GRID, type: 'dot' },
+    highlighting: {
+      // 拖拽开始时高亮所有可连接的端口
+      magnetAvailable: {
+        name: 'stroke',
+        args: {
+          padding: 10,
+          attrs: {
+            'stroke-width': 3,
+            stroke: 'green',
+          },
+        },
+      },
+      // 鼠标悬停在可连接端口时高亮
+      magnetAdsorbed: {
+        name: 'stroke',
+        args: {
+          padding: 4,
+          attrs: {
+            'stroke-width': 2,
+            stroke: 'red',
+          },
+        },
+      },
+    },
+    grid: { visible: true, size: GRAPH_GRID, type: 'doubleMesh' },
     scaling: { min: 0.5, max: 5 },
     mousewheel: {
       enabled: true,

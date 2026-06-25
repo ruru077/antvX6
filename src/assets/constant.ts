@@ -9,7 +9,7 @@ const RED = '#e60000'
 const BLACK = '#000000'
 const TARGETMARKER_SIZE = 15
 // EDGE 线宽
-const EDGE_STROKE_WIDTH = 1.5
+const EDGE_STROKE_WIDTH = 2
 // EDGE 交点GAP
 const GAP_SIZE = 2.5
 // 吸附触发Threshold

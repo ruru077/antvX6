@@ -51,6 +51,12 @@ select {
   overflow: visible;
 }
 
+/* 防止缩放时 SVG 描边产生亚像素抗锯齿光晕 */
+.x6-edge>path {
+  vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
+}
+
 :root {
   /* Font */
   --font-family-sans:
