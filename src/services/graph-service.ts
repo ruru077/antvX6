@@ -78,7 +78,12 @@ function createGraph(container: HTMLElement): GraphType {
       allowEdge: false,
       allowMulti: true,
       allowLoop: false,
-      sourceConnectionPoint: 'anchor',
+      sourceConnectionPoint: {
+        name: 'anchor',
+        args: {
+          offset: -EDGE_TARGET_CP_OFFSET + 5,
+        },
+      },
       targetConnectionPoint: {
         name: 'anchor',
         args: {

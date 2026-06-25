@@ -1,8 +1,14 @@
 import Icon, { SearchOutlined, SettingOutlined } from '@ant-design/icons'
-import { Button, ConfigProvider, Input, Tabs, Tooltip } from 'antd'
+import { Button, ConfigProvider, Input, Tabs, Tooltip, Badge } from 'antd'
 import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
 import { SettingDialog } from '@/components/SettingDialog'
+import { Button as SButton } from '@/components/ui/button'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
 import { createStencilService } from '@/services/stencil-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { TextMatchOptions } from '~/types/common/text'
@@ -159,6 +165,24 @@ function Actions({
           onClick={collapseAll}
         />
       </Tooltip>
+
+      <HoverCard openDelay={10} closeDelay={100}>
+        <HoverCardTrigger asChild>
+          <SButton variant="link">
+            <Badge count={'beta'} color="cyan" offset={[25, 3]}>
+              V0.0.1
+            </Badge>
+          </SButton>
+        </HoverCardTrigger>
+        <HoverCardContent className="flex w-64 flex-col gap-0.5">
+          <div className="font-semibold">@nextjs</div>
+          <div>The React Framework – created and maintained by @vercel.</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Joined December 2021
+          </div>
+        </HoverCardContent>
+      </HoverCard>
+
       <Tooltip title="模块设置" mouseEnterDelay={0.2} placement="bottom">
         <Button
           size="small"
