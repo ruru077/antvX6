@@ -10,6 +10,7 @@ import {
   PaperToolbar,
   StencilLayout,
   SubsystemNavBar,
+  SubsystemTabBar,
 } from '@/components'
 import { useGraphStore } from '@/store/graphStore'
 import '@styles/BlockDiagram.scss'
@@ -38,7 +39,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: '#13c2c2', // 明青 cyan-6
+          colorPrimary: '#1890ff',
           fontFamily:
             "'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif",
         },
@@ -73,6 +74,8 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
               {/* PaperToolbar */}
               <PaperToolbar />
             </div>
+            {/* 选项卡导航栏：占满画布区域宽度 */}
+            <SubsystemTabBar />
             <div className="diagram-body">
               {/* 左侧工具栏 */}
               <CanvasLeftToolbar

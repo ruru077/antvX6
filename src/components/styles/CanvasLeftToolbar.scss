@@ -6,10 +6,9 @@
   flex-shrink: 0;
   padding: 2px 2px 4px;
   gap: 2px;
-  background: rgba(240, 240, 240, 0.5);
-  border-top: 2px solid var(--color-primary);
+  background: rgba(240, 240, 240, 1);
   border-left: 2px solid var(--color-primary);
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-radius: 0 0 0 var(--radius-md);
 
   &__btn {
     display: flex;

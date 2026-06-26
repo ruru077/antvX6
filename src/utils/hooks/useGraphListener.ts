@@ -5,7 +5,7 @@ import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { ensureLabelUnique } from '@/services/stencil-service'
-import { changeGraphView } from '@/services/subsystem-service'
+import { hasSubsystemMask } from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
   setActiveToolEdgeId,
@@ -14,6 +14,7 @@ import {
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
@@ -88,19 +89,19 @@ function useGraphListener() {
 // ── 子系统 ──────────────────────────────────────────────────────────
 function registerSubsystemListeners(graph: Graph) {
   function dblclickHandler({ node }: EventArgs['node:dblclick']) {
-    if (commonService.hasSubsystemMask(node)) {
+    if (hasSubsystemMask(node)) {
       // 已封装 → 打开子系统参数弹窗
       interactiveService.openNodeModal(node)
     } else {
       // 未封装 → 进入子系统
-      changeGraphView(node.id, graph)
+      useSubSystemTabStore.getState().navigateWithin(node.id)
       setPasteTarget(0, 30)
     }
   }
   function maskClickHandler({ node, e }: EventArgs['node:click']) {
     const inMask = !!e.target.closest('[data-mask="subsystem"]')
     if (inMask) {
-      changeGraphView(node.id, graph)
+      useSubSystemTabStore.getState().navigateWithin(node.id)
     }
   }
   function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
@@ -302,6 +303,30 @@ function onMouseMoveHandler(e: MouseEvent) {
 
 // ── Outline ───────────────────────────────────────────────────────────────
 function registerOutlineListeners(graph: Graph) {
+  let stopBlockingWheel: (() => void) | null = null
+
+  function startBlockingWheel() {
+    if (stopBlockingWheel) return
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    document.addEventListener('wheel', onWheel, {
+      passive: false,
+      capture: true,
+    })
+    stopBlockingWheel = () => {
+      document.removeEventListener('wheel', onWheel, { capture: true })
+      stopBlockingWheel = null
+    }
+  }
+
+  function stopBlockingWheelIfNeeded() {
+    stopBlockingWheel?.()
+  }
+
   function mouseMoveHandler() {
     let prevCells = new Set<Cell>()
     return ({ nodes, edges }: EventArgs['box:mousemove']) => {
@@ -321,11 +346,18 @@ function registerOutlineListeners(graph: Graph) {
   function cellUnselectedHandler({ cell }: EventArgs['cell:unselected']) {
     interactiveService.removeOutline(cell)
   }
-  return registerListeners(graph, [
+  const unregister = registerListeners(graph, [
+    ['box:mousedown', startBlockingWheel],
     ['box:mousemove', mouseMoveHandler()],
+    ['box:mouseup', stopBlockingWheelIfNeeded],
     ['cell:selected', cellSelectedHandler],
     ['cell:unselected', cellUnselectedHandler],
   ])
+
+  return () => {
+    stopBlockingWheelIfNeeded()
+    unregister()
+  }
 }
 
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
