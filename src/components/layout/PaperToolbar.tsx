@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   loadEntryGraphModel,
   changeGraphView,
+  buildGraphModelDTO,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -144,7 +145,7 @@ function PaperToolbar(_: PaperToolbarProps) {
             onClick={() => {
               if (!graph) return
               syncGraph(graph.toJSON())
-              console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
+              console.log(JSON.stringify(buildGraphModelDTO(), null, 2))
             }}
           >
             测试DTO

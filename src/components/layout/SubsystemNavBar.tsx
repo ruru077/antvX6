@@ -15,12 +15,10 @@ import {
   Typography,
 } from 'antd'
 import { useShallow } from 'zustand/shallow'
-import { changeGraphView } from '@/services/subsystem-service'
-import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import type { TreeDataNode } from 'antd'
 import type { SubGraphMap } from '~/types'
-import '@styles/SubsystemNavBar.scss'
 
 function buildTreeData(
   subGraphs: SubGraphMap,
@@ -35,7 +33,7 @@ function buildTreeData(
       title = (
         <>
           {item.name.slice(0, idx)}
-          <span className="subsystem-tree-highlight">
+          <span className="text-[#f50]">
             {item.name.slice(idx, idx + keyword.length)}
           </span>
           {item.name.slice(idx + keyword.length)}
@@ -71,7 +69,7 @@ function SubsystemNavBar({
   )
 
   function navigateTo(subGraphId: string) {
-    changeGraphView(subGraphId, useGraphStore.getState().graph)
+    useSubSystemTabStore.getState().openOrSwitch(subGraphId)
   }
 
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -139,7 +137,7 @@ function SubsystemNavBar({
       <Space
         size={2}
         align="center"
-        className="subsystem-navbar__breadcrumb-item"
+        className="text-sm [&_.ant-typography]:text-sm"
       >
         {isRoot && <SisternodeOutlined />}
         <Typography.Text strong={isLast}>{name}</Typography.Text>
@@ -170,28 +168,35 @@ function SubsystemNavBar({
   }
 
   return (
-    <Flex align="center" className="subsystem-navbar">
-      {/* 项目名区域：品牌色实底，白字，视觉锚点 */}
+    <Flex
+      align="center"
+      className="flex h-8 items-center overflow-visible border-b border-gray-100 bg-white"
+    >
+      {/* 项目名区域 */}
       {modelName && (
-        <Flex align="center" gap={6} className="subsystem-navbar__project">
+        <Flex
+          align="center"
+          gap={6}
+          className="flex h-full shrink-0 cursor-default select-none border-r border-gray-200 bg-gray-50 px-3"
+        >
           {editing ? (
             <Input
               size="small"
               value={editValue}
               autoFocus
               style={{ width: editInputWidth }}
-              className="subsystem-navbar__name-input"
+              className="h-6"
               onChange={(e) => setEditValue(e.target.value)}
               onPressEnter={commitEdit}
               onBlur={commitEdit}
             />
           ) : (
             <>
-              <Typography.Text className="subsystem-navbar__name">
+              <Typography.Text className="text-xs leading-none whitespace-nowrap font-medium text-gray-600">
                 {modelName}
               </Typography.Text>
               <EditOutlined
-                className="subsystem-navbar__edit-icon"
+                className="cursor-pointer text-xs text-gray-400 transition-colors hover:text-[#1890ff]"
                 onClick={startEdit}
               />
             </>
@@ -199,10 +204,10 @@ function SubsystemNavBar({
         </Flex>
       )}
 
-      {/* 路径 + 展开按钮：底部绿线区域 */}
-      <Flex flex={1} align="center" className="subsystem-navbar__right">
+      {/* 路径 + 展开按钮 */}
+      <Flex flex={1} align="center" className="h-full">
         {/* 路径面包屑 */}
-        <Flex flex={1} align="center" className="subsystem-navbar__path">
+        <Flex flex={1} align="center" className="min-w-0 overflow-hidden px-2">
           <Breadcrumb items={items} />
         </Flex>
 
@@ -211,7 +216,7 @@ function SubsystemNavBar({
           type="text"
           size="small"
           icon={<DoubleRightOutlined rotate={90} />}
-          className="subsystem-navbar__expand-btn"
+          className="mr-1 shrink-0 text-gray-400 transition-colors hover:text-[#1890ff]"
           onClick={() => {
             setExpandedKeys(currentPathIds.slice(0, -1))
             setDrawerOpen(true)

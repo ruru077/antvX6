@@ -7,15 +7,18 @@ import {
 } from '@/assets/constant'
 import { AddBlockModal } from '@/components/AddBlockModal'
 import { BlockParamModal, SubsystemParamModal } from '@/components/Modal'
-import { createCommonService } from '@/services/common-service'
+import { hasSubsystemMask } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
 
-const commonService = createCommonService()
-
 function createInteractiveService() {
+  function getFilterWidth(width: number) {
+    const zoom = useGraphStore.getState().graph?.zoom() || 1
+    return Number((width / zoom).toFixed(3))
+  }
+
   function addOutline(cell: Cell) {
     if (cell.isNode()) {
       cell.attr('body/filter', null, { undo: false })
@@ -23,7 +26,11 @@ function createInteractiveService() {
         'body/filter',
         {
           name: 'outline',
-          args: { color: 'rgb(102,194,255)', width: 4, margin: 0 },
+          args: {
+            color: 'rgb(102,194,255)',
+            width: getFilterWidth(4),
+            margin: 0,
+          },
         },
         { undo: false },
       )
@@ -32,7 +39,11 @@ function createInteractiveService() {
         'line/filter',
         {
           name: 'outline',
-          args: { color: 'rgb(102,194,255)', width: 2, margin: 0 },
+          args: {
+            color: 'rgb(102,194,255)',
+            width: getFilterWidth(2),
+            margin: 0,
+          },
           attrs: {
             filterUnits: 'userSpaceOnUse',
             x: -9999,
@@ -179,7 +190,7 @@ function createInteractiveService() {
    * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
   function openNodeModal(node: Node) {
-    const ModalComponent = commonService.hasSubsystemMask(node)
+    const ModalComponent = hasSubsystemMask(node)
       ? SubsystemParamModal
       : BlockParamModal
 
