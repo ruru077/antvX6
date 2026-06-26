@@ -57,11 +57,17 @@ function createAndSetupGraph(
 ): GraphType {
   const graph = createGraph(container)
   setupDevTools(graph)
-  graph.on('scale', ({ sx }: { sx: number }) => {
-    onScale(Math.round(sx * 100))
-  })
   registerPlugins(graph)
   registerKeyBindings(graph)
+  graph.on('scale', ({ sx }: { sx: number }) => {
+    // 使用selection 插件选择多个cell 之后滚轮进行缩放，选择框错位 #3452
+    const cells = graph.getSelectedCells()
+    graph.resetSelection(cells)
+    cells.forEach((cell) => {
+      interactiveService.addOutline(cell)
+    })
+    onScale(Math.round(sx * 100))
+  })
   graph.getPlugin<Scroller>('scroller')!.centerPoint(500, 500)
   openAutoPan(graph)
   return graph
