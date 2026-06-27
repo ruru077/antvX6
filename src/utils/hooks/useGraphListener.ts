@@ -1,3 +1,4 @@
+import { StringExt } from '@antv/x6'
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
@@ -69,6 +70,8 @@ function useGraphListener() {
       // ── Label 唯一性与可编辑 ──────────────────────────────────────
       registerLabelUniqueListeners(graph),
       registerEditableLabelListeners(graph),
+      // ── 右键拖拽复制 ──────────────────────────────────────────────
+      registerRightClickDragListeners(graph),
     ]
 
     // ── #5 鼠标移动（X6未注册 DOM 原生事件，节流）──────────────────────────────
@@ -286,6 +289,8 @@ function registerTransformListeners(graph: Graph) {
 function onMouseMoveHandler(e: MouseEvent) {
   const graph = useGraphStore.getState().graph
   if (!graph) return
+  // 右键拖拽复制中，不处理 Transform 工具显示/隐藏
+  if (e.buttons === 2) return
   // #5.2 鼠标移动时，如果正在变换或鼠标在当前节点附近，则不清除变换工具
   if (
     isTransforming ||
@@ -367,13 +372,12 @@ function registerNodeEditListeners(graph: Graph) {
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
 
     const target = e.target as Element
-    // 判断双击目标是否为文本元素（兼容 SVG text / tspan）
-    const isTextElement =
-      target.closest('text') !== null || target.closest('foreignObject')
+    // 判断双击目标是否为文本元素（兼容 SVG text / foreignObject）
+    const textEl = target.closest('text') ?? target.closest('foreignObject')
 
-    if (isTextElement) {
-      // 文本双击，打开文本编辑工具 老版本兼容
-      console.log('object')
+    if (textEl) {
+      // 文本双击 → 就地编辑 label
+      interactiveService.openLabelEditor(node, textEl)
       return
     }
     // 默认：打开参数设置弹窗
@@ -457,6 +461,135 @@ function registerEditableLabelListeners(graph: Graph) {
   }
 
   return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
+}
+
+// ── 右键拖拽复制──────────────────────────────────────────
+// X6 guard 会忽略 button===2 的 mousedown，因此使用原生 DOM 事件监听。
+// 通过移动距离阈值区分"右键菜单"与"右键拖拽"：超过阈值即复制节点。
+function registerRightClickDragListeners(graph: Graph) {
+  /** 拖拽阈值（像素），超过此距离才判定为拖拽而非右键菜单 */
+  const DRAG_THRESHOLD = 5
+
+  let dragState: {
+    sourceNode: Node
+    startX: number
+    startY: number
+    isDragging: boolean
+    ghostEl: HTMLDivElement | null
+  } | null = null
+  /** mouseup 后短暂置 true，抑制紧随其后的 contextmenu 事件 */
+  let suppressContextMenu = false
+
+  // ── 预览幽灵元素 ──────────────────────────────────────────────────────
+  function createGhost(node: Node, clientX: number, clientY: number) {
+    const zoom = graph.zoom()
+    const { width, height } = node.getSize()
+    const el = document.createElement('div')
+    Object.assign(el.style, {
+      position: 'fixed',
+      width: `${width * zoom}px`,
+      height: `${height * zoom}px`,
+      border: '2px dashed #1890ff',
+      backgroundColor: 'rgba(24, 144, 255, 0.1)',
+      borderRadius: '4px',
+      pointerEvents: 'none',
+      zIndex: '1000',
+      left: `${clientX}px`,
+      top: `${clientY}px`,
+      transform: 'translate(-50%, -50%)',
+    })
+    return el
+  }
+
+  // ── 原生事件：右键按下 → 记录起点与源节点 ───────────────────────────────
+  function onMouseDown(e: MouseEvent) {
+    if (e.button !== 2) return
+
+    const node = commonService.getNodeAtPoint(e)
+    if (!node) return
+
+    dragState = {
+      sourceNode: node,
+      startX: e.clientX,
+      startY: e.clientY,
+      isDragging: false,
+      ghostEl: null,
+    }
+  }
+
+  // ── 原生事件：右键拖拽中 → 超过阈值后创建幽灵预览并跟随光标 ─────────────
+  function onMouseMove(e: MouseEvent) {
+    if (!dragState || e.buttons !== 2) return
+
+    if (!dragState.isDragging) {
+      const dx = e.clientX - dragState.startX
+      const dy = e.clientY - dragState.startY
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+
+      dragState.isDragging = true
+      const ghost = createGhost(dragState.sourceNode, e.clientX, e.clientY)
+      document.body.appendChild(ghost)
+      dragState.ghostEl = ghost
+      graph.container.style.cursor = 'copy'
+    }
+
+    if (dragState.ghostEl) {
+      dragState.ghostEl.style.left = `${e.clientX}px`
+      dragState.ghostEl.style.top = `${e.clientY}px`
+    }
+  }
+
+  // ── 原生事件：右键释放 → 拖拽则克隆节点到释放位置，并抑制右键菜单 ───────
+  function onMouseUp(e: MouseEvent) {
+    if (e.button !== 2 || !dragState) return
+
+    const state = dragState
+    dragState = null
+    if (!state.isDragging) return
+
+    // 标记抑制 contextmenu（mouseup 后浏览器会紧随触发 contextmenu）
+    suppressContextMenu = true
+    state.ghostEl?.remove()
+    graph.container.style.cursor = ''
+
+    // 克隆源节点，更新端口 ID 确保唯一性（参考 stencil getDragNode）
+    const clone = state.sourceNode.clone()
+    clone.getPorts().forEach((port) => {
+      if (port.id) clone.portProp(port.id, 'id', StringExt.uuid())
+    })
+
+    // 定位到释放点（居中于光标）
+    const pos = graph.pageToLocal(e.pageX, e.pageY)
+    const size = clone.getSize()
+    clone.position(pos.x - size.width / 2, pos.y - size.height / 2)
+
+    // 添加到画布（触发 node:added → ensureLabelUnique、syncSubGraph）
+    graph.addNode(clone)
+  }
+
+  // ── 捕获阶段拦截：拖拽后阻止右键菜单弹出 ───────────────────────────────
+  function onContextMenu(e: MouseEvent) {
+    if (!suppressContextMenu) return
+    e.preventDefault()
+    e.stopPropagation()
+    suppressContextMenu = false
+  }
+
+  const container = graph.container
+  container.addEventListener('mousedown', onMouseDown)
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+  container.addEventListener('contextmenu', onContextMenu, true)
+
+  return () => {
+    container.removeEventListener('mousedown', onMouseDown)
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    container.removeEventListener('contextmenu', onContextMenu, true)
+    dragState?.ghostEl?.remove()
+    graph.container.style.cursor = ''
+    dragState = null
+  }
 }
 
 // ── 事件注册工具 ──────────────────────────────────────────────────────────
