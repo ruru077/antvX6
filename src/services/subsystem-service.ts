@@ -19,7 +19,9 @@ import type {
   NodeProperties,
   Scroller,
 } from '@antv/x6'
+import type { PortMetadata } from '@antv/x6/lib/model/port'
 import type { HistoryCommands } from '@antv/x6/lib/plugin/history/type'
+import type { MarkupJSONMarkup } from '@antv/x6/lib/view/markup'
 import type {
   EntryGraphModel,
   GraphModelDTO,
@@ -29,12 +31,122 @@ import type {
 
 const commonService = createCommonService()
 
+type PortSide = 'in' | 'out'
+// label: {
+//   markup: {
+//     tagName: 'text',
+//     selector: 'text',
+//     textContent: 'In1',
+//   },
+// }
+function getPortLabel(port: PortMetadata | undefined): string {
+  const markup = port?.label?.markup as MarkupJSONMarkup
+  return markup?.textContent ?? (port?.attrs?.label?.text as string)
+}
+
+/**
+ * 按 portId 获取端口 label。
+ * Port item 自身可能没有 label（stencil 初始端口只有 id + group），
+ * 需回退到 group 定义中的 attrs.text.text。
+ */
+function getPortLabelById(node: NodeProperties, portId: string): string {
+  const ports = node.ports
+  const items: PortMetadata[] = Array.isArray(ports)
+    ? ports
+    : (ports?.items ?? [])
+  const port = items.find((p) => p.id === portId)
+  if (!port) return ''
+
+  // 1. Port item: label.markup.textContent 或 attrs.label.text
+  const direct = getPortLabel(port)
+  if (direct) return direct
+
+  // 2. Group 定义: attrs.text.text（stencil 初始端口）
+  const groups = !Array.isArray(ports) ? ports?.groups : undefined
+  const groupDef = groups?.[port.group ?? '']
+  const groupText = (groupDef?.attrs as any)?.text?.text as string
+  if (groupText) return groupText
+
+  return ''
+}
+// attrs: {
+//   label: {
+//     text: 'In',
+//   },
+// },
+function getIONodeLabel(node: NodeProperties): string {
+  return (node.attrs?.label?.text as string) ?? ''
+}
+/**
+ * @description 判断端口是否在指定侧
+ * @param port PortMetadata
+ * @param side PortSide
+ * @returns true 表示端口在指定侧，false 表示端口在非指定侧
+ */
+function isPortSide(port: PortMetadata, side: PortSide): boolean {
+  const group = port.group?.toLowerCase() ?? ''
+  return side === 'in' ? group.includes('in') : group.includes('out')
+}
+/**
+ * @description 获取模块指定侧的端口
+ * @param node NodeProperties
+ * @param side PortSide
+ * @returns PortMetadata[] 指定侧的端口列表
+ */
+function getPorts(node: NodeProperties, side: PortSide): PortMetadata[] {
+  const ports = node.ports
+  const items = Array.isArray(ports) ? ports : (ports?.items ?? [])
+  return items.filter((port) => isPortSide(port, side))
+}
+
+/**
+ * @description 根据端口标签查找端口
+ * @param node NodeProperties
+ * @param label string
+ * @param side PortSide
+ * @returns PortMetadata
+ */
+function findPortByLabel(
+  node: NodeProperties,
+  label: string,
+  side: PortSide,
+): PortMetadata | undefined {
+  return getPorts(node, side).find(
+    (port) => getPortLabelById(node, port.id ?? '') === label,
+  )
+}
+
+/**
+ * @description 创建子系统端口
+ * @param side PortSide
+ * @param label string
+ * @returns PortMetadata
+ */
+function createSubsystemPort(side: PortSide, _label: string): PortMetadata {
+  return {
+    id: StringExt.uuid(),
+    group: side,
+    attrs: { label: { text: _label } },
+  }
+}
+
+/**
+ * @description 创建图层历史栈
+ * @param graph Graph
+ * @returns void
+ */
 // ─── 各图层独立 Undo/Redo 历史栈───
 const layerHistoryStacks = new Map<
   string,
   { undoStack: HistoryCommands[]; redoStack: HistoryCommands[] }
 >()
 
+/**
+ * @description 加载入口图模型
+ * @param model EntryGraphModel
+ * @param graph Graph
+ * @returns void
+ */
 // ─── 加载模型 ─────────────────────────────────────────────────────────────
 
 function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
@@ -51,7 +163,12 @@ function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
 }
 
 // ─── 切换视图 ─────────────────────────────────────────────────────────────
-
+/**
+ * @description 切换图层视图
+ * @param subGraphId string
+ * @param graph Graph
+ * @returns void
+ */
 function changeGraphView(subGraphId: string, graph: Graph) {
   const { currentGraphId, subGraphs, syncGraph } = useSubGraphStore.getState()
 
@@ -96,8 +213,6 @@ function changeGraphView(subGraphId: string, graph: Graph) {
 }
 
 // ─── 合并为子系统 ─────────────────────────────────────────────────────────
-
-/** 为未连接的端口生成 IO 节点 + 连线的 JSON 数据 */
 function createIONodeJson(
   graph: Graph,
   extraJson: GraphJSON['cells'],
@@ -109,6 +224,7 @@ function createIONodeJson(
   const pos = node.getPosition()
   const ioNodeId = StringExt.uuid()
   const isIn = dir === 'in'
+  const portLabel = getPortLabel(node.getPort(portId))
   const offsetX = isIn ? pos.x - 200 : pos.x + node.getSize().width + 200
   extraJson.push({
     id: ioNodeId,
@@ -116,10 +232,10 @@ function createIONodeJson(
     position: { x: offsetX, y: pos.y },
     size: { width: 50, height: 40 },
     attrs: {
-      text: { text: dir },
+      label: { text: portLabel },
       body: { fill: '#fff', stroke: '#8f8f8f', strokeWidth: 1 },
     },
-    data: { type: isIn ? 'InPort' : 'OutPort' },
+    data: { blockType: isIn ? 'In' : 'Out' },
     ports: {
       groups: signalPortGroups,
       items: [{ id: isIn ? 'out1' : 'in1', group: isIn ? 'out' : 'in' }],
@@ -238,13 +354,7 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
       },
       { ignore: true },
     )
-    commonService.resize(subsystemNode)
-    commonService.addPort(subsystemNode, unconnectedInPorts.size, {
-      group: 'in',
-    })
-    commonService.addPort(subsystemNode, unconnectedOutPorts.size, {
-      group: 'out',
-    })
+    syncSubsystemPorts(subGraphItem.id, graph, nextSubGraphs)
   })
 
   // 8. 离屏渲染快照，回填缩略图
@@ -255,7 +365,6 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
     })
     .catch((e) => console.warn('[snapshot] 子系统缩略图生成失败', e))
 }
-
 // ─── 结构查询 ──────────────────────────────────────────────────────────
 
 /** 获取子系统内部所有 cells */
@@ -275,42 +384,163 @@ function getIONodes(
   if (!side) return nodes
   const isTarget =
     side === 'in'
-      ? (n: NodeProperties) =>
-          n.data?.type === 'InPort' || n.attrs?.text?.text === 'in'
-      : (n: NodeProperties) =>
-          n.data?.type === 'OutPort' || n.attrs?.text?.text === 'out'
+      ? (n: NodeProperties) => n.data?.blockType === 'In'
+      : (n: NodeProperties) => n.data?.blockType === 'Out'
   return nodes.filter(isTarget)
 }
 
-/** 获取子系统内部的实际 block（排除 IO 节点和边） */
+/** 获取子系统内部的实际 block */
 function getInnerBlocks(cells: CellProperties[]): NodeProperties[] {
-  return cells.filter(
-    (c) => c.shape !== 'edge' && !isIONode(c),
-  ) as NodeProperties[]
+  return cells.filter((c) => c.shape !== 'edge' && !isIONode(c))
 }
 
 // ─── 识别 ──────────────────────────────────────────────────────────────
 
 function isSubsystemBlock(node: NodeProperties): boolean {
-  return node.data?.type === 'SubsystemBlock' || node.data?.kind === 'subsystem'
+  return node.data?.blockType === 'Subsystem'
 }
 
-/** 判断子系统是否为直通（内部无实际 block，仅含 IO 节点） */
+/**
+ * 剔除图中未连接任何边的空连接节点
+ * 空连接节点不影响信号流，可安全移除
+ */
+function removeDisconnectedBlocks(cells: CellProperties[]): CellProperties[] {
+  const edges = cells.filter((c) => c.shape === 'edge')
+  const connectedCellIds = new Set<string>()
+
+  edges.forEach((edge) => {
+    if (edge.source?.cell) connectedCellIds.add(edge.source.cell)
+    if (edge.target?.cell) connectedCellIds.add(edge.target.cell)
+  })
+
+  return cells.filter((cell) => {
+    if (cell.shape === 'edge') return true
+    return connectedCellIds.has(cell.id ?? '')
+  })
+}
+
+/**
+ * 保留子系统内真实信号通路上的 cells。
+ * 有效通路必须从 InPort 可达，并且能继续到达 OutPort；孤岛连线不导出。
+ */
+function keepSignalPathCells(cells: CellProperties[]): CellProperties[] {
+  const edges = cells.filter((c) => c.shape === 'edge')
+  const inNodeIds = new Set(
+    getIONodes(cells, 'in').map((node) => node.id ?? ''),
+  )
+  const outNodeIds = new Set(
+    getIONodes(cells, 'out').map((node) => node.id ?? ''),
+  )
+
+  if (inNodeIds.size === 0 || outNodeIds.size === 0) return cells
+
+  const forward = new Set(inNodeIds)
+  let changed = true
+  while (changed) {
+    changed = false
+    edges.forEach((edge) => {
+      const sourceId = edge.source?.cell
+      const targetId = edge.target?.cell
+      if (!sourceId || !targetId) return
+      if (!forward.has(sourceId) || forward.has(targetId)) return
+      forward.add(targetId)
+      changed = true
+    })
+  }
+
+  const backward = new Set(outNodeIds)
+  changed = true
+  while (changed) {
+    changed = false
+    edges.forEach((edge) => {
+      const sourceId = edge.source?.cell
+      const targetId = edge.target?.cell
+      if (!sourceId || !targetId) return
+      if (!backward.has(targetId) || backward.has(sourceId)) return
+      backward.add(sourceId)
+      changed = true
+    })
+  }
+
+  const signalCellIds = new Set<string>()
+  const signalEdgeIds = new Set<string>()
+  edges.forEach((edge) => {
+    const sourceId = edge.source?.cell
+    const targetId = edge.target?.cell
+    if (!sourceId || !targetId) return
+    if (!forward.has(sourceId) || !backward.has(targetId)) return
+    signalEdgeIds.add(edge.id ?? '')
+    signalCellIds.add(sourceId)
+    signalCellIds.add(targetId)
+  })
+
+  console.log('[keepSignalPathCells]', {
+    inNodeIds: Array.from(inNodeIds),
+    outNodeIds: Array.from(outNodeIds),
+    forward: Array.from(forward),
+    backward: Array.from(backward),
+    signalCellIds: Array.from(signalCellIds),
+    signalEdgeIds: Array.from(signalEdgeIds),
+  })
+
+  return cells.filter((cell) =>
+    cell.shape === 'edge'
+      ? signalEdgeIds.has(cell.id ?? '')
+      : signalCellIds.has(cell.id ?? ''),
+  )
+}
+
+/**
+ * 判断子系统是否为直通（passthrough）
+ * 条件：
+ *   1. 内部允许有普通 block，但必须是未连接的空 block（会被自动剔除）
+ *   2. In 节点数量等于 Out 节点数量
+ *   3. 每条边必须是：In(label) -> Out(label) 且 label 完全相同
+ *   4. 所有 In 节点都必须有对应的 Out 节点配对
+ */
 function isPassthroughSubsystem(
   subsystemId: string,
   subGraphs: SubGraphMap,
 ): boolean {
-  const cells = getInnerCells(subsystemId, subGraphs)
-  return getInnerBlocks(cells).length === 0
+  const rawCells = getInnerCells(subsystemId, subGraphs)
+  const cells = removeDisconnectedBlocks(rawCells)
+  const inNodeMap = new Map(
+    getIONodes(cells, 'in').map((n) => [n.id, getIONodeLabel(n)]),
+  )
+  const outNodeMap = new Map(
+    getIONodes(cells, 'out').map((n) => [n.id, getIONodeLabel(n)]),
+  )
+  if (inNodeMap.size === 0 || inNodeMap.size !== outNodeMap.size) return false
+
+  const edges = cells.filter((c) => c.shape === 'edge')
+
+  // 提取 label 中的序号（如 "In1" -> "1", "Out2" -> "2"）
+  function extractLabelNumber(label: string): string {
+    const match = label.match(/(\d+)$/)
+    return match ? match[1] : label
+  }
+
+  // 每条边必须是 In -> Out 且序号相同（如 In1 -> Out1）
+  const validPairs = new Set<string>()
+  for (const edge of edges) {
+    const srcLabel = inNodeMap.get(edge.source?.cell ?? '')
+    const tgtLabel = outNodeMap.get(edge.target?.cell ?? '')
+    if (
+      srcLabel &&
+      tgtLabel &&
+      extractLabelNumber(srcLabel) === extractLabelNumber(tgtLabel)
+    ) {
+      validPairs.add(srcLabel)
+    }
+  }
+
+  // 所有 In 节点都必须有对应的 Out 节点配对
+  const allInLabels = new Set(inNodeMap.values())
+  return validPairs.size === allInLabels.size
 }
 
 function isIONode(node: NodeProperties): boolean {
-  return (
-    node.data?.type === 'InPort' ||
-    node.data?.type === 'OutPort' ||
-    node.attrs?.text?.text === 'in' ||
-    node.attrs?.text?.text === 'out'
-  )
+  return node.data?.blockType === 'In' || node.data?.blockType === 'Out'
 }
 
 /** 判断子系统节点是否已添加封装（markup 中存在 MASK_SELECTOR） */
@@ -323,108 +553,101 @@ function hasSubsystemMask(node: Node): boolean {
 
 // ─── 端口映射 ────────────────────────────────────────────────────────────
 
-/** 获取节点指定 side 的第 N 个端口 ID */
-function getNthPort(
-  node: NodeProperties,
-  n: number,
-  side: 'in' | 'out',
-): string | null {
-  const raw = node.ports
-  const items = (Array.isArray(raw) ? raw : raw?.items) ?? []
-  const isInGroup = (g: string) =>
-    side === 'in' ? g === 'in' || g === 'left' : g === 'out' || g === 'right'
-  return (
-    items.filter((p: { group?: string }) => isInGroup(p.group ?? ''))[n]?.id ??
-    null
-  )
-}
-
-/** 获取指定端口在指定 side 中的序号 */
-function getPortIndex(
-  node: NodeProperties,
-  portId: string,
-  side: 'in' | 'out',
-): number {
-  const raw = node.ports
-  const items = (Array.isArray(raw) ? raw : raw?.items) ?? []
-  const isInGroup = (g: string) =>
-    side === 'in' ? g === 'in' || g === 'left' : g === 'out' || g === 'right'
-  return items
-    .filter((p: { group?: string }) => isInGroup(p.group ?? ''))
-    .findIndex((p: { id?: string }) => p.id === portId)
-}
-
 /**
  * 外层端口 → 内部 IO 节点
- * 信号进入子系统时，外层 portId 映射到内部第 N 个 IO 节点
+ * 外层端口 label 与内部 IO 节点 label 保持同步，因此按 label 映射。
  */
 function portToIONode(
   subsystem: NodeProperties,
   portId: string,
-  side: 'in' | 'out',
+  side: PortSide,
   subGraphs: SubGraphMap,
 ): NodeProperties | null {
-  const index = getPortIndex(subsystem, portId, side)
-  if (index < 0) return null
+  const label = getPortLabelById(subsystem, portId)
   const cells = getInnerCells(subsystem.id ?? '', subGraphs)
-  return getIONodes(cells, side)[index] ?? null
+  const ioNodes = getIONodes(cells, side)
+  const ioNode = ioNodes.find((node) => getIONodeLabel(node) === label) ?? null
+
+  console.log('[portToIONode]', {
+    subsystemId: subsystem.id,
+    portId,
+    side,
+    label,
+    ioNodes: ioNodes.map((node) => ({
+      id: node.id,
+      label: getIONodeLabel(node),
+      blockType: node.data?.blockType,
+    })),
+    result: ioNode?.id ?? null,
+  })
+
+  return ioNode
 }
 
 /**
  * 内部 IO 节点 → 外层端口 ID
- * 信号流出子系统时，内部 IO 节点映射回外层第 N 个端口
+ * 内部 IO 节点 label 与外层端口 label 唯一同步，因此按 label 映射回外层端口。
  */
-function ioNodeToPortId(
+function ioNodeToPort(
   ioNodeId: string,
   subsystem: NodeProperties,
   cells: CellProperties[],
-): string | null {
-  const ioNode = cells.find((c) => c.id === ioNodeId) as
-    | NodeProperties
-    | undefined
-  if (!ioNode) return null
-  const isInPort =
-    ioNode.data?.type === 'InPort' || ioNode.attrs?.text?.text === 'in'
-  const side = isInPort ? 'in' : 'out'
-  const index = getIONodes(cells, side).findIndex((n) => n.id === ioNodeId)
-  if (index < 0) return null
-  return getNthPort(subsystem, index, side)
+): PortMetadata | undefined {
+  const ioNode = cells.find((c) => c.id === ioNodeId) as NodeProperties
+  const isInPort = ioNode.data?.blockType === 'In'
+  const side: PortSide = isInPort ? 'in' : 'out'
+  const port = findPortByLabel(subsystem, getIONodeLabel(ioNode), side)
+  return port
 }
 
 // ─── 信号追踪 ────────────────────────────────────────────────────────────
 
-type ResolvedEndpoint = { blockId: string; portId: string }
+type ResolvedEndpoint = {
+  blockId: string
+  portId: string
+  blockName: string
+  portNo: string
+}
+
+type SignalHop = { blockId: string; portId: string }
 
 /**
- * 从指定 cell 出发，沿信号方向找到下一个端点
+ * 从指定 cell 出发，沿信号方向找到下一个端点。
+ * - dir='target'：信号流出——找 source 端为本 cell 的边，返回其 target
+ * - dir='source'：信号流入——找 target 端为本 cell 的边，返回其 source
  * @param fromCellId 起始 cell ID
- * @param dir 'target' = 信号流出（找出边的 target）；'source' = 信号流入（找入边的 source）
+ * @param dir 追踪方向
  * @param cells 当前层的 cells
  */
 function traceSignalFlow(
   fromCellId: string,
   dir: 'source' | 'target',
   cells: CellProperties[],
-): ResolvedEndpoint | null {
-  const edge = cells.find(
-    (c) =>
-      c.shape === 'edge' &&
-      (dir === 'target'
-        ? (c as EdgeProperties).source?.cell === fromCellId
-        : (c as EdgeProperties).target?.cell === fromCellId),
-  ) as EdgeProperties | undefined
-  if (!edge) return null
-  const endpoint =
+): SignalHop | null {
+  const edges = cells.filter((c) => c.shape === 'edge')
+  const edge = edges.find((e) =>
     dir === 'target'
+      ? e.source?.cell === fromCellId
+      : e.target?.cell === fromCellId,
+  )
+  const end = dir === 'target' ? edge?.target : edge?.source
+
+  console.log('[traceSignalFlow]', {
+    fromCellId,
+    dir,
+    edge: edge
       ? {
-          blockId: edge.target?.cell ?? '',
-          portId: edge.target?.port ?? '',
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
         }
-      : {
-          blockId: edge.source?.cell ?? '',
-          portId: edge.source?.port ?? '',
-        }
-  return endpoint.blockId ? endpoint : null
+      : null,
+    end,
+  })
+
+  const blockId = end?.cell ?? ''
+  const portId = end?.port ?? ''
+  return blockId ? { blockId, portId } : null
 }
 
 /**
@@ -443,40 +666,109 @@ function resolveEndpoint(
     console.warn('[resolveEndpoint] 递归深度超限')
     return null
   }
-  const layer = subGraphs[graphId]
-  if (!layer) return null
+
   const cells = getInnerCells(graphId, subGraphs)
-  const cellMap = new Map<string, CellProperties>(
-    cells.map((c) => [c.id ?? '', c]),
-  )
-  const cell = cellMap.get(cellId)
+  const cell = cells.find((c) => c.id === cellId)
+
+  console.log('[resolveEndpoint:start]', {
+    cellId,
+    portId,
+    dir,
+    graphId,
+    depth,
+    cellShape: cell?.shape,
+    blockType: cell?.data?.blockType,
+    isSubsystem: cell ? isSubsystemBlock(cell) : false,
+    isIO: cell ? isIONode(cell) : false,
+  })
+
+  // ── 前置守卫 ──
+  if (!subGraphs[graphId]) return null
   if (!cell) return null
-  const node = cell as NodeProperties
 
-  // 普通 block：直接返回
-  if (!isSubsystemBlock(node) && !isIONode(node)) {
-    return { blockId: cellId, portId }
-  }
+  // IO 节点：穿透到父层继续追踪
+  // 内部信号到达 IO 节点说明信号穿过了整个子系统，需映射回外层端口在父层继续追踪
+  if (isIONode(cell)) {
+    const parentId = subGraphs[graphId]?.parentId
+    if (!parentId) return null
 
-  // 子系统：端口重映射 → 追踪内部信号
-  if (isSubsystemBlock(node)) {
-    const side = dir === 'target' ? 'in' : 'out'
-    const ioNode = portToIONode(node, portId, side, subGraphs)
-    if (!ioNode) return null
-    const innerCells = getInnerCells(cellId, subGraphs)
-    const next = traceSignalFlow(ioNode.id ?? '', dir, innerCells)
+    const parentCells = getInnerCells(parentId, subGraphs)
+    const subsystemNode = parentCells.find((c) => c.id === graphId) as
+      | NodeProperties
+      | undefined
+    if (!subsystemNode) return null
+
+    // IO 节点 → 子系统外层端口
+    const port = ioNodeToPort(cellId, subsystemNode, cells)
+    console.log('[resolveEndpoint:io]', {
+      cellId,
+      dir,
+      graphId,
+      parentId,
+      ioLabel: getIONodeLabel(cell),
+      subsystemId: subsystemNode.id,
+      mappedPortId: port?.id ?? null,
+      mappedPortLabel: port?.id
+        ? getPortLabelById(subsystemNode, port.id)
+        : undefined,
+    })
+
+    // 在父层沿信号方向继续追踪
+    const next = traceSignalFlow(graphId, dir, parentCells)
     if (!next) return null
+
     return resolveEndpoint(
       next.blockId,
       next.portId,
       dir,
-      cellId,
+      parentId,
       subGraphs,
       depth + 1,
     )
   }
 
-  return null
+  // 普通 block：非子系统、非 IO，直接返回
+  if (!isSubsystemBlock(cell)) {
+    return {
+      blockId: cellId,
+      portId,
+      blockName: (cell.attrs?.label?.text as string) ?? cellId,
+      portNo: getPortLabelById(cell, portId) || portId,
+    }
+  }
+
+  // ── 子系统：端口重映射 → 追踪内部信号 ──
+  const side = dir === 'target' ? 'in' : 'out'
+  const ioNode = portToIONode(cell, portId, side, subGraphs)
+  console.log('[resolveEndpoint:subsystem]', {
+    cellId,
+    portId,
+    dir,
+    graphId,
+    side,
+    ioNodeId: ioNode?.id ?? null,
+    ioNodeLabel: ioNode ? getIONodeLabel(ioNode) : null,
+  })
+  if (!ioNode) return null
+
+  const innerCells = getInnerCells(cellId, subGraphs)
+  const next = traceSignalFlow(ioNode.id ?? 'error', dir, innerCells)
+  console.log('[resolveEndpoint:subsystem-next]', {
+    cellId,
+    ioNodeId: ioNode.id,
+    dir,
+    next,
+  })
+  if (!next) return null
+
+  return resolveEndpoint(
+    next.blockId,
+    next.portId,
+    dir,
+    cellId,
+    subGraphs,
+    depth + 1,
+  )
 }
 
 // ─── 变更 ────────────────────────────────────────────────────────────────
@@ -577,8 +869,8 @@ function unmergeSubsystem(subsystemId: string, graph: Graph) {
 }
 
 /**
- * 同步子系统外层端口与内部 IO 节点数量
- * 当内部增删 IO 节点后调用
+ * 同步子系统外层端口与内部 IO 节点
+ * 内部 InPort/OutPort 数量决定外层端口数量，端口 label 与内部 IO label 保持一致。
  */
 function syncSubsystemPorts(
   subsystemId: string,
@@ -588,68 +880,37 @@ function syncSubsystemPorts(
   const subsystemNode = graph.getCellById(subsystemId) as Node | null
   if (!subsystemNode) return
 
+  const node = subsystemNode
   const cells = getInnerCells(subsystemId, subGraphs)
-  const inCount = getIONodes(cells, 'in').length
-  const outCount = getIONodes(cells, 'out').length
-  const currentPorts = subsystemNode.getPorts()
-  const currentIn = currentPorts.filter((p) =>
-    p.group?.toLowerCase().includes('in'),
-  ).length
-  const currentOut = currentPorts.filter((p) =>
-    p.group?.toLowerCase().includes('out'),
-  ).length
 
-  // 补充缺失端口
-  if (inCount > currentIn)
-    commonService.addPort(subsystemNode, inCount - currentIn, { group: 'in' })
-  if (outCount > currentOut)
-    commonService.addPort(subsystemNode, outCount - currentOut, {
-      group: 'out',
+  function syncSide(side: PortSide) {
+    const labels = getIONodes(cells, side).map(getIONodeLabel).filter(Boolean)
+    const labelSet = new Set(labels)
+    const ports = node.getPorts().filter((port) => isPortSide(port, side))
+
+    ports.forEach((port) => {
+      if (labelSet.has(getPortLabel(port))) return
+      if (!port.id) return
+      node.removePort(port.id)
     })
 
-  // 移除多余端口
-  if (currentIn > inCount) {
-    const inPorts = currentPorts.filter((p) =>
-      p.group?.toLowerCase().includes('in'),
+    const currentLabels = new Set(
+      node
+        .getPorts()
+        .filter((port) => isPortSide(port, side))
+        .map(getPortLabel),
     )
-    for (let i = inPorts.length - 1; i >= inCount; i--) {
-      if (inPorts[i].id) subsystemNode.removePort(inPorts[i].id!)
-    }
+
+    labels.forEach((label) => {
+      if (currentLabels.has(label)) return
+      node.addPort(createSubsystemPort(side, label))
+    })
   }
-  if (currentOut > outCount) {
-    const outPorts = currentPorts.filter((p) =>
-      p.group?.toLowerCase().includes('out'),
-    )
-    for (let i = outPorts.length - 1; i >= outCount; i--) {
-      if (outPorts[i].id) subsystemNode.removePort(outPorts[i].id!)
-    }
-  }
+
+  subsystemNode.prop('ports/groups', signalPortGroups)
+  syncSide('in')
+  syncSide('out')
   commonService.resize(subsystemNode)
-}
-
-// ─── 验证 ────────────────────────────────────────────────────────────────
-
-/**
- * 找出未连接的 IO 节点
- * InPort 需要有出边（信号流入内部），OutPort 需要有入边（信号流出外部）
- */
-function getUnconnectedIONodes(cells: CellProperties[]): {
-  inPorts: NodeProperties[]
-  outPorts: NodeProperties[]
-} {
-  const ioNodes = getIONodes(cells)
-  const edges = cells.filter((c) => c.shape === 'edge') as EdgeProperties[]
-  const inPorts = ioNodes.filter(
-    (node) =>
-      (node.data?.type === 'InPort' || node.attrs?.text?.text === 'in') &&
-      !edges.some((e) => e.source?.cell === node.id),
-  )
-  const outPorts = ioNodes.filter(
-    (node) =>
-      (node.data?.type === 'OutPort' || node.attrs?.text?.text === 'out') &&
-      !edges.some((e) => e.target?.cell === node.id),
-  )
-  return { inPorts, outPorts }
 }
 
 // ─── DTO 导出 ──────────────────────────────────────────────────────────────
@@ -657,8 +918,12 @@ function getUnconnectedIONodes(cells: CellProperties[]): {
 function collectBlocks(subGraphs: SubGraphMap, rootId: string) {
   const blocks: any[] = []
   for (const layer of Object.values(subGraphs)) {
-    const cells = getInnerCells(layer.id, subGraphs)
+    const rawCells = removeDisconnectedBlocks(
+      getInnerCells(layer.id, subGraphs),
+    )
+    const cells = layer.id === rootId ? rawCells : keepSignalPathCells(rawCells)
     for (const node of getInnerBlocks(cells)) {
+      if (isSubsystemBlock(node)) continue
       blocks.push({
         blockType: node.data?.type ?? '',
         srcBlock: node.data?.srcBlock ?? '',
@@ -674,23 +939,21 @@ function collectBlocks(subGraphs: SubGraphMap, rootId: string) {
 
 function collectLines(subGraphs: SubGraphMap, rootId: string) {
   const lines: any[] = []
+  const lineKeys = new Set<string>()
   for (const layer of Object.values(subGraphs)) {
-    const cells = getInnerCells(layer.id, subGraphs)
+    const rawCells = getInnerCells(layer.id, subGraphs)
+    const cells = layer.id === rootId ? rawCells : keepSignalPathCells(rawCells)
     const cellMap = new Map<string, CellProperties>(
       cells.map((c) => [c.id ?? '', c]),
     )
     for (const cell of cells) {
       if (cell.shape !== 'edge') continue
-      const edge = cell as EdgeProperties
+      const edge = cell
       const srcCell = cellMap.get(edge.source?.cell)
       const tgtCell = cellMap.get(edge.target?.cell)
       if (
-        (srcCell &&
-          srcCell.shape !== 'edge' &&
-          isIONode(srcCell as NodeProperties)) ||
-        (tgtCell &&
-          tgtCell.shape !== 'edge' &&
-          isIONode(tgtCell as NodeProperties))
+        (srcCell && srcCell.shape !== 'edge' && isIONode(srcCell)) ||
+        (tgtCell && isIONode(tgtCell))
       )
         continue
 
@@ -703,18 +966,58 @@ function collectLines(subGraphs: SubGraphMap, rootId: string) {
       )
       const resolvedTgt = resolveEndpoint(
         edge.target?.cell,
-        edge.target?.port ?? '',
+        edge.target?.port,
         'target',
         layer.id,
         subGraphs,
       )
+      console.log('[collectLines:edge]', {
+        layerId: layer.id,
+        edgeId: edge.id,
+        source: edge.source,
+        target: edge.target,
+        srcCell: srcCell
+          ? {
+              id: srcCell.id,
+              shape: srcCell.shape,
+              blockType: srcCell.data?.blockType,
+            }
+          : null,
+        tgtCell: tgtCell
+          ? {
+              id: tgtCell.id,
+              shape: tgtCell.shape,
+              blockType: tgtCell.data?.blockType,
+            }
+          : null,
+        resolvedSrc,
+        resolvedTgt,
+      })
       if (!resolvedSrc || !resolvedTgt) continue
 
+      const lineKey = [
+        resolvedSrc.blockId,
+        resolvedSrc.portId,
+        resolvedTgt.blockId,
+        resolvedTgt.portId,
+      ].join('->')
+      if (lineKeys.has(lineKey)) {
+        console.log('[collectLines:duplicate]', {
+          layerId: layer.id,
+          edgeId: edge.id,
+          lineKey,
+          resolvedSrc,
+          resolvedTgt,
+        })
+        continue
+      }
+      lineKeys.add(lineKey)
+
       lines.push({
-        fromBlockName: resolvedSrc.blockId,
-        fromPortNo: resolvedSrc.portId || '1',
-        toBlockName: resolvedTgt.blockId,
-        toPortNo: resolvedTgt.portId || '1',
+        fromBlockName: resolvedSrc.blockName,
+        fromPortNo: resolvedSrc.portNo,
+        toBlockName: resolvedTgt.blockName,
+        toPortNo: resolvedTgt.portNo,
         linePath: rootId,
         fromBlockUUID: resolvedSrc.blockId,
         toBlockUUID: resolvedTgt.blockId,
@@ -785,8 +1088,7 @@ export {
   getInnerBlocks,
   isPassthroughSubsystem,
   portToIONode,
-  ioNodeToPortId,
+  ioNodeToPort,
   traceSignalFlow,
   resolveEndpoint,
-  getUnconnectedIONodes,
 }

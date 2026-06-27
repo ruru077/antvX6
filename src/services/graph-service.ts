@@ -40,6 +40,11 @@ const interactiveService = createInteractiveService()
 
 // 模块级 Ctrl 键状态，供 interacting 回调使用
 let ctrlHeld = false
+// 右键拉线中标志位，供 interacting 回调使用（需在 X6 mousedown 前由捕获阶段设置）
+let rightEdgeDragging = false
+const setRightEdgeDragging = (val: boolean) => {
+  rightEdgeDragging = val
+}
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Control') ctrlHeld = true
@@ -205,7 +210,7 @@ function createGraph(container: HTMLElement): GraphType {
     virtual: false,
     interacting: (cellView) => {
       if (cellView.cell.isEdge()) {
-        return { edgeMovable: ctrlHeld }
+        return { edgeMovable: ctrlHeld || rightEdgeDragging }
       }
       return {}
     },
@@ -592,4 +597,4 @@ function registerKeys(graph: GraphType, entries: KeyEntry[]) {
   }
 }
 
-export { createAndSetupGraph }
+export { createAndSetupGraph, setRightEdgeDragging }
