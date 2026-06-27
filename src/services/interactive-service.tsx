@@ -1,4 +1,5 @@
 import { StringExt } from '@antv/x6'
+import { Input } from 'antd'
 import { createRoot } from 'react-dom/client'
 import {
   RED,
@@ -12,6 +13,58 @@ import { useGraphStore } from '@/store/graphStore'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
+
+// ── Label 就地编辑器（antd Input 浮层）──────────────────────────────────────
+
+/**
+ * 双击节点 label 时弹出的浮动输入框。
+ * 读取 node.attr('label/text') 作为初始值，失焦/回车写回，Escape 取消。
+ */
+function LabelEditor({
+  node,
+  rect,
+  onDestroy,
+}: {
+  node: Node
+  rect: DOMRect
+  onDestroy: () => void
+}) {
+  const initialValue = node.attr<string>('label/text') ?? ''
+  const [value, setValue] = useState(initialValue)
+
+  const commit = () => {
+    const trimmed = value.trim()
+    if (trimmed !== initialValue) {
+      node.attr('label/text', trimmed)
+    }
+    onDestroy()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: rect.left,
+        top: rect.top,
+        width: Math.max(rect.width, 80),
+        zIndex: 9999,
+      }}
+    >
+      <Input
+        size="small"
+        value={value}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onPressEnter={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onDestroy()
+        }}
+      />
+    </div>
+  )
+}
 
 function createInteractiveService() {
   function getFilterWidth(width: number) {
@@ -209,6 +262,27 @@ function createInteractiveService() {
   }
 
   /**
+   * 双击节点 label 文本时，在文本位置浮动 antd Input 就地编辑。
+   * 失焦/回车写回 node.attr('label/text')，Escape 取消。
+   */
+  function openLabelEditor(node: Node, textEl: Element) {
+    const rect = textEl.getBoundingClientRect()
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    const destroy = () => {
+      requestAnimationFrame(() => {
+        root.unmount()
+        container.remove()
+      })
+    }
+
+    root.render(<LabelEditor node={node} rect={rect} onDestroy={destroy} />)
+  }
+
+  /**
    * 根据 Block 元数据创建节点并添加到画布指定位置（居中于点击点）
    * 复用 stencil getDragNode 的后处理逻辑：端口 ID 唯一化、尺寸兜底、阴影
    */
@@ -309,6 +383,7 @@ function createInteractiveService() {
     addBoundaryTool,
     addEdgeTools,
     openNodeModal,
+    openLabelEditor,
     openAddBlockModal,
     addNodeFromBlock,
     zoomToFitWithVirtual,
