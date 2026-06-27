@@ -4,6 +4,7 @@ import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { setRightEdgeDragging } from '@/services/graph-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { ensureLabelUnique } from '@/services/stencil-service'
 import { hasSubsystemMask } from '@/services/subsystem-service'
@@ -158,18 +159,25 @@ function registerPasteTargetListeners(graph: Graph) {
 
 // ──  Click+Ctrl 拉线 ──────────────────────────────────────────────────────
 function registerEdgeBranchListeners(graph: Graph) {
+  /** 右键拉线后短暂置 true，抑制紧随的 contextmenu */
+  let suppressEdgeContextMenu = false
+
   /**
    * @param evt EventArgs ['edge:mousedown']
    * @description: 事件委托，将临时线行为交给X6管理
    */
   function edgeMousedownHandler({ edge, e }: EventArgs['edge:mousedown']) {
-    if (!e.ctrlKey && !e.metaKey) return
+    // Ctrl+Click 或 右键均可触发拉线
+    if (!e.ctrlKey && !e.metaKey && e.button !== 2) return
     // TODO: 临时线的Link拉线及连接时逻辑
     if (edge.getAttrs()?.line?.stroke === RED) return
 
     const graph = useGraphStore.getState().graph
     const edgeView = graph.findViewByCell(edge) as EdgeView
     if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
+
+    // 右键拉线后需抑制 contextmenu
+    if (e.button === 2) suppressEdgeContextMenu = true
 
     e.stopPropagation()
     e.preventDefault()
@@ -237,12 +245,54 @@ function registerEdgeBranchListeners(graph: Graph) {
     cell.setAttrs(cell.getTargetCell() ? formalLink.attrs : previewLink.attrs)
   }
 
-  return registerListeners(graph, [
+  const unregister = registerListeners(graph, [
     ['edge:mousedown', edgeMousedownHandler],
     ['edge:connected', edgeConnectedHandler],
     ['cell:change:source', edgeSourceChangedHandler],
     ['cell:change:target', edgeTargetChangedHandler],
   ])
+
+  // ── 覆写 X6 guard：允许右键 mousedown 到达 edge（触发拉线）──────────
+  // X6 默认 guard 忽略 button===2 的 mousedown，这里放行 edge 上的右键
+  const graphView = graph.view
+  const originalGuard = graphView.guard.bind(graphView)
+  graphView.guard = (e, view) => {
+    if (e.type === 'mousedown' && e.button === 2 && view?.cell?.isEdge?.())
+      return false
+    return originalGuard(e, view)
+  }
+
+  // 捕获阶段 mousedown：在 X6 处理前设置标志位，使 interacting 放行 edgeMovable
+  const onNativeMouseDown = (e: MouseEvent) => {
+    if (e.button !== 2) return
+    const view = graph.findViewByElem(e.target as Element)
+    if (view?.cell?.isEdge?.()) setRightEdgeDragging(true)
+  }
+  graph.container.addEventListener('mousedown', onNativeMouseDown, true)
+
+  // 右键释放时复位标志位
+  const onNativeMouseUp = () => {
+    setRightEdgeDragging(false)
+  }
+  document.addEventListener('mouseup', onNativeMouseUp)
+
+  // 捕获阶段抑制右键拉线后的 contextmenu
+  const onContextMenu = (e: MouseEvent) => {
+    if (!suppressEdgeContextMenu) return
+    e.preventDefault()
+    e.stopPropagation()
+    suppressEdgeContextMenu = false
+  }
+  graph.container.addEventListener('contextmenu', onContextMenu, true)
+
+  return () => {
+    unregister()
+    graphView.guard = originalGuard
+    graph.container.removeEventListener('mousedown', onNativeMouseDown, true)
+    document.removeEventListener('mouseup', onNativeMouseUp)
+    graph.container.removeEventListener('contextmenu', onContextMenu, true)
+    setRightEdgeDragging(false)
+  }
 }
 
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
