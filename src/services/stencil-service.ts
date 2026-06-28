@@ -45,10 +45,26 @@ class ManagedStencil extends Stencil {
 
 // ── 测试：Subsystem block 数据（来自 DiagramModel.tsx 验证通过） ──────────────
 const SUBSYSTEM_TEST_BLOCK = {
-  shape: 'subsystem-block',
+  shape: 'text-block',
   width: 100,
   height: 60,
-  text: 'Subsystem',
+  attrs: {
+    foreignObject: {
+      refWidth: '100%',
+      refHeight: null,
+      refY: '100%',
+    },
+    label: {
+      text: 'Subsystem',
+      style: {
+        width: 'fit-content',
+        height: 'auto',
+        whiteSpace: 'pre',
+        marginLeft: '50%',
+        transform: 'translateX(-50%)',
+      },
+    },
+  },
   ports: {
     items: [
       { id: 'i1', group: 'inSYS' },
@@ -257,7 +273,7 @@ function createStencilService() {
         // 节点阴影
         interactiveService.removeOutline(res)
         // 子系统：暂存 label 并清空，避免拖拽时 foreignObject 裁剪
-        if (node.shape === 'subsystem-block') {
+        if (node.getData()?.blockType === 'Subsystem') {
           pendingLabelText = res.attr<string>('label/text') ?? ''
           res.attr('label/text', '')
           return res

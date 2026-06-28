@@ -1,12 +1,18 @@
-import { CellView, FunctionExt, Scroller } from '@antv/x6'
+import { CellView, FunctionExt, Node, Scroller } from '@antv/x6'
+import type { PortMetadata } from '@antv/x6/lib/model/port'
 
 // ── X6 运行时原型补丁 ────────────────────────────────────────────────────────
 // _xxx 前缀表示自定义框架补丁方法，避免与 X6 未来版本的方法名冲突。
 // ─────────────────────────────────────────────────────────────────────────────
 
+declare module '@antv/x6' {
+  interface Node {
+    _getMergedPort(portId: string): PortMetadata
+  }
+}
+
 CellView.prototype._getSelectors = function () {
-  return (this as unknown as { selectors: Record<string, Element | Element[]> })
-    .selectors
+  return (this as unknown as { selectors: Record<string, Element> }).selectors
 }
 
 /**
@@ -51,4 +57,34 @@ export function _patchScrollerForceUpdate(scroller: Scroller) {
     allowNewOrigin: 'negative',
     useCellGeometry: true,
   })
+}
+
+/**
+ * 获取合并后的完整 PortMetadata（item + group）
+ * X6 getPort() 只返回 item 自身数据，不包含 group 定义。
+ * 此补丁将 group 的 markup/attrs/label 与 item 合并，得到渲染时的完整数据。
+ */
+Node.prototype._getMergedPort = function (
+  this: Node,
+  portId: string,
+): PortMetadata {
+  const item = this.getPort(portId)
+  const groupName = item.group
+  if (!groupName) return item
+  // 通过 ports getter 获取完整 ports 数据（含 groups）
+  const portsData = (
+    this as unknown as { ports: { groups?: Record<string, PortMetadata> } }
+  ).ports
+  const groupDef = portsData?.groups?.[groupName]
+  if (!groupDef) return item
+  // group 为底，item 覆盖
+  return {
+    ...groupDef,
+    ...item,
+    attrs: { ...groupDef.attrs, ...item.attrs },
+    label: {
+      ...groupDef.label,
+      ...item.label,
+    },
+  }
 }

@@ -482,10 +482,10 @@ function registerLabelUniqueListeners(graph: Graph) {
   return registerListeners(graph, [['node:added', nodeAddedHandler]])
 }
 
-// ── 可编辑 Label（subsystem-block，mouseenter 惰性设置）─────────────────
+// ── 可编辑 Label（text-block subsystem，mouseenter 惰性设置）──────────────
 function registerEditableLabelListeners(graph: Graph) {
   function nodeMouseEnterHandler({ node }: EventArgs['node:mouseenter']) {
-    if (node.shape !== 'subsystem-block') return
+    if (node.getData()?.blockType !== 'Subsystem') return
 
     const view = graph.findViewByCell(node)
     if (!view) return

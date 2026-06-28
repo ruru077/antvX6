@@ -24,6 +24,7 @@ Graph.registerNode(
         refY: '100%',
       },
       label: {
+        text: 'Subsystem',
         style: {
           width: 'fit-content',
           height: 'auto',

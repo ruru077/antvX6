@@ -29,6 +29,7 @@ import {
   loadEntryGraphModel,
   changeGraphView,
   buildGraphModelDTO,
+  flatGraph,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -119,7 +120,14 @@ function PaperToolbar(_: PaperToolbarProps) {
     <>
       <Space size={4} align="center" style={{ width: '100%' }}>
         <Tooltip title="返回" mouseEnterDelay={0.3}>
-          <AntdButton size="small" icon={<ArrowLeft size={14} />}>
+          <AntdButton
+            size="small"
+            icon={<ArrowLeft size={14} />}
+            onClick={() => {
+              useSubGraphStore.getState().syncGraph(graph.toJSON())
+              flatGraph(useSubGraphStore.getState().subGraphs, 'root', graph)
+            }}
+          >
             返回
           </AntdButton>
         </Tooltip>
