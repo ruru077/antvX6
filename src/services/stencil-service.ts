@@ -1,4 +1,4 @@
-import { Stencil, StringExt } from '@antv/x6'
+import { Stencil } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
 import {
@@ -278,10 +278,10 @@ function createStencilService() {
           res.attr('label/text', '')
           return res
         }
-        // 更新port id 确保唯一性
-        res.getPorts().forEach((port) => {
-          if (port.id) res.portProp(port.id, 'id', StringExt.uuid())
-        })
+        // // 更新port id 确保唯一性
+        // res.getPorts().forEach((port) => {
+        //   if (port.id) res.portProp(port.id, 'id', StringExt.uuid())
+        // })
         const { width, height } = res.getSize()
         /// 宽高不相等为特调模块 不进行处理
         return width !== height

@@ -59,6 +59,25 @@ export function _patchScrollerForceUpdate(scroller: Scroller) {
   })
 }
 
+export function mergePortMetadata(
+  item: PortMetadata,
+  groups?: Record<string, PortMetadata>,
+): PortMetadata {
+  const groupName = item.group
+  if (!groupName) return item
+  const groupDef = groups?.[groupName]
+  if (!groupDef) return item
+  return {
+    ...groupDef,
+    ...item,
+    attrs: { ...groupDef.attrs, ...item.attrs },
+    label: {
+      ...groupDef.label,
+      ...item.label,
+    },
+  }
+}
+
 /**
  * 获取合并后的完整 PortMetadata（item + group）
  * X6 getPort() 只返回 item 自身数据，不包含 group 定义。
@@ -75,16 +94,5 @@ Node.prototype._getMergedPort = function (
   const portsData = (
     this as unknown as { ports: { groups?: Record<string, PortMetadata> } }
   ).ports
-  const groupDef = portsData?.groups?.[groupName]
-  if (!groupDef) return item
-  // group 为底，item 覆盖
-  return {
-    ...groupDef,
-    ...item,
-    attrs: { ...groupDef.attrs, ...item.attrs },
-    label: {
-      ...groupDef.label,
-      ...item.label,
-    },
-  }
+  return mergePortMetadata(item, portsData?.groups)
 }

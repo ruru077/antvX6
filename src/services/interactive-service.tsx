@@ -1,4 +1,3 @@
-import { StringExt } from '@antv/x6'
 import { Input } from 'antd'
 import { createRoot } from 'react-dom/client'
 import {
@@ -284,7 +283,7 @@ function createInteractiveService() {
 
   /**
    * 根据 Block 元数据创建节点并添加到画布指定位置（居中于点击点）
-   * 复用 stencil getDragNode 的后处理逻辑：端口 ID 唯一化、尺寸兜底、阴影
+   * 复用 stencil getDragNode 的后处理逻辑：尺寸兜底、阴影
    */
   function addNodeFromBlock(block: Block, x: number, y: number): void {
     const graph = useGraphStore.getState().graph
@@ -297,10 +296,6 @@ function createInteractiveService() {
 
     // 子系统不做端口/尺寸处理，方便解构
     if (node.getData()?.blockType !== 'Subsystem') {
-      // 更新 port id 确保唯一性
-      node.getPorts().forEach((port) => {
-        if (port.id) node.portProp(port.id, 'id', StringExt.uuid())
-      })
       // 宽高相等时设为最小 60×60
       const { width, height } = node.getSize()
       if (width === height) {

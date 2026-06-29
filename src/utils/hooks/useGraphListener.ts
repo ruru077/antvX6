@@ -1,4 +1,3 @@
-import { StringExt } from '@antv/x6'
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
@@ -602,11 +601,8 @@ function registerRightClickDragListeners(graph: Graph) {
     state.ghostEl?.remove()
     graph.container.style.cursor = ''
 
-    // 克隆源节点，更新端口 ID 确保唯一性（参考 stencil getDragNode）
+    // 克隆源节点；port id 保留业务语义，唯一性由 cell + port 确定
     const clone = state.sourceNode.clone()
-    clone.getPorts().forEach((port) => {
-      if (port.id) clone.portProp(port.id, 'id', StringExt.uuid())
-    })
 
     // 定位到释放点（居中于光标）
     const pos = graph.pageToLocal(e.pageX, e.pageY)
