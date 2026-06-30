@@ -70,6 +70,11 @@ type RoutableEdge = {
 type RouteItem = RoutableEdge & {
   points: XY[]
 }
+type TerminalRole = 'source' | 'target'
+type EdgeRoutingContext = {
+  ignoredNodeIds: Set<string>
+  pointTerminals: Set<TerminalRole>
+}
 
 let routeRequestId = 0
 let activeRoutePromise: Promise<void> | null = null
@@ -214,13 +219,48 @@ function routeWithObstacle(
   routableEdges: RoutableEdge[],
   options: RouteDemoOptions,
 ) {
+  const normalEdges: RoutableEdge[] = []
+  const fallbackRoutes: RouteItem[] = []
+
+  routableEdges.forEach((edge) => {
+    const context = getEdgeRoutingContext(graph, edge, options)
+    if (isEmptyRoutingContext(context)) {
+      normalEdges.push(edge)
+      return
+    }
+
+    fallbackRoutes.push(
+      ...routeWithObstacleOnce(graph, [edge], options, context),
+    )
+  })
+
+  return [
+    ...routeWithObstacleOnce(
+      graph,
+      normalEdges,
+      options,
+      createRoutingContext(),
+    ),
+    ...fallbackRoutes,
+  ]
+}
+
+function routeWithObstacleOnce(
+  graph: Graph,
+  routableEdges: RoutableEdge[],
+  options: RouteDemoOptions,
+  context: EdgeRoutingContext,
+) {
+  if (!routableEdges.length) return []
+
   const router = new Router(OrthogonalRouting)
   wireObstacleRouter(router)
   router.setRoutingParameter(shapeBufferDistance, options.edgeToNodeGap)
   router.setRoutingParameter(idealNudgingDistance, options.edgeToEdgeGap)
   router.setRoutingParameter(segmentPenalty, options.segmentPenalty)
   router.setRoutingParameter(anglePenalty, options.anglePenalty)
-  router.setRoutingParameter(crossingPenalty, getSafeCrossingPenalty(options))
+  // Keep obstacle-router's crossing reroute pass disabled; it can hang.
+  router.setRoutingParameter(crossingPenalty, 0)
   router.setRoutingParameter(
     reverseDirectionPenalty,
     options.reverseDirectionPenalty,
@@ -233,6 +273,7 @@ function routeWithObstacle(
   const shapeRefs = new Map<string, ShapeRef>()
   const pinClassByPort = new Map<string, number>()
   graph.getNodes().forEach((node) => {
+    if (context.ignoredNodeIds.has(node.id)) return
     const bbox = node.getBBox()
     const shapeRef = createObstacleShape(router, bbox)
     shapeRefs.set(node.id, shapeRef)
@@ -259,15 +300,25 @@ function routeWithObstacle(
     const targetShape = shapeRefs.get(item.target.routeNodeId)
     const sourcePin = pinClassByPort.get(item.source.routePortId)
     const targetPin = pinClassByPort.get(item.target.routePortId)
+    const sourceAsPoint = context.pointTerminals.has('source')
+    const targetAsPoint = context.pointTerminals.has('target')
 
-    if (!sourceShape || !targetShape || !sourcePin || !targetPin) return []
+    if (!sourceAsPoint && (!sourceShape || !sourcePin)) return []
+    if (!targetAsPoint && (!targetShape || !targetPin)) return []
     const conn = new ConnRef(
       router,
-      getObstacleConnEnd(item.source, sourceShape, sourcePin),
-      getObstacleConnEnd(item.target, targetShape, targetPin),
+      getObstacleConnEnd(
+        item.source,
+        sourceAsPoint ? undefined : sourceShape,
+        sourceAsPoint ? undefined : sourcePin,
+      ),
+      getObstacleConnEnd(
+        item.target,
+        targetAsPoint ? undefined : targetShape,
+        targetAsPoint ? undefined : targetPin,
+      ),
     )
     conn.setRoutingType(ConnType_Orthogonal)
-    conn.setHateCrossings(options.hateCrossings)
     const checkpoints = getStubCheckpoints(item, options.stubSize)
     if (checkpoints.length) conn.setRoutingCheckpoints(checkpoints)
     return [{ ...item, conn }]
@@ -331,6 +382,139 @@ function applyRoutes(routes: RouteItem[], options: RouteDemoOptions) {
       { ui: true, ignore: true },
     )
   })
+}
+
+function createRoutingContext(): EdgeRoutingContext {
+  return {
+    ignoredNodeIds: new Set<string>(),
+    pointTerminals: new Set<TerminalRole>(),
+  }
+}
+
+function isEmptyRoutingContext(context: EdgeRoutingContext) {
+  return context.ignoredNodeIds.size === 0 && context.pointTerminals.size === 0
+}
+
+function getEdgeRoutingContext(
+  graph: Graph,
+  edge: RoutableEdge,
+  options: RouteDemoOptions,
+) {
+  const context = createRoutingContext()
+  const terminalNodeIds = new Set(
+    [edge.source, edge.target]
+      .filter(
+        (terminal): terminal is NodeTerminalInfo => terminal.kind === 'node',
+      )
+      .map((terminal) => terminal.nodeId),
+  )
+
+  graph.getNodes().forEach((node) => {
+    if (terminalNodeIds.has(node.id)) return
+
+    const effectiveBBox = inflateBBox(node.getBBox(), options.edgeToNodeGap)
+    if (
+      isTerminalBlockedByBBox(edge.source, effectiveBBox, options) ||
+      isTerminalBlockedByBBox(edge.target, effectiveBBox, options)
+    ) {
+      context.ignoredNodeIds.add(node.id)
+    }
+  })
+
+  addTerminalObstacleFallback(context, edge, options)
+
+  return context
+}
+
+function addTerminalObstacleFallback(
+  context: EdgeRoutingContext,
+  edge: RoutableEdge,
+  options: RouteDemoOptions,
+) {
+  if (edge.source.kind === 'node' && edge.target.kind === 'node') {
+    maybeIgnoreBlockingTerminal(
+      context,
+      'source',
+      edge.source,
+      edge.target,
+      options,
+    )
+    maybeIgnoreBlockingTerminal(
+      context,
+      'target',
+      edge.target,
+      edge.source,
+      options,
+    )
+  }
+}
+
+function maybeIgnoreBlockingTerminal(
+  context: EdgeRoutingContext,
+  blockerRole: TerminalRole,
+  blocker: NodeTerminalInfo,
+  peer: NodeTerminalInfo,
+  options: RouteDemoOptions,
+) {
+  const effectiveBBox = inflateBBox(
+    blocker.node.getBBox(),
+    options.edgeToNodeGap,
+  )
+  if (!isTerminalBlockedByBBox(peer, effectiveBBox, options)) return
+
+  context.ignoredNodeIds.add(blocker.nodeId)
+  context.pointTerminals.add(blockerRole)
+}
+
+function isTerminalBlockedByBBox(
+  terminal: AnyTerminalInfo,
+  effectiveBBox: BBox,
+  options: RouteDemoOptions,
+) {
+  if (pointInBBox(terminal.point, effectiveBBox)) return true
+
+  const clearance = Math.max(
+    options.stubSize,
+    options.edgeToNodeGap,
+    GRAPH_GRID,
+  )
+  const forwardPoint = offsetByDirection(
+    terminal.point,
+    terminal.direction,
+    clearance,
+  )
+  return segmentIntersectsBBox(terminal.point, forwardPoint, effectiveBBox)
+}
+
+function inflateBBox(bbox: BBox, padding: number): BBox {
+  return {
+    x: bbox.x - padding,
+    y: bbox.y - padding,
+    width: bbox.width + padding * 2,
+    height: bbox.height + padding * 2,
+  }
+}
+
+function pointInBBox(point: XY, bbox: BBox) {
+  return (
+    point.x >= bbox.x &&
+    point.x <= bbox.x + bbox.width &&
+    point.y >= bbox.y &&
+    point.y <= bbox.y + bbox.height
+  )
+}
+
+function segmentIntersectsBBox(a: XY, b: XY, bbox: BBox) {
+  const minX = Math.min(a.x, b.x)
+  const maxX = Math.max(a.x, b.x)
+  const minY = Math.min(a.y, b.y)
+  const maxY = Math.max(a.y, b.y)
+  return (
+    minX <= bbox.x + bbox.width &&
+    maxX >= bbox.x &&
+    minY <= bbox.y + bbox.height &&
+    maxY >= bbox.y
+  )
 }
 
 function normalizeRoutePoints(
@@ -685,10 +869,6 @@ function snapPoint(point: XY, gridSize: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
-}
-
-function getSafeCrossingPenalty(options: RouteDemoOptions) {
-  return clamp(options.crossingPenalty, 0, 30)
 }
 
 function isPreviewEdge(edge: Edge) {

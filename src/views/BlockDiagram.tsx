@@ -37,7 +37,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
       <div className="diagram-canvas-area">
         <div className="paper-toolbar">
           {/* PaperToolbar */}
-          <PaperToolbar modelName={'OpenLoop'} />
+          <PaperToolbar modelName={'待实现交叉惩罚，尽量绕路避免交叉'} />
         </div>
         <div className="diagram-body">
           {/* 左侧工具栏 */}

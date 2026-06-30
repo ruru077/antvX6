@@ -10,13 +10,11 @@ type RouteDemoOptions = {
   stubSize: number
   segmentPenalty: number
   anglePenalty: number
-  crossingPenalty: number
   reverseDirectionPenalty: number
   portDirectionPenalty: number
   gridSize: number
   gapSize: number
   cornerRadius: number
-  hateCrossings: boolean
   realtime: boolean
 }
 
@@ -43,13 +41,11 @@ const DEFAULT_ROUTE_DEMO_PARAMS: RouteDemoParams = {
   stubSize: 24,
   segmentPenalty: 10,
   anglePenalty: 0,
-  crossingPenalty: 0,
   reverseDirectionPenalty: 0,
   portDirectionPenalty: 100,
   gridSize: GRAPH_GRID,
   gapSize: GAP_SIZE,
   cornerRadius: 0,
-  hateCrossings: false,
   realtime: false,
 }
 

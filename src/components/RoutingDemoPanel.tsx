@@ -1,4 +1,4 @@
-import { Button, InputNumber, Segmented, Slider, Space, Switch } from 'antd'
+import { Button, InputNumber, Segmented, Slider, Switch } from 'antd'
 import { routeAllEdges } from '@/services/avoid-routing-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { RouteDemoOptions, RouteEngine } from '@/store/routeDemoStore'
@@ -12,7 +12,6 @@ type NumberOption = {
     | 'stubSize'
     | 'segmentPenalty'
     | 'anglePenalty'
-    | 'crossingPenalty'
     | 'reverseDirectionPenalty'
     | 'portDirectionPenalty'
     | 'gridSize'
@@ -31,7 +30,6 @@ const NUMBER_OPTIONS: NumberOption[] = [
   { key: 'stubSize', label: 'Stub size', min: 0, max: 100 },
   { key: 'segmentPenalty', label: 'Segment penalty', min: 0, max: 80 },
   { key: 'anglePenalty', label: 'Angle penalty', min: 0, max: 80 },
-  { key: 'crossingPenalty', label: 'Crossing penalty', min: 0, max: 30 },
   {
     key: 'reverseDirectionPenalty',
     label: 'Reverse penalty',
@@ -46,7 +44,7 @@ const NUMBER_OPTIONS: NumberOption[] = [
 
 function RoutingDemoPanel() {
   const graph = useGraphStore((state) => state.graph)
-  const { engine, hateCrossings, realtime, setEngine, setOption, ...options } =
+  const { engine, realtime, setEngine, setOption, ...options } =
     useRouteDemoStore()
 
   useEffect(() => {
@@ -73,22 +71,14 @@ function RoutingDemoPanel() {
         onChange={(value) => setEngine(value as RouteEngine)}
       />
       <div className="routing-demo-panel__toggles">
-        <Space size={8}>
-          <span>Hate crossings</span>
-          <Switch
-            size="small"
-            checked={hateCrossings}
-            onChange={(checked) => setOption('hateCrossings', checked)}
-          />
-        </Space>
-        <Space size={8}>
+        <label className="routing-demo-panel__toggle">
           <span>Realtime</span>
           <Switch
             size="small"
             checked={realtime}
             onChange={(checked) => setOption('realtime', checked)}
           />
-        </Space>
+        </label>
       </div>
       <div className="routing-demo-panel__fields">
         {NUMBER_OPTIONS.map((item) => (
