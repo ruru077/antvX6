@@ -10,7 +10,7 @@ const BLACK = '#000000'
 const TARGETMARKER_SIZE = 15
 // EDGE 线宽
 const EDGE_STROKE_WIDTH = 1.5
-// EDGE 交点GAP
+// EDGE 交点GAP，固定写入 X6 connector，不随画布缩放换算
 const GAP_SIZE = 2.5
 const RADIUS_SIZE = 4
 // 吸附触发Threshold

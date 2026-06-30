@@ -2,6 +2,7 @@ import {
   CanvasLeftToolbar,
   CanvasToolbars,
   PaperToolbar,
+  RoutingDemoPanel,
   StencilPanel,
   SubsystemNavBar,
 } from '@/components'
@@ -51,6 +52,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
             {navPanelVisible && <SubsystemNavBar />}
             <div className="paper-container">
               <div ref={paperContainerRef} className="paper"></div>
+              <RoutingDemoPanel />
               {/* 悬浮工具栏 */}
               <CanvasToolbars visible={toolbarsVisible} />
             </div>

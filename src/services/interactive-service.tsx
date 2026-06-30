@@ -1,4 +1,4 @@
-import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
+import type { Cell, Edge, Graph, Node } from '@antv/x6'
 import { Input } from 'antd'
 import { createRoot } from 'react-dom/client'
 import {
@@ -76,24 +76,6 @@ function createInteractiveService() {
     const graph = useGraphStore.getState().graph
     const isPreview = edge.getAttrs()?.line?.stroke === RED
 
-    // 将 Manhattan 路由动态计算的折点物化为模型 vertices
-    // 仅对正式连线处理；previewLink（红色临时线）不物化，避免影响后续连接的寻线结果
-    const edgeView = graph.findViewByCell(edge) as EdgeView
-    if (
-      !isPreview &&
-      !edge.getRouter() &&
-      edge.getVertices().length === 0 &&
-      edgeView?.routePoints
-    ) {
-      const pts = edgeView.routePoints
-      // routePoints 已是纯中间折点（manhattan reconstructRoute 不含 source/target）
-      const intermediates = pts.map((p) => ({ x: p.x, y: p.y }))
-      if (intermediates.length > 0) {
-        edge.setVertices(intermediates, { undo: false })
-        edge.setRouter('orth', { undo: false })
-      }
-    }
-
     const sourceCell = graph.getCellById(edge.getSourceCellId())
     const isBranchEdge = sourceCell.isEdge()
     const tools = []
@@ -113,42 +95,18 @@ function createInteractiveService() {
         },
       })
     }
-    tools.push(
-      {
-        name: 'target-arrowhead',
-        args: {
-          ratio: isPreview ? 1.05 : 0.96,
-          attrs: {
-            fill: 'transparent',
-            stroke: 'transparent',
-            'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
-            cursor: 'move',
-          },
+    tools.push({
+      name: 'target-arrowhead',
+      args: {
+        ratio: isPreview ? 1.05 : 0.96,
+        attrs: {
+          fill: 'transparent',
+          stroke: 'transparent',
+          'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
+          cursor: 'move',
         },
       },
-      {
-        name: 'vertices',
-        args: {
-          addable: false,
-          removable: false,
-          attrs: { fill: 'transparent', stroke: 'transparent' },
-          processHandle(handle: {
-            container: SVGElement
-            setAttrs: (attrs: Record<string, unknown>) => void
-          }) {
-            handle.container.addEventListener('mouseenter', () => {
-              handle.setAttrs({ fill: 'green', stroke: '#fff' })
-            })
-            handle.container.addEventListener('mouseleave', () => {
-              handle.setAttrs({ fill: 'transparent', stroke: 'transparent' })
-            })
-          },
-        },
-      },
-      {
-        name: 'simulink-segments',
-      },
-    )
+    })
     edge.addTools(tools, { undo: false })
   }
 

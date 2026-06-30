@@ -1,6 +1,5 @@
 import type {
   Cell,
-  Edge,
   EdgeView,
   EventArgs,
   Graph,
@@ -11,6 +10,7 @@ import type {
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
 import { formalLink, previewLink } from '@/assets/x6Model'
+import { routeAllEdges } from '@/services/avoid-routing-service'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
@@ -20,11 +20,11 @@ import {
   setPasteTarget,
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
+import { useRouteDemoStore } from '@/store/routeDemoStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
-const PORT_VERTEX_OFFSET = 50
 
 // 当前鼠标所在节点和是否正在变换 用于 Transform 工具显示控制
 let currentNode: Node | null = null
@@ -182,6 +182,7 @@ function registerEdgeBranchListeners(graph: Graph) {
     if (edge.getAttrs()?.line?.stroke == RED) {
       edge.setAttrs(formalLink.attrs)
     }
+    void routeAllEdges(graph)
   }
   return registerListeners(graph, [
     ['edge:mousedown', edgeMousedownHandler],
@@ -211,174 +212,25 @@ function registerEdgeToolListeners(graph: Graph) {
 
 // ── Node 移动后重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
-  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
-    clearConnectedEdgeRoutes(graph, node)
+  function nodeMovingHandler(_args: EventArgs['node:moving']) {
+    if (useRouteDemoStore.getState().realtime) {
+      void routeAllEdges(graph)
+    }
   }
 
-  function nodeMovedHandler({ node }: EventArgs['node:moved']) {
-    applyConnectedEdgePortVertices(graph, node)
+  function nodeMovedHandler(_args: EventArgs['node:moved']) {
+    void routeAllEdges(graph)
+  }
+
+  function nodeResizedHandler(_args: EventArgs['node:resized']) {
+    void routeAllEdges(graph)
   }
 
   return registerListeners(graph, [
     ['node:moving', nodeMovingHandler],
     ['node:moved', nodeMovedHandler],
+    ['node:resized', nodeResizedHandler],
   ])
-}
-
-function clearConnectedEdgeRoutes(graph: Graph, node: Node) {
-  const connectedEdges = graph.model.getConnectedEdges(node)
-  connectedEdges.forEach((edge) => {
-    const oldVertices = edge.getVertices()
-    const oldRouter = edge.getRouter()
-    if (oldVertices.length === 0 && !oldRouter) return
-
-    edge.setVertices([], { ui: true, ignore: true })
-    edge.removeRouter({ ui: true, ignore: true })
-    console.info('[route] node:moving clear edge vertices/router', {
-      nodeId: node.id,
-      edgeId: edge.id,
-      vertices: oldVertices,
-      router: oldRouter,
-    })
-  })
-}
-
-function applyConnectedEdgePortVertices(graph: Graph, node: Node) {
-  const connectedEdges = graph.model.getConnectedEdges(node)
-  connectedEdges.forEach((edge) => {
-    const sourceInfo = getTerminalPortVertex(graph, edge, 'source')
-    const targetInfo = getTerminalPortVertex(graph, edge, 'target')
-    const vertices = [sourceInfo?.vertex, targetInfo?.vertex].filter(
-      (vertex): vertex is { x: number; y: number } => !!vertex,
-    )
-
-    edge.removeRouter({ ui: true, ignore: true })
-    edge.setVertices(vertices, { ui: true, ignore: true })
-    console.info('[route] node:moved apply port vertices', {
-      nodeId: node.id,
-      edgeId: edge.id,
-      source: sourceInfo,
-      target: targetInfo,
-      vertices,
-    })
-  })
-}
-
-function getTerminalPortVertex(
-  graph: Graph,
-  edge: Edge,
-  terminal: 'source' | 'target',
-) {
-  const cellId =
-    terminal === 'source' ? edge.getSourceCellId() : edge.getTargetCellId()
-  const portId =
-    terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
-  if (!cellId || !portId) return null
-
-  const cell = graph.getCellById(cellId)
-  if (!cell?.isNode()) return null
-
-  const direction = getPortDirection(cell, portId)
-  if (!direction) return null
-
-  const portPosition = getPortPosition(cell, portId)
-  if (!portPosition) return null
-
-  return {
-    terminal,
-    cellId,
-    portId,
-    direction,
-    portPosition,
-    vertex: getOffsetVertex(portPosition, direction),
-  }
-}
-
-function getPortDirection(node: Node, portId: string) {
-  const port = node.getPort(portId) as
-    | { group?: string; position?: PortPositionLike }
-    | undefined
-  const groupPosition = getPortGroupPosition(node, port?.group)
-  const direction = normalizePortDirection(port?.position ?? groupPosition)
-  return direction || inferPortDirection(node, portId)
-}
-
-function getPortGroupPosition(node: Node, groupName?: string) {
-  if (!groupName) return null
-  return ((node as unknown as PortNode).ports.groups?.[groupName]?.position ??
-    null) as PortPositionLike | null
-}
-
-function normalizePortDirection(position?: PortPositionLike | null) {
-  const name = typeof position === 'string' ? position : position?.name
-  if (
-    name === 'left' ||
-    name === 'right' ||
-    name === 'top' ||
-    name === 'bottom'
-  ) {
-    return name
-  }
-  return null
-}
-
-function inferPortDirection(node: Node, portId: string) {
-  const portPosition = getPortPosition(node, portId)
-  if (!portPosition) return null
-
-  const bbox = node.getBBox()
-  const distances = [
-    { direction: 'left' as const, value: Math.abs(portPosition.x - bbox.x) },
-    {
-      direction: 'right' as const,
-      value: Math.abs(portPosition.x - (bbox.x + bbox.width)),
-    },
-    { direction: 'top' as const, value: Math.abs(portPosition.y - bbox.y) },
-    {
-      direction: 'bottom' as const,
-      value: Math.abs(portPosition.y - (bbox.y + bbox.height)),
-    },
-  ]
-  distances.sort((a, b) => a.value - b.value)
-  return distances[0].direction
-}
-
-function getPortPosition(node: Node, portId: string) {
-  const port = node.getPort(portId)
-  if (!port?.group) return null
-
-  const portLayout = node.getPortsPosition(port.group)[portId]
-  if (!portLayout) return null
-
-  const nodePosition = node.getPosition()
-  return {
-    x: nodePosition.x + portLayout.position.x,
-    y: nodePosition.y + portLayout.position.y,
-  }
-}
-
-function getOffsetVertex(
-  portPosition: { x: number; y: number },
-  direction: PortDirection,
-) {
-  switch (direction) {
-    case 'left':
-      return { x: portPosition.x - PORT_VERTEX_OFFSET, y: portPosition.y }
-    case 'right':
-      return { x: portPosition.x + PORT_VERTEX_OFFSET, y: portPosition.y }
-    case 'top':
-      return { x: portPosition.x, y: portPosition.y - PORT_VERTEX_OFFSET }
-    case 'bottom':
-      return { x: portPosition.x, y: portPosition.y + PORT_VERTEX_OFFSET }
-  }
-}
-
-type PortDirection = 'left' | 'right' | 'top' | 'bottom'
-type PortPositionLike = string | { name?: string }
-type PortNode = Node & {
-  ports: {
-    groups?: Record<string, { position?: PortPositionLike }>
-  }
 }
 
 // ── #5 Transform ──────────────────────────────────────────────────────────

@@ -20,9 +20,6 @@ importers:
       antd:
         specifier: ^6.4.3
         version: 6.4.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      libavoid-js:
-        specifier: file:../libavoid-js
-        version: file:../libavoid-js
       liquid-glass-react:
         specifier: ^1.1.1
         version: 1.1.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -32,6 +29,9 @@ importers:
       node:
         specifier: runtime:^24.16.0
         version: runtime:24.16.0
+      obstacle-router:
+        specifier: ^0.1.2
+        version: 0.1.2
       react:
         specifier: ^19.2.6
         version: 19.2.6
@@ -1663,9 +1663,6 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
-  libavoid-js@file:../libavoid-js:
-    resolution: {directory: ../libavoid-js, type: directory}
-
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
     engines: {node: '>= 12.0.0'}
@@ -1952,6 +1949,9 @@ packages:
               libc: musl
     version: 24.16.0
     hasBin: true
+
+  obstacle-router@0.1.2:
+    resolution: {integrity: sha512-xL+TIW7eST/ZMHw43YK71yPobao+if273Srdjy9w6Ct9UN3/t+oEmP8sz2CB6R1USHSW4HNj9bmlQBebppF6Pg==}
 
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
@@ -4106,8 +4106,6 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  libavoid-js@file:../libavoid-js: {}
-
   lightningcss-android-arm64@1.32.0:
     optional: true
 
@@ -4252,6 +4250,8 @@ snapshots:
   node-releases@2.0.44: {}
 
   node@runtime:24.16.0: {}
+
+  obstacle-router@0.1.2: {}
 
   obug@2.1.1: {}
 

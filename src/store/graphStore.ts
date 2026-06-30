@@ -11,22 +11,20 @@ import {
   Shape,
   Snapline,
   Transform,
-  routerPresets,
 } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { create } from 'zustand'
 import {
   EDGE_TARGET_CP_OFFSET,
-  GAP_SIZE,
   GRAPH_GRID,
   PASTE_OFFSET,
   RADIUS_SIZE,
   SNAP_RADIUS,
 } from '@/assets/constant'
-import { previewLink } from '@/assets/x6Model'
+import { formalLink, previewLink, signalPortGroups } from '@/assets/x6Model'
 import { openAutoPan } from '@/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/plugin/ratioAnchorTool'
-import { registerSimulinkSegmentsTool } from '@/plugin/segmentsTool'
+import { routeAllEdges } from '@/services/avoid-routing-service'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
@@ -35,6 +33,7 @@ import {
   setIsSelectionByKey,
   setPasteTarget,
 } from '@/store/flags'
+import { useRouteDemoStore } from '@/store/routeDemoStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 
 const commonService = createCommonService()
@@ -76,6 +75,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
     })
     registerPlugins(graph)
     registerKeyBindings(graph)
+    loadDefaultRoutingDemo(graph)
     graph.getPlugin<Scroller>('scroller')!.centerPoint(500, 500)
     openAutoPan(graph)
     set({ graph })
@@ -91,6 +91,7 @@ const useGraphStore = create<GraphStore>((set, get) => ({
 // ── Graph 实例创建 ────────────────────────────────────────────────────────────
 
 function createGraph(container: HTMLElement): GraphType {
+  const { gapSize } = useRouteDemoStore.getState()
   return new Graph({
     container,
     autoResize: true,
@@ -110,28 +111,11 @@ function createGraph(container: HTMLElement): GraphType {
         radius: SNAP_RADIUS,
         anchor: 'bbox',
       },
-      router: {
-        name: 'manhattan',
-        args: {
-          step: GRAPH_GRID,
-          // padding: { top: 0, right: 30, bottom: 0, left: 30 },
-          // padding: 0,
-          // excludeTerminals: ['source', 'target'],
-          // startDirections: ['right'],
-          // endDirections: ['left'],
-          // fallbackRouter: routerPresets.er,
-          // 拉线时 target 悬空，endPoints 极易落入障碍物导致 A* 失败
-          // 直接返回空顶点（直线）跳过避障，连接后再走完整 manhattan 路由
-          // draggingRouter() {
-          //   return []
-          // },
-        },
-      },
       connector: {
         name: 'jumpover',
         args: {
           type: 'gap',
-          size: GAP_SIZE,
+          size: gapSize,
           radius: RADIUS_SIZE,
         },
       }, // ── 拖线时生成的 Edge 默认样式 ────────────────────────────
@@ -159,9 +143,157 @@ function createGraph(container: HTMLElement): GraphType {
   })
 }
 
+function loadDefaultRoutingDemo(graph: GraphType) {
+  if (graph.getCells().length > 0) return
+
+  const { gapSize } = useRouteDemoStore.getState()
+  const nodes = [
+    {
+      id: 'demo-block-1',
+      label: '1x1 A',
+      x: 90,
+      y: 210,
+      width: 90,
+      height: 54,
+      inCount: 1,
+      outCount: 1,
+    },
+    {
+      id: 'demo-block-2',
+      label: '1x1 B',
+      x: 270,
+      y: 90,
+      width: 90,
+      height: 54,
+      inCount: 1,
+      outCount: 1,
+    },
+    {
+      id: 'demo-block-3',
+      label: '2x2 A',
+      x: 270,
+      y: 330,
+      width: 96,
+      height: 72,
+      inCount: 2,
+      outCount: 2,
+    },
+    {
+      id: 'demo-block-4',
+      label: '2x2 B',
+      x: 510,
+      y: 210,
+      width: 96,
+      height: 72,
+      inCount: 2,
+      outCount: 2,
+    },
+    {
+      id: 'demo-block-5',
+      label: '3x4',
+      x: 735,
+      y: 75,
+      width: 108,
+      height: 120,
+      inCount: 3,
+      outCount: 4,
+    },
+    {
+      id: 'demo-block-6',
+      label: '4x3',
+      x: 735,
+      y: 330,
+      width: 108,
+      height: 120,
+      inCount: 4,
+      outCount: 3,
+    },
+  ]
+  const edges = [
+    ['demo-block-1', 'out1', 'demo-block-2', 'in1'],
+    ['demo-block-2', 'out1', 'demo-block-3', 'in1'],
+    ['demo-block-3', 'out1', 'demo-block-4', 'in1'],
+    ['demo-block-3', 'out2', 'demo-block-4', 'in2'],
+    ['demo-block-4', 'out1', 'demo-block-5', 'in1'],
+    ['demo-block-4', 'out2', 'demo-block-5', 'in2'],
+    ['demo-block-5', 'out1', 'demo-block-6', 'in1'],
+    ['demo-block-5', 'out2', 'demo-block-6', 'in2'],
+    ['demo-block-5', 'out3', 'demo-block-6', 'in3'],
+    ['demo-block-5', 'out4', 'demo-block-6', 'in4'],
+  ]
+
+  graph.disableHistory()
+  graph.batchUpdate(() => {
+    nodes.forEach((node) => {
+      graph.addNode(
+        {
+          id: node.id,
+          shape: 'rect',
+          x: node.x,
+          y: node.y,
+          width: node.width,
+          height: node.height,
+          attrs: {
+            body: {
+              fill: '#ffffff',
+              stroke: '#262626',
+              strokeWidth: 1,
+            },
+            label: {
+              text: node.label,
+              fill: '#262626',
+              fontSize: 13,
+            },
+          },
+          ports: {
+            groups: signalPortGroups,
+            items: createDemoPorts(node.inCount, node.outCount),
+          },
+        },
+        { ignore: true },
+      )
+    })
+
+    edges.forEach(([sourceCell, sourcePort, targetCell, targetPort], index) => {
+      graph.addEdge(
+        {
+          id: `demo-edge-${index + 1}`,
+          source: { cell: sourceCell, port: sourcePort },
+          target: { cell: targetCell, port: targetPort },
+          connector: {
+            name: 'jumpover',
+            args: {
+              type: 'gap',
+              size: gapSize,
+              radius: RADIUS_SIZE,
+            },
+          },
+          ...formalLink,
+        },
+        { ignore: true },
+      )
+    })
+  })
+  graph.enableHistory()
+  graph.cleanHistory()
+  void routeAllEdges(graph)
+}
+
+function createDemoPorts(inCount: number, outCount: number) {
+  return [
+    ...Array.from({ length: inCount }, (_, index) => ({
+      id: `in${index + 1}`,
+      group: 'in',
+    })),
+    ...Array.from({ length: outCount }, (_, index) => ({
+      id: `out${index + 1}`,
+      group: 'out',
+    })),
+  ]
+}
+
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 registerRatioAnchorTool()
-registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
@@ -174,7 +306,6 @@ function registerPlugins(graph: GraphType) {
       rubberEdge: true,
       showNodeSelectionBox: true,
       showEdgeSelectionBox: false,
-      movingRouterFallback: 'orth',
       modifiers: 'shift',
       // pointerEvents: 'none',
       content(_selection, el) {
