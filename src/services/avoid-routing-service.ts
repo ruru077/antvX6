@@ -1,4 +1,5 @@
 import type { Edge, EdgeView, Graph, Node } from '@antv/x6'
+import { type Avoid, AvoidLib } from 'libavoid-js'
 import {
   AStarPath,
   Checkpoint,
@@ -70,6 +71,9 @@ type RoutableEdge = {
 type RouteItem = RoutableEdge & {
   points: XY[]
 }
+type SimulinkRoutePlan = {
+  checkpoints: XY[]
+}
 type TerminalRole = 'source' | 'target'
 type EdgeRoutingContext = {
   ignoredNodeIds: Set<string>
@@ -79,6 +83,13 @@ type EdgeRoutingContext = {
 let routeRequestId = 0
 let activeRoutePromise: Promise<void> | null = null
 let pendingRouteGraph: Graph | null = null
+let simulinkAvoidInitPromise: Promise<Avoid> | null = null
+const SIMULINK_CONN_DIR_UP = 1
+const SIMULINK_CONN_DIR_DOWN = 2
+const SIMULINK_CONN_DIR_LEFT = 4
+const SIMULINK_CONN_DIR_RIGHT = 8
+const SIMULINK_CONN_DIR_ALL = 15
+const SIMULINK_MIN_EDGE_GAP = 5
 
 async function routeAllEdges(graph: Graph) {
   pendingRouteGraph = graph
@@ -115,6 +126,24 @@ async function routeAllEdgesNow(graph: Graph) {
   try {
     const branchEdges = routableEdges.filter(hasBranchTerminal)
     const avoidEdges = routableEdges.filter((edge) => !hasBranchTerminal(edge))
+    if (options.engine === 'orth' || options.engine === 'manhattan') {
+      applyX6BuiltInRouter(routableEdges, options)
+      return
+    }
+
+    if (options.engine === 'avoid') {
+      showRoutableEdges(routableEdges)
+      if (branchEdges.length) {
+        console.warn(
+          `[avoid-route] Avoid engine skipped ${branchEdges.length} branch edge(s); branch routing is not implemented in libavoid mode.`,
+        )
+      }
+      const routes = await routeWithSimulink(graph, avoidEdges, options)
+      if (requestId !== routeRequestId || pendingRouteGraph) return
+      applyRoutes(routes, options, false)
+      return
+    }
+
     applyBranchEdgesWithX6Manhattan(branchEdges, options)
     const avoidRoutes =
       avoidEdges.length === 0
@@ -132,6 +161,21 @@ function clearRoutedEdges(graph: Graph) {
     if (isPreviewEdge(edge)) return
     edge.removeRouter({ ui: true, ignore: true })
     edge.setVertices([], { ui: true, ignore: true })
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+  })
+}
+
+function clearRoutableEdges(routableEdges: RoutableEdge[]) {
+  routableEdges.forEach(({ edge }) => {
+    edge.removeRouter({ ui: true, ignore: true })
+    edge.setVertices([], { ui: true, ignore: true })
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+  })
+}
+
+function showRoutableEdges(routableEdges: RoutableEdge[]) {
+  routableEdges.forEach(({ edge }) => {
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
   })
 }
 
@@ -211,6 +255,253 @@ function getTerminalInfo(
     routePortId: `${nodeId}:${portId}`,
     point,
     direction: getPortDirection(cell, portId, point),
+  }
+}
+
+async function routeWithSimulink(
+  graph: Graph,
+  routableEdges: RoutableEdge[],
+  options: RouteDemoOptions,
+) {
+  if (!routableEdges.length) return []
+
+  const avoid = await ensureSimulinkAvoidReady()
+  const router = new avoid.Router(avoid.RouterFlag.OrthogonalRouting.value)
+
+  try {
+    configureSimulinkRouter(avoid, router, options)
+
+    const shapes = new Map<string, InstanceType<Avoid['ShapeRef']>>()
+    const pins = new Map<string, number>()
+    graph.getNodes().forEach((node) => {
+      const shapeRef = createSimulinkShape(avoid, router, node)
+      shapes.set(node.id, shapeRef)
+      node.getPorts().forEach((port, index) => {
+        if (!port.id) return
+        const point = getPortPoint(node, port.id)
+        if (!point) return
+        const pinClass = index + 2
+        const proportion = getPortProportion(node, point)
+        const pin = new avoid.ShapeConnectionPin(
+          shapeRef,
+          pinClass,
+          proportion.x,
+          proportion.y,
+          true,
+          0,
+          toSimulinkDirection(getPortDirection(node, port.id, point)),
+        )
+        pin.setExclusive(false)
+        pins.set(`${node.id}:${port.id}`, pinClass)
+      })
+    })
+
+    const connectors = routableEdges.map((routeEdge) => {
+      const sourceShape = shapes.get(routeEdge.source.nodeId)
+      const targetShape = shapes.get(routeEdge.target.nodeId)
+      const sourcePin = pins.get(routeEdge.source.routePortId)
+      const targetPin = pins.get(routeEdge.target.routePortId)
+      if (!sourceShape || !targetShape || !sourcePin || !targetPin) {
+        throw new Error(
+          `[avoid-route] Avoid endpoint missing shape or pin for edge "${routeEdge.edge.id}"`,
+        )
+      }
+
+      const sourceEnd = new avoid.ConnEnd(sourceShape, sourcePin)
+      const targetEnd = new avoid.ConnEnd(targetShape, targetPin)
+      const conn = new avoid.ConnRef(router, sourceEnd, targetEnd)
+      conn.setRoutingType(avoid.ConnType.ConnType_Orthogonal.value)
+      conn.setHateCrossings(options.simulinkCrossingPenalty > 0)
+
+      const checkpoints = createSimulinkCheckpoints(
+        avoid,
+        routeEdge,
+        options.stubSize,
+      )
+      if (checkpoints) conn.setRoutingCheckpoints(checkpoints)
+
+      return { conn, routeEdge }
+    })
+
+    router.processTransaction()
+
+    return connectors.map(({ conn, routeEdge }) => {
+      const points = simulinkRouteToPoints(conn.displayRoute())
+      assertOrthogonalRoute(routeEdge.edge, points)
+      return {
+        edge: routeEdge.edge,
+        points,
+        source: routeEdge.source,
+        target: routeEdge.target,
+      }
+    })
+  } finally {
+    router.delete()
+  }
+}
+
+function ensureSimulinkAvoidReady() {
+  if (!simulinkAvoidInitPromise) {
+    simulinkAvoidInitPromise = AvoidLib.load('/vendor/libavoid.wasm').then(() =>
+      AvoidLib.getInstance(),
+    )
+  }
+  return simulinkAvoidInitPromise
+}
+
+function configureSimulinkRouter(
+  avoid: Avoid,
+  router: InstanceType<Avoid['Router']>,
+  options: RouteDemoOptions,
+) {
+  router.setRoutingParameter(
+    avoid.RoutingParameter.shapeBufferDistance,
+    options.edgeToNodeGap,
+  )
+  router.setRoutingParameter(
+    avoid.RoutingParameter.idealNudgingDistance,
+    options.edgeToEdgeGap,
+  )
+  router.setRoutingParameter(
+    avoid.RoutingParameter.segmentPenalty,
+    Math.max(1, options.segmentPenalty),
+  )
+  router.setRoutingParameter(
+    avoid.RoutingParameter.anglePenalty,
+    options.anglePenalty,
+  )
+  router.setRoutingParameter(
+    avoid.RoutingParameter.crossingPenalty,
+    options.simulinkCrossingPenalty,
+  )
+  router.setRoutingParameter(avoid.RoutingParameter.fixedSharedPathPenalty, 0)
+  router.setRoutingParameter(
+    avoid.RoutingParameter.reverseDirectionPenalty,
+    options.reverseDirectionPenalty,
+  )
+  router.setRoutingParameter(
+    avoid.RoutingParameter.portDirectionPenalty,
+    options.portDirectionPenalty,
+  )
+  router.setRoutingOption(
+    avoid.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes,
+    true,
+  )
+  router.setRoutingOption(
+    avoid.RoutingOption.nudgeSharedPathsWithCommonEndPoint,
+    true,
+  )
+  router.setRoutingOption(
+    avoid.RoutingOption.performUnifyingNudgingPreprocessingStep,
+    true,
+  )
+  router.setRoutingOption(
+    avoid.RoutingOption.nudgeOrthogonalTouchingColinearSegments,
+    false,
+  )
+}
+
+function createSimulinkShape(
+  avoid: Avoid,
+  router: InstanceType<Avoid['Router']>,
+  node: Node,
+) {
+  const bbox = node.getBBox()
+  return new avoid.ShapeRef(
+    router,
+    new avoid.Rectangle(
+      new avoid.Point(bbox.x, bbox.y),
+      new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height),
+    ),
+  )
+}
+
+function createSimulinkCheckpoints(
+  avoid: Avoid,
+  routeEdge: RoutableEdge,
+  stubSize: number,
+) {
+  if (stubSize <= 0) return null
+  const checkpoints = new avoid.CheckpointVector()
+  const sourceStub = offsetByDirection(
+    routeEdge.source.point,
+    routeEdge.source.direction,
+    stubSize,
+  )
+  checkpoints.push_back(
+    new avoid.Checkpoint(
+      new avoid.Point(sourceStub.x, sourceStub.y),
+      toSimulinkDirection(routeEdge.source.direction),
+      SIMULINK_CONN_DIR_ALL,
+    ),
+  )
+
+  const targetStub = offsetByDirection(
+    routeEdge.target.point,
+    routeEdge.target.direction,
+    stubSize,
+  )
+  checkpoints.push_back(
+    new avoid.Checkpoint(
+      new avoid.Point(targetStub.x, targetStub.y),
+      toSimulinkDirection(routeEdge.target.direction),
+      toSimulinkDirection(oppositeDirection(routeEdge.target.direction)),
+    ),
+  )
+
+  return checkpoints
+}
+
+function simulinkRouteToPoints(polyline: {
+  size: () => number
+  at: (index: number) => XY
+}) {
+  const points: XY[] = []
+  for (let index = 0; index < polyline.size(); index++) {
+    const point = polyline.at(index)
+    points.push({ x: point.x, y: point.y })
+  }
+  return dedupePoints(points)
+}
+
+function toSimulinkDirection(direction: PortDirection) {
+  switch (direction) {
+    case 'left':
+      return SIMULINK_CONN_DIR_LEFT
+    case 'right':
+      return SIMULINK_CONN_DIR_RIGHT
+    case 'top':
+      return SIMULINK_CONN_DIR_UP
+    case 'bottom':
+      return SIMULINK_CONN_DIR_DOWN
+  }
+}
+
+function oppositeDirection(direction: PortDirection): PortDirection {
+  switch (direction) {
+    case 'left':
+      return 'right'
+    case 'right':
+      return 'left'
+    case 'top':
+      return 'bottom'
+    case 'bottom':
+      return 'top'
+  }
+}
+
+function assertOrthogonalRoute(edge: Edge, points: XY[]) {
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1]
+    const current = points[index]
+    if (
+      Math.abs(previous.x - current.x) >= 0.5 &&
+      Math.abs(previous.y - current.y) >= 0.5
+    ) {
+      throw new Error(
+        `[avoid-route] Avoid produced a non-orthogonal segment for edge "${edge.id}"`,
+      )
+    }
   }
 }
 
@@ -339,6 +630,7 @@ function applyBranchEdgesWithX6Manhattan(
   options: RouteDemoOptions,
 ) {
   routableEdges.forEach(({ edge, source, target }) => {
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
     edge.setVertices([], { ui: true, ignore: true })
     edge.setRouter(
       'manhattan',
@@ -362,16 +654,69 @@ function applyBranchEdgesWithX6Manhattan(
   })
 }
 
+function applyX6BuiltInRouter(
+  routableEdges: RoutableEdge[],
+  options: RouteDemoOptions,
+) {
+  routableEdges.forEach(({ edge, source, target }) => {
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+    edge.setVertices([], { ui: true, ignore: true })
+
+    if (options.engine === 'orth') {
+      edge.setRouter(
+        'orth',
+        {
+          padding: options.x6RouterPadding,
+        },
+        { ui: true, ignore: true },
+      )
+    } else {
+      edge.setRouter(
+        'manhattan',
+        {
+          padding: options.x6RouterPadding,
+          step: options.x6RouterStep,
+          maxLoopCount: options.x6RouterMaxLoopCount,
+          precision: options.x6RouterPrecision,
+          maxDirectionChange: options.x6RouterMaxDirectionChange,
+          perpendicular: options.x6RouterPerpendicular,
+          snapToGrid: options.x6RouterSnapToGrid,
+          startDirections: [source.direction],
+          endDirections: [target.direction],
+        },
+        { ui: true, ignore: true },
+      )
+    }
+
+    edge.setConnector(
+      'jumpover',
+      {
+        type: 'gap',
+        size: options.gapSize,
+        radius: options.cornerRadius,
+      },
+      { ui: true, ignore: true },
+    )
+  })
+}
+
 function hasBranchTerminal(edge: RoutableEdge) {
   return edge.source.kind === 'branch' || edge.target.kind === 'branch'
 }
 
-function applyRoutes(routes: RouteItem[], options: RouteDemoOptions) {
+function applyRoutes(
+  routes: RouteItem[],
+  options: RouteDemoOptions,
+  normalize = true,
+) {
   routes.forEach(({ edge, points, source, target }) => {
-    const normalized = normalizeRoutePoints(points, source, target, options)
+    const normalized = normalize
+      ? normalizeRoutePoints(points, source, target, options)
+      : dedupePoints(points)
     const vertices = normalized.slice(1, -1)
     edge.removeRouter({ ui: true, ignore: true })
     edge.setVertices(vertices, { ui: true, ignore: true })
+    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
     edge.setConnector(
       'jumpover',
       {

@@ -16,6 +16,7 @@
     "@antv/x6": "^3.1.7",
     "ahooks": "^3.9.7",
     "antd": "^6.4.3",
+    "libavoid-js": "0.5.0-beta.5",
     "liquid-glass-react": "^1.1.1",
     "lodash-es": "^4.18.1",
     "obstacle-router": "^0.1.2",

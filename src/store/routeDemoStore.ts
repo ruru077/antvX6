@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { GAP_SIZE, GRAPH_GRID } from '@/assets/constant'
 
-type RouteEngine = 'off' | 'obstacle'
+type RouteEngine = 'off' | 'obstacle' | 'avoid' | 'orth' | 'manhattan'
+type PersistedRouteEngine = RouteEngine | 'simulink'
 
 type RouteDemoOptions = {
   engine: RouteEngine
@@ -10,18 +11,30 @@ type RouteDemoOptions = {
   stubSize: number
   segmentPenalty: number
   anglePenalty: number
+  simulinkCrossingPenalty: number
   reverseDirectionPenalty: number
   portDirectionPenalty: number
   gridSize: number
   gapSize: number
   cornerRadius: number
+  x6RouterPadding: number
+  x6RouterStep: number
+  x6RouterMaxLoopCount: number
+  x6RouterPrecision: number
+  x6RouterMaxDirectionChange: number
+  x6RouterPerpendicular: boolean
+  x6RouterSnapToGrid: boolean
   realtime: boolean
 }
 
 type RouteDemoParams = Omit<RouteDemoOptions, 'engine'>
 type PersistedRouteDemoState = {
-  engine?: RouteEngine
+  engine?: PersistedRouteEngine
   obstacle?: Partial<RouteDemoParams>
+  avoid?: Partial<RouteDemoParams>
+  simulink?: Partial<RouteDemoParams>
+  orth?: Partial<RouteDemoParams>
+  manhattan?: Partial<RouteDemoParams>
 }
 
 type RouteDemoStore = RouteDemoOptions & {
@@ -41,11 +54,19 @@ const DEFAULT_ROUTE_DEMO_PARAMS: RouteDemoParams = {
   stubSize: 24,
   segmentPenalty: 10,
   anglePenalty: 0,
+  simulinkCrossingPenalty: 200,
   reverseDirectionPenalty: 0,
   portDirectionPenalty: 100,
   gridSize: GRAPH_GRID,
   gapSize: GAP_SIZE,
   cornerRadius: 0,
+  x6RouterPadding: 20,
+  x6RouterStep: 10,
+  x6RouterMaxLoopCount: 2000,
+  x6RouterPrecision: 1,
+  x6RouterMaxDirectionChange: 90,
+  x6RouterPerpendicular: true,
+  x6RouterSnapToGrid: true,
   realtime: false,
 }
 
@@ -55,7 +76,12 @@ const DEFAULT_ROUTE_DEMO_OPTIONS: RouteDemoOptions = {
 }
 
 function canPersistEngine(engine: RouteEngine) {
-  return engine === 'obstacle'
+  return (
+    engine === 'obstacle' ||
+    engine === 'avoid' ||
+    engine === 'orth' ||
+    engine === 'manhattan'
+  )
 }
 
 function readPersistedState(): PersistedRouteDemoState {
@@ -78,18 +104,37 @@ function getPersistedParams(
   persisted: PersistedRouteDemoState,
 ) {
   if (!canPersistEngine(engine)) return DEFAULT_ROUTE_DEMO_PARAMS
-  return {
+  const params = {
     ...DEFAULT_ROUTE_DEMO_PARAMS,
-    ...(persisted[engine] ?? {}),
+    ...(engine === 'avoid'
+      ? (persisted.avoid ?? persisted.simulink ?? {})
+      : (persisted[engine] ?? {})),
   }
+  if (engine === 'avoid' && params.segmentPenalty < 1) {
+    params.segmentPenalty = 1
+  }
+  return params
+}
+
+function normalizePersistedEngine(
+  engine: PersistedRouteEngine | undefined,
+): RouteEngine {
+  if (engine === 'simulink') return 'avoid'
+  if (
+    engine === 'off' ||
+    engine === 'obstacle' ||
+    engine === 'avoid' ||
+    engine === 'orth' ||
+    engine === 'manhattan'
+  ) {
+    return engine
+  }
+  return DEFAULT_ROUTE_DEMO_OPTIONS.engine
 }
 
 function createInitialState(): RouteDemoOptions {
   const persisted = readPersistedState()
-  const engine =
-    persisted.engine === 'off' || persisted.engine === 'obstacle'
-      ? persisted.engine
-      : DEFAULT_ROUTE_DEMO_OPTIONS.engine
+  const engine = normalizePersistedEngine(persisted.engine)
   return {
     engine,
     ...getPersistedParams(engine, persisted),
