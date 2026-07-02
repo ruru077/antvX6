@@ -2,7 +2,7 @@
 
 本 feat 分支为开发和改进 block diagram 的路由 demo。
 
-Cloudflare deploy: https://x6-feat-router.pages.dev/
+Cloudflare deploy: [https://x6-feat-router.pages.dev/](https://feat-avoidrouter.antvx6.pages.dev/)
 
 ![Route Demo](public/hero.png)
 
