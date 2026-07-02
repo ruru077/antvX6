@@ -106,6 +106,12 @@ corepack pnpm dev
 pnpm build
 ```
 
+改进方向：
+
+（一）当节点空间小于最小edge-edge gap空间时压缩过小重叠问题
+
+![Route Demo](public/problem1.png)
+
 ## 参考
 
 X6 示例：  
