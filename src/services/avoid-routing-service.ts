@@ -133,11 +133,7 @@ async function routeAllEdgesNow(graph: Graph) {
 
     if (options.engine === 'avoid') {
       showRoutableEdges(routableEdges)
-      if (branchEdges.length) {
-        console.warn(
-          `[avoid-route] Avoid engine skipped ${branchEdges.length} branch edge(s); branch routing is not implemented in libavoid mode.`,
-        )
-      }
+      applyBranchEdgesWithX6Manhattan(branchEdges, options)
       const routes = await routeWithSimulink(graph, avoidEdges, options)
       if (requestId !== routeRequestId || pendingRouteGraph) return
       applyRoutes(routes, options, false)
@@ -336,7 +332,7 @@ async function routeWithSimulink(
       }
     })
   } finally {
-    router.delete()
+    router.delete?.()
   }
 }
 
