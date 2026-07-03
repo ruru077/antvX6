@@ -406,13 +406,37 @@ function hasSubsystemMask(node: Node): boolean {
   const markup = Array.isArray(raw) ? raw : [raw]
   return markup.some((m) => m.selector === MASK_SELECTOR)
 }
+
+/**
+ * 在所有子系统图中查找节点定义
+ */
+function getCellFromSubGraphs(
+  nodeId: string,
+  subGraphs: SubGraphMap,
+): NodeProperties | undefined {
+  for (const subGraph of Object.values(subGraphs)) {
+    const node = subGraph.graphJson.cells.find(
+      (cell) => cell.shape !== 'edge' && cell.id === nodeId,
+    )
+    if (node) return node as NodeProperties
+  }
+  return undefined
+}
 /**
  *
  */
-function hasPort(nodeId: string, dir: 'in' | 'out', graph: Graph): boolean {
+function hasPort(
+  nodeId: string,
+  dir: 'in' | 'out',
+  subGraphs: SubGraphMap,
+): boolean {
+  const node = getCellFromSubGraphs(nodeId, subGraphs)
+  if (!node) {
+    throw new Error('搜索不存在的目标节点cell')
+  }
   return dir === 'in'
-    ? !!getPortsByGroup(graph.getCellById(nodeId)?.toJSON(), 'in')?.length
-    : !!getPortsByGroup(graph.getCellById(nodeId)?.toJSON(), 'out')?.length
+    ? !!getPortsByGroup(node, 'in')?.length
+    : !!getPortsByGroup(node, 'out')?.length
 }
 // ─── 端口映射 ────────────────────────────────────────────────────────────
 /**
@@ -465,7 +489,7 @@ interface DTOResult {
  */
 function buildDfsData(
   lines: LineDTO[],
-  graph: Graph,
+  subGraphs: SubGraphMap,
 ): {
   outBySource: Map<string, LineDTO[]>
   sources: string[]
@@ -487,7 +511,8 @@ function buildDfsData(
 
   // 只对 source 模块 dfs
   const sources = Array.from(nodes).filter(
-    (nodeId) => !hasPort(nodeId, 'in', graph) && hasPort(nodeId, 'out', graph),
+    (nodeId) =>
+      !hasPort(nodeId, 'in', subGraphs) && hasPort(nodeId, 'out', subGraphs),
   )
 
   return { outBySource, sources }
@@ -653,7 +678,8 @@ function flatGraph(
  * @description 根据边映射结果，对 source 模块进行 dfs 构建联通子图
  */
 function buildFlowChain(lines: LineDTO[], graph: Graph): FlowChain[] {
-  const { outBySource, sources } = buildDfsData(lines, graph)
+  const { subGraphs } = useSubGraphStore.getState()
+  const { outBySource, sources } = buildDfsData(lines, subGraphs)
 
   const chains: FlowChain[] = []
   const dfs = (sourceNodeId: string, path: LineDTO[]) => {
@@ -668,8 +694,8 @@ function buildFlowChain(lines: LineDTO[], graph: Graph): FlowChain[] {
       const sinkNodeId = lastEdge.toBlockUUID
       // 没有 sink 模块
       if (
-        hasPort(sinkNodeId, 'out', graph) ||
-        !hasPort(sinkNodeId, 'in', graph)
+        hasPort(sinkNodeId, 'out', subGraphs) ||
+        !hasPort(sinkNodeId, 'in', subGraphs)
       )
         return
       chains.push({
@@ -695,24 +721,28 @@ function buildFlowChain(lines: LineDTO[], graph: Graph): FlowChain[] {
   return chains
 }
 
-function flowChainToDTO(flowChain: FlowChain[], graph: Graph): DTOResult {
+function flowChainToDTO(
+  flowChain: FlowChain[],
+  subGraphs: SubGraphMap,
+): DTOResult {
   const blockSet = new Map<string, BlockDTO>()
   const lineSet = new Map<string, LineDTO>()
   for (const chain of flowChain) {
     for (const edge of chain.edges) {
       if (edge.linePath) lineSet.set(edge.linePath, edge)
+      // ts 经过buildFlowChain后，edge.fromBlockUUID/toBlockUUID必定存在
       const block = [
-        graph.getCellById(edge.fromBlockUUID),
-        graph.getCellById(edge.toBlockUUID),
+        getCellFromSubGraphs(edge.fromBlockUUID, subGraphs)!,
+        getCellFromSubGraphs(edge.toBlockUUID, subGraphs)!,
       ]
       block.forEach((b) => {
-        blockSet.set(b.id, {
-          blockType: b.getData()?.blockType ?? 'error',
-          srcBlock: b.getData()?.srcBlock ?? 'error',
-          blockName: b.attr('label/text') ?? 'error',
-          paramValues: b.getData()?.paramValues ?? {},
+        blockSet.set(b.id!, {
+          blockType: b.data?.blockType ?? 'error',
+          srcBlock: b.data?.srcBlock ?? 'error',
+          blockName: getBlockLabel(b),
+          paramValues: b.data?.paramValues ?? {},
           blockPath: edge.linePath,
-          blockUUID: b.id,
+          blockUUID: b.id!,
         })
       })
     }
@@ -877,7 +907,7 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
   // 2) 按连通性构造 flow chain
   const flowChain = buildFlowChain(linesDTO, graph)
   // 3) 验证并去噪
-  const { lines, blocks } = flowChainToDTO(flowChain, graph)
+  const { lines, blocks } = flowChainToDTO(flowChain, subGraphs)
   return {
     lines,
     blocks,
