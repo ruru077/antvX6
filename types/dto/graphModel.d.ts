@@ -22,7 +22,7 @@ interface Config {
 /**
  * Block 块对象
  */
-interface Block {
+interface BlockDTO {
   blockType: string
   srcBlock: string
   blockName: string
@@ -34,7 +34,7 @@ interface Block {
 /**
  * 连接线对象
  */
-interface Line {
+interface LineDTO {
   fromBlockName: string
   fromPortNo: string
   toBlockName: string
@@ -74,10 +74,10 @@ interface GraphModelDTO {
   modelRealName: string
   templateName: string
   config: Config
-  blocks: Block[]
-  lines: Line[]
+  blocks: BlockDTO[]
+  lines: LineDTO[]
   option: Record<string, unknown>
   saveInfo: SaveInfo
 }
 
-export type { GraphModelDTO }
+export type { GraphModelDTO, BlockDTO, LineDTO }

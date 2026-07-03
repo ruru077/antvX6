@@ -30,6 +30,7 @@ import {
   changeGraphView,
   buildGraphModelDTO,
   flatGraph,
+  buildFlowChain,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -123,10 +124,7 @@ function PaperToolbar(_: PaperToolbarProps) {
           <AntdButton
             size="small"
             icon={<ArrowLeft size={14} />}
-            onClick={() => {
-              useSubGraphStore.getState().syncGraph(graph.toJSON())
-              flatGraph(useSubGraphStore.getState().subGraphs, 'root', graph)
-            }}
+            onClick={() => {}}
           >
             返回
           </AntdButton>
@@ -153,7 +151,8 @@ function PaperToolbar(_: PaperToolbarProps) {
             onClick={() => {
               if (!graph) return
               syncGraph(graph.toJSON())
-              console.log(JSON.stringify(buildGraphModelDTO(), null, 2))
+              // console.log(JSON.stringify(buildGraphModelDTO(graph), null, 2))
+              buildGraphModelDTO(graph)
             }}
           >
             测试DTO

@@ -2,6 +2,7 @@ import { Model, StringExt } from '@antv/x6'
 import { formalLink, MASK_SELECTOR, signalPortGroups } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
+import { useGraphStore } from '@/store/graphStore'
 import {
   buildPaths,
   createSubGraphItem,
@@ -30,6 +31,8 @@ import type {
   GraphJSON,
   SubGraphMap,
 } from '~/types'
+import type { BlockDTO, LineDTO } from '~/types/dto/graphModel'
+import type { Block } from '~/types/vo/block'
 
 const commonService = createCommonService()
 
@@ -403,7 +406,14 @@ function hasSubsystemMask(node: Node): boolean {
   const markup = Array.isArray(raw) ? raw : [raw]
   return markup.some((m) => m.selector === MASK_SELECTOR)
 }
-
+/**
+ *
+ */
+function hasPort(nodeId: string, dir: 'in' | 'out', graph: Graph): boolean {
+  return dir === 'in'
+    ? !!getPortsByGroup(graph.getCellById(nodeId)?.toJSON(), 'in')?.length
+    : !!getPortsByGroup(graph.getCellById(nodeId)?.toJSON(), 'out')?.length
+}
 // ─── 端口映射 ────────────────────────────────────────────────────────────
 /**
  * 子系统端口 → 内部 IO 节点
@@ -438,22 +448,51 @@ function ioNodeToPort(
 // ─── 信号追踪 ────────────────────────────────────────────────────────────
 
 type TraceRole = 'source' | 'target'
-interface lineDTO {
-  /** 起始模块名称 */
-  fromBlockName: string
-  /** 起始端口号 */
-  fromPortNo: string
-  /** 目标模块名称 */
-  toBlockName: string
-  /** 目标端口号 */
-  toPortNo: string
-  /** 连线标识路径 */
-  linePath: string
-  /** 起始模块 UUID */
-  fromBlockUUID: string
-  /** 目标模块 UUID */
-  toBlockUUID: string
+
+interface FlowChain {
+  edges: LineDTO[]
+  sourceNodeId: string
+  sinkNodeId: string
 }
+
+interface DTOResult {
+  blocks: BlockDTO[]
+  lines: LineDTO[]
+}
+/**
+ * @param lines flatGraph 的平铺图lineDTO[]
+ * @returns 模块出度edge 模块入读 有效nodes
+ */
+function buildDfsData(
+  lines: LineDTO[],
+  graph: Graph,
+): {
+  outBySource: Map<string, LineDTO[]>
+  sources: string[]
+} {
+  const outBySource = new Map<string, LineDTO[]>()
+  const nodes = new Set<string>()
+
+  for (const line of lines) {
+    const from = line.fromBlockUUID
+    const to = line.toBlockUUID
+    if (!line.linePath || !from || !to) continue
+    nodes.add(from)
+    nodes.add(to)
+
+    const outList = outBySource.get(from)
+    if (outList) outList.push(line)
+    else outBySource.set(from, [line])
+  }
+
+  // 只对 source 模块 dfs
+  const sources = Array.from(nodes).filter(
+    (nodeId) => !hasPort(nodeId, 'in', graph) && hasPort(nodeId, 'out', graph),
+  )
+
+  return { outBySource, sources }
+}
+
 function isComputedBlock(node: NodeProperties): boolean {
   return !isIONode(node) && !isSubsystemBlock(node)
 }
@@ -554,8 +593,8 @@ function flatGraph(
   subGraphs: SubGraphMap,
   rootId: string,
   graph: Graph,
-): lineDTO[] {
-  const result: lineDTO[] = []
+): LineDTO[] {
+  const result: LineDTO[] = []
   const visited = new Set<string>()
   for (const layer of Object.values(subGraphs)) {
     const edgesPro = layer.graphJson.cells.filter((c) => c.shape === 'edge')
@@ -565,7 +604,7 @@ function flatGraph(
       if (visited.has(edgePro.id)) continue
       visited.add(edgePro.id)
       // remap
-      const { cell: sourceCellId, port: sourcePortId } = edgePro.source
+      let { cell: sourceCellId, port: sourcePortId } = edgePro.source
       const { cell: targetCellId, port: targetPortId } = edgePro.target
 
       // source 有可能为 Edge
@@ -573,7 +612,8 @@ function flatGraph(
       const targetNode = graph.getCellById(targetCellId) as Node
       // Edge 连线处理
       while (sourceCell.isEdge()) {
-        sourceCell = sourceCell.getSourceCell() as Node
+        sourcePortId = sourceCell.getSourcePortId()
+        sourceCell = sourceCell.getSourceCell() as Node | Edge
       }
       const sourcePort = sourceCell._getMergedPort(sourcePortId)
       const targetPort = targetNode._getMergedPort(targetPortId)
@@ -595,7 +635,7 @@ function flatGraph(
       )
       if (!srcResult || !tgtResult) continue
 
-      const dto: lineDTO = {
+      const dto: LineDTO = {
         fromBlockName: getBlockLabel(srcResult.block),
         fromPortNo: srcResult.portId.replace(/\D/g, ''),
         toBlockName: getBlockLabel(tgtResult.block),
@@ -604,16 +644,84 @@ function flatGraph(
         fromBlockUUID: srcResult.block.id ?? '',
         toBlockUUID: tgtResult.block.id ?? '',
       }
-      console.log(dto)
       result.push(dto)
     }
   }
   return result
 }
 /**
- * @description 根据边映射结果，构建流程链
+ * @description 根据边映射结果，对 source 模块进行 dfs 构建联通子图
  */
-function buildFlowChain(lines: lineDTO[]) {}
+function buildFlowChain(lines: LineDTO[], graph: Graph): FlowChain[] {
+  const { outBySource, sources } = buildDfsData(lines, graph)
+
+  const chains: FlowChain[] = []
+  const dfs = (sourceNodeId: string, path: LineDTO[]) => {
+    const lastEdge = path[path.length - 1]
+    const fromNodeId = lastEdge.toBlockUUID
+    const nextEdges = outBySource.get(fromNodeId) ?? []
+    const usable = nextEdges.filter(
+      (line) => !path.some((p) => p.linePath === line.linePath),
+    )
+
+    if (usable.length === 0) {
+      const sinkNodeId = lastEdge.toBlockUUID
+      // 没有 sink 模块
+      if (
+        hasPort(sinkNodeId, 'out', graph) ||
+        !hasPort(sinkNodeId, 'in', graph)
+      )
+        return
+      chains.push({
+        edges: path,
+        sourceNodeId,
+        sinkNodeId,
+      })
+      return
+    }
+
+    for (const edge of usable) {
+      dfs(sourceNodeId, [...path, edge])
+    }
+  }
+
+  for (const sourceNodeId of sources) {
+    const firstEdges = outBySource.get(sourceNodeId) ?? []
+    for (const firstEdge of firstEdges) {
+      dfs(sourceNodeId, [firstEdge])
+    }
+  }
+
+  return chains
+}
+
+function flowChainToDTO(flowChain: FlowChain[], graph: Graph): DTOResult {
+  const blockSet = new Map<string, BlockDTO>()
+  const lineSet = new Map<string, LineDTO>()
+  for (const chain of flowChain) {
+    for (const edge of chain.edges) {
+      if (edge.linePath) lineSet.set(edge.linePath, edge)
+      const block = [
+        graph.getCellById(edge.fromBlockUUID),
+        graph.getCellById(edge.toBlockUUID),
+      ]
+      block.forEach((b) => {
+        blockSet.set(b.id, {
+          blockType: b.getData()?.blockType ?? 'error',
+          srcBlock: b.getData()?.srcBlock ?? 'error',
+          blockName: b.attr('label/text') ?? 'error',
+          paramValues: b.getData()?.paramValues ?? {},
+          blockPath: edge.linePath,
+          blockUUID: b.id,
+        })
+      })
+    }
+  }
+  return {
+    lines: Array.from(lineSet.values()),
+    blocks: Array.from(blockSet.values()),
+  }
+}
 // ─── 变更 ────────────────────────────────────────────────────────────────
 
 /** 移除子系统 mask（封装） */
@@ -757,45 +865,30 @@ function removeMask(node: Node) {
 // }
 
 // ─── DTO 导出 ──────────────────────────────────────────────────────────────
-
-function collectBlocks(subGraphs: SubGraphMap, rootId: string) {
-  // const blocks: any[] = []
-  // for (const layer of Object.values(subGraphs)) {
-  //   const rawCells = removeDisconnectedBlocks(
-  //     getInnerCells(layer.id, subGraphs),
-  //   )
-  //   const cells = layer.id === rootId ? rawCells : keepSignalPathCells(rawCells)
-  //   for (const node of getInnerBlocks(cells)) {
-  //     if (isSubsystemBlock(node)) continue
-  //     blocks.push({
-  //       blockType: node.data?.type ?? '',
-  //       srcBlock: node.data?.srcBlock ?? '',
-  //       blockName: node.attrs?.label?.text ?? node.attrs?.text?.text ?? node.id,
-  //       paramValues: node.data?.paramValues ?? {},
-  //       blockPath: rootId,
-  //       blockUUID: node.id,
-  //     })
-  //   }
-  // }
-  // return blocks
+/**
+ * @description 图解构输出（flatGraph -> buildFlowChain -> flowChainToDTO）
+ * @param subGraphs 子系统图树
+ * @param rootId 根图 id
+ * @param graph X6 Graph 实例，用于 remap 边索引回溯
+ */
+function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
+  // 1) 平铺所有边到 remap 结果
+  const linesDTO = flatGraph(subGraphs, rootId, graph)
+  // 2) 按连通性构造 flow chain
+  const flowChain = buildFlowChain(linesDTO, graph)
+  // 3) 验证并去噪
+  const { lines, blocks } = flowChainToDTO(flowChain, graph)
+  return {
+    lines,
+    blocks,
+  }
 }
 
-// function solve(subGraphs: SubGraphMap, rootId: string) {
-//   const blocks = []
-//   const lines = flatGraph()
-//   const flowChain = buildFlowChain()
-//   const res = validateFlowChain()
-//   return {
-//     blocks,
-//     lines,
-//   }
-// }
-
-function buildGraphModelDTO(): GraphModelDTO | any {
+function buildGraphModelDTO(graph: Graph): GraphModelDTO {
   const { rootId, subGraphs } = useSubGraphStore.getState()
   const rootGraph = subGraphs[rootId]
-  // const { blocks, lines } = solve(subGraphs, rootId)
-
+  const { blocks, lines } = solve(subGraphs, rootId, graph)
+  console.log(JSON.stringify({ lines, blocks }, null, 2))
   return {
     userId: 0, // TODO: 从用户context中获取
     testRig: 0, // TODO: 从配置中获取
@@ -818,8 +911,8 @@ function buildGraphModelDTO(): GraphModelDTO | any {
       RelTol: '1e-3',
       AbsTol: 'auto',
     },
-    // blocks,
-    // lines,
+    blocks,
+    lines,
     option: {},
     saveInfo: {
       uuid: 0,
@@ -850,4 +943,6 @@ export {
   portToIONode,
   ioNodeToPort,
   flatGraph,
+  buildFlowChain,
+  flowChainToDTO,
 }
