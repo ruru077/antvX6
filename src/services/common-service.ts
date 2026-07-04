@@ -225,9 +225,9 @@ function createCommonService() {
     }
   }
   /**
-   *
-   * @param group
-   * @returns
+   * 获取 port group 分组
+   * @param port
+   * @returns group 分组 'in' | 'out' | null
    */
   function getPortGroup(
     port: { group?: string } | undefined | null,

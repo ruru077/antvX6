@@ -1,5 +1,16 @@
-import { CellView, FunctionExt, Node, Scroller } from '@antv/x6'
+import {
+  CellView,
+  FunctionExt,
+  Node,
+  NodeView,
+  Scroller,
+  Shape,
+} from '@antv/x6'
+import { previewLinkAttrs } from '@/assets/x6Model'
+import { createCommonService } from '@/services/common-service'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
+
+const commonService = createCommonService()
 
 // ── X6 运行时原型补丁 ────────────────────────────────────────────────────────
 // _xxx 前缀表示自定义框架补丁方法，避免与 X6 未来版本的方法名冲突。
@@ -13,6 +24,63 @@ declare module '@antv/x6' {
 
 CellView.prototype._getSelectors = function () {
   return (this as unknown as { selectors: Record<string, Element> }).selectors
+}
+
+const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
+
+/**
+ * X6 默认把 mousedown 的端口固定为 source，只拖动 target；
+ * 从 in 端口拉线时改为固定 target 拖动 source
+ */
+if (!nodeViewProto._startConnecttingPatched) {
+  const originalStartConnectting = nodeViewProto.startConnectting
+
+  nodeViewProto.startConnectting = function (
+    this: any,
+    e: any,
+    magnet: Element,
+    x: number,
+    y: number,
+  ) {
+    const portId = this.findAttr('port', magnet)
+    const portGroup = portId
+      ? commonService.getPortGroup(this.cell.getPort(portId))
+      : null
+
+    if (portGroup !== 'in') {
+      return originalStartConnectting.call(this, e, magnet, x, y)
+    }
+
+    this.graph.model.startBatch('add-edge')
+
+    const edge =
+      this.getDefaultEdge(this, magnet) ?? new Shape.Edge(previewLinkAttrs)
+    edge.setTarget({
+      ...edge.getTarget(),
+      ...this.getEdgeTerminal(magnet, x, y, edge, 'target'),
+    })
+    edge.setSource({
+      ...edge.getSource(),
+      x,
+      y,
+    })
+    edge.addTo(this.graph.model, { async: false, ui: true })
+
+    const edgeView = edge.findView(this.graph)
+    edgeView.setEventData(
+      e,
+      edgeView.prepareArrowheadDragging('source', {
+        x,
+        y,
+        isNewEdge: true,
+        fallbackAction: 'remove',
+      }),
+    )
+    this.setEventData(e, { edgeView })
+    edgeView.notifyMouseDown(e, x, y)
+  }
+
+  nodeViewProto._startConnecttingPatched = true
 }
 
 /**

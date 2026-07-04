@@ -1,5 +1,9 @@
 import { Model, StringExt } from '@antv/x6'
-import { formalLink, MASK_SELECTOR, signalPortGroups } from '@/assets/x6Model'
+import {
+  formalLinkAttrs,
+  MASK_SELECTOR,
+  signalPortGroups,
+} from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
