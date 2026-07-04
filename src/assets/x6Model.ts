@@ -1,4 +1,4 @@
-import { Graph } from '@antv/x6'
+import { Graph, Transform } from '@antv/x6'
 import {
   BLACK,
   EDGE_STROKE_WIDTH,
@@ -85,27 +85,53 @@ export const maskArrowAttrs = {
 
 // ──────────────────────────────────────────────────────────────────────────────
 
-/** 拖拽连线时的预览线样式 */
-export const previewLink = {
-  attrs: {
-    wrap: {
-      strokeWidth: EDGE_WRAPPER_WIDTH,
-    },
-    line: {
-      stroke: RED,
-      strokeWidth: EDGE_STROKE_WIDTH,
-      targetMarker: {
+export const sourceMarkerAttrs = (state: 'empty' | 'full') => {
+  switch (state) {
+    case 'empty':
+      return {
         name: 'path',
+        fill: RED,
+        stroke: RED,
+        d: commonService.svgToPath(previewArrowRaw),
+        transform: 'rotate(270) scale(0.015)',
+      }
+    case 'full':
+      return {
+        fill: 'none',
+      }
+  }
+}
+
+export const targetMarkerAttrs = (state: 'empty' | 'single' | 'full') => {
+  switch (state) {
+    case 'empty':
+      return {
+        name: 'path',
+        fill: RED,
         d: commonService.svgToPath(previewArrowRaw),
         transform: 'rotate(-90) scale(0.015)',
-      },
-      strokeDasharray: '6 3',
-    },
-  },
+      }
+    case 'single': {
+      return {
+        name: 'block',
+        fill: RED,
+        args: { size: TARGETMARKER_SIZE },
+        transform: 'rotate(180)',
+      }
+    }
+    case 'full': {
+      return {
+        name: 'block',
+        fill: BLACK,
+        args: { size: TARGETMARKER_SIZE },
+        transform: 'rotate(180)',
+      }
+    }
+  }
 }
 
 /** 正式连线样式 */
-export const formalLink = {
+export const formalLinkAttrs = {
   attrs: {
     wrap: {
       strokeWidth: EDGE_WRAPPER_WIDTH,
@@ -114,12 +140,20 @@ export const formalLink = {
       stroke: BLACK,
       strokeWidth: EDGE_STROKE_WIDTH,
       strokeDasharray: null,
-      targetMarker: {
-        name: 'block',
-        args: { size: TARGETMARKER_SIZE },
-        transform: 'rotate(180)',
-        d: null,
-      },
+    },
+  },
+}
+
+/** 预览线样式 */
+export const previewLinkAttrs = {
+  attrs: {
+    wrap: {
+      strokeWidth: EDGE_WRAPPER_WIDTH,
+    },
+    line: {
+      stroke: RED,
+      strokeWidth: EDGE_STROKE_WIDTH,
+      strokeDasharray: '6 3',
     },
   },
 }

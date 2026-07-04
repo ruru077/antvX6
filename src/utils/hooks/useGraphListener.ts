@@ -1,7 +1,12 @@
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
-import { formalLink, previewLink } from '@/assets/x6Model'
+import {
+  sourceMarkerAttrs,
+  targetMarkerAttrs,
+  formalLinkAttrs,
+  previewLinkAttrs,
+} from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { setRightEdgeDragging } from '@/services/graph-service'
 import { createInteractiveService } from '@/services/interactive-service'
@@ -19,15 +24,14 @@ import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
+  Edge,
   EdgeView,
   EventArgs,
   Graph,
   History,
   Node,
-  NodeView,
   Scroller,
 } from '@antv/x6'
-import type { Edge } from '@antv/x6/es'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
@@ -160,6 +164,46 @@ function registerPasteTargetListeners(graph: Graph) {
 function registerEdgeBranchListeners(graph: Graph) {
   /** 右键拉线后短暂置 true，抑制紧随的 contextmenu */
   let suppressEdgeContextMenu = false
+  // 根据连接状态 修改 source tgt 的 Marker
+  function applyEdgeMarkerState(edge: Edge) {
+    const source = edge.getSource()
+    const target = edge.getTarget()
+    const sourceState = source && 'cell' in source ? 'full' : 'empty'
+    const targetState =
+      target && 'cell' in target
+        ? sourceState === 'full'
+          ? 'full'
+          : 'single'
+        : 'empty'
+
+    const lineConfig =
+      sourceState === 'full' && targetState === 'full'
+        ? formalLinkAttrs.attrs
+        : previewLinkAttrs.attrs
+
+    edge.setAttrs({
+      ...lineConfig,
+      line: {
+        ...lineConfig.line,
+        sourceMarker: sourceMarkerAttrs(sourceState),
+        targetMarker: targetMarkerAttrs(targetState),
+      },
+    })
+  }
+
+  function isReverseConnection(edge: Edge): boolean {
+    const srcCell = edge.getSourceCell() as Node | Edge | null
+    const tgtCell = edge.getTargetCell() as Node | null
+    if (!srcCell?.isNode() || !tgtCell?.isNode()) return false
+
+    const srcGroup = commonService.getPortGroup(
+      srcCell.getPort(edge.getSourcePortId()),
+    )
+    const tgtGroup = commonService.getPortGroup(
+      tgtCell.getPort(edge.getTargetPortId()),
+    )
+    return srcGroup === 'in' && tgtGroup === 'out'
+  }
 
   /**
    * @param evt EventArgs ['edge:mousedown']
@@ -188,7 +232,7 @@ function registerEdgeBranchListeners(graph: Graph) {
     const tempEdge = graph.addEdge({
       source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
       target: { x: startPos.x, y: startPos.y },
-      ...previewLink,
+      ...previewLinkAttrs,
     })
     // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
     const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
@@ -211,37 +255,26 @@ function registerEdgeBranchListeners(graph: Graph) {
     currentCell,
   }: EventArgs['edge:connected']) {
     if (!currentCell) return
+    if (!edge.getSourceCell() || !edge.getTargetCell()) return
 
-    const srcCell = edge.getSourceCell() as Node | Edge
-    const tgtCell = edge.getTargetCell() as Node | null
-    if (srcCell.isNode()) {
-      const srcGroup = commonService.getPortGroup(
-        srcCell?.getPort(edge.getSourcePortId()),
-      )
-      const tgtGroup = commonService.getPortGroup(
-        tgtCell?.getPort(edge.getTargetPortId()),
-      )
-
-      // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
-      if (srcGroup === 'in' && tgtGroup === 'out') {
-        const source = edge.getSource()
-        const target = edge.getTarget()
-        edge.setSource(target)
-        edge.setTarget(source)
-      }
+    // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
+    if (isReverseConnection(edge)) {
+      const source = edge.getSource()
+      const target = edge.getTarget()
+      edge.setSource(target)
+      edge.setTarget(source)
     }
-
-    edge.setAttrs(formalLink.attrs)
+    applyEdgeMarkerState(edge)
   }
 
   // 实时检测断联：change:source / change:target 在拖拽中立即触发
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
     if (!cell.isEdge()) return
-    cell.setAttrs(cell.getSourceCell() ? formalLink.attrs : previewLink.attrs)
+    applyEdgeMarkerState(cell)
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
     if (!cell.isEdge()) return
-    cell.setAttrs(cell.getTargetCell() ? formalLink.attrs : previewLink.attrs)
+    applyEdgeMarkerState(cell)
   }
 
   const unregister = registerListeners(graph, [

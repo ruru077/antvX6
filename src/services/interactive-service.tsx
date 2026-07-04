@@ -93,7 +93,7 @@ function createInteractiveService() {
           name: 'outline',
           args: {
             color: 'rgb(102,194,255)',
-            width: getFilterWidth(2),
+            width: getFilterWidth(3),
             margin: 0,
           },
           attrs: {
@@ -157,81 +157,43 @@ function createInteractiveService() {
     const graph = useGraphStore.getState().graph
     const isPreview = edge.getAttrs()?.line?.stroke === RED
 
-    // 将 X6 视图层动态计算的折点物化为模型 vertices
-    // 仅对正式连线处理；previewLink（红色临时线）不物化，避免影响后续连接的寻线结果
-    // const edgeView = graph.findViewByCell(edge) as EdgeView
-    // if (
-    //   !isPreview &&
-    //   !edge.getRouter() &&
-    //   edge.getVertices().length === 0 &&
-    //   edgeView?.routePoints
-    // ) {
-    //   const pts = edgeView.routePoints
-    //   // routePoints 已是纯中间折点，不含 source/target
-    //   const intermediates = pts.map((p) => ({ x: p.x, y: p.y }))
-    //   if (intermediates.length > 0) {
-    //     edge.setVertices(intermediates, { undo: false })
-    //     edge.setRouter('orth', { undo: false })
-    //   }
-    // }
-
     const sourceCell = graph.getCellById(edge.getSourceCellId())
-    const isBranchEdge = sourceCell.isEdge()
+    const isBranchEdge = sourceCell?.isEdge()
     const tools = []
     if (isBranchEdge) {
       tools.push({ name: 'ratio-anchor' })
     } else {
-      tools.push({
-        name: 'source-arrowhead',
-        args: {
-          attrs: {
-            d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
-            fill: 'white',
-            stroke: 'black',
-            cursor: 'move',
-            'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
+      tools.push(
+        {
+          name: 'source-arrowhead',
+          args: {
+            attrs: {
+              d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
+              fill: 'white',
+              stroke: 'black',
+              cursor: 'move',
+              'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
+            },
           },
         },
-      })
+        // { name: 'vertices' },
+        // { name: 'segments' },
+      )
     }
-    tools.push(
-      {
-        name: 'target-arrowhead',
-        args: {
-          // ratio: isPreview ? 1 : 1,
-          attrs: {
-            // 使用 d 反转箭头 防止嵌入 Block 造成预期行为错乱
-            ...(isPreview ? {} : { d: 'M 0 -8 -18 0 0 8 Z' }),
-            fill: 'transparent',
-            stroke: 'transparent',
-            'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
-            cursor: 'move',
-          },
+    tools.push({
+      name: 'target-arrowhead',
+      args: {
+        // ratio: isPreview ? 1 : 1,
+        attrs: {
+          // 使用 d 反转箭头 防止嵌入 Block 造成预期行为错乱
+          ...(isPreview ? {} : { d: 'M 0 -8 -18 0 0 8 Z' }),
+          fill: 'transparent',
+          stroke: 'transparent',
+          'stroke-width': TARGET_ARROWHEAD_STROKE_WIDTH,
+          cursor: 'move',
         },
       },
-      // {
-      //   name: 'vertices',
-      //   args: {
-      //     addable: false,
-      //     removable: false,
-      //     attrs: { fill: 'transparent', stroke: 'transparent' },
-      //     processHandle(handle: {
-      //       container: SVGElement
-      //       setAttrs: (attrs: Record<string, unknown>) => void
-      //     }) {
-      //       handle.container.addEventListener('mouseenter', () => {
-      //         handle.setAttrs({ fill: 'green', stroke: '#fff' })
-      //       })
-      //       handle.container.addEventListener('mouseleave', () => {
-      //         handle.setAttrs({ fill: 'transparent', stroke: 'transparent' })
-      //       })
-      //     },
-      //   },
-      // },
-      // {
-      //   name: 'simulink-segments',
-      // },
-    )
+    })
     edge.addTools(tools, { undo: false })
   }
 
