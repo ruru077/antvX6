@@ -1,8 +1,10 @@
 /**
- * @description: 常量
+ * @description 常量
  */
-// 画布最小单元
-const GRAPH_GRID = 15
+/**
+ * @instruction 当为 10 的倍数时 曼哈顿路由更为稳定
+ */
+const GRAPH_GRID = 20
 // EDGE 红
 const RED = '#e60000'
 // EDGE 黑
@@ -11,7 +13,7 @@ const TARGETMARKER_SIZE = 15
 // EDGE 线宽
 const EDGE_STROKE_WIDTH = 1
 // EDGE 交点GAP
-const GAP_SIZE = 2.5
+const GAP_SIZE = 2
 // 吸附触发Threshold
 const SNAP_RADIUS = 20
 // 粘贴时节点偏移量
