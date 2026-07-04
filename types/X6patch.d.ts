@@ -1,3 +1,4 @@
+import type { PortMetadata } from '@antv/x6/lib/model/port'
 /**
  * X6 Selection 插件的模块扩展声明
  * api.d.ts 已将 SelectionImplEventArgsRecord（cell:selected 等）合并进 EventArgs，
@@ -16,5 +17,10 @@ declare module '@antv/x6' {
   interface CellView {
     /** 自定义补丁：公开访问 protected selectors */
     _getSelectors(): Record<string, Element>
+  }
+
+  interface Node {
+    /** 自定义补丁：获取 item + group 合并后的完整 port metadata */
+    _getMergedPort(portId: string): PortMetadata
   }
 }

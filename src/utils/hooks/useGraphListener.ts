@@ -10,6 +10,11 @@ import {
 import { createCommonService } from '@/services/common-service'
 import { setRightEdgeDragging } from '@/services/graph-service'
 import { createInteractiveService } from '@/services/interactive-service'
+import {
+  fallbackEdgeToManhattan,
+  isCompleteNodeEdge,
+  routeAllEdges,
+} from '@/services/routing-service'
 import { ensureLabelUnique } from '@/services/stencil-service'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import {
@@ -58,6 +63,7 @@ function useGraphListener() {
       // TODO 任务调度Emit 顺序分离
       // ── Node ──────────────────────────────────────────────────────
       registerNodeEditListeners(graph),
+      registerNodeRouteListeners(graph),
       // ── Edge ──────────────────────────────────────────────────────
       registerEdgeBranchListeners(graph),
       registerEdgeToolListeners(graph),
@@ -265,16 +271,33 @@ function registerEdgeBranchListeners(graph: Graph) {
       edge.setTarget(source)
     }
     applyEdgeMarkerState(edge)
+    void routeAllEdges(graph)
   }
 
   // 实时检测断联：change:source / change:target 在拖拽中立即触发
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
     if (!cell.isEdge()) return
     applyEdgeMarkerState(cell)
+    handleEdgeTerminalChanged(cell)
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
     if (!cell.isEdge()) return
     applyEdgeMarkerState(cell)
+    handleEdgeTerminalChanged(cell)
+  }
+
+  function handleEdgeTerminalChanged(edge: Edge) {
+    if (edge.getAttrs()?.line?.stroke === RED) {
+      fallbackEdgeToManhattan(edge)
+      return
+    }
+
+    if (isCompleteNodeEdge(edge)) {
+      void routeAllEdges(graph)
+      return
+    }
+
+    fallbackEdgeToManhattan(edge)
   }
 
   const unregister = registerListeners(graph, [
@@ -344,6 +367,22 @@ function registerEdgeToolListeners(graph: Graph) {
     ['edge:added', () => {}],
     ['edge:mouseenter', edgeMouseenterHandler],
     ['edge:mouseleave', edgeMouseleaveHandler],
+  ])
+}
+
+// ── Node 移动时重新巡线 ───────────────────────────────────────────────────
+function registerNodeRouteListeners(graph: Graph) {
+  function nodeMovingHandler(_args: EventArgs['node:moving']) {
+    void routeAllEdges(graph)
+  }
+
+  function nodeResizedHandler(_args: EventArgs['node:resized']) {
+    void routeAllEdges(graph)
+  }
+
+  return registerListeners(graph, [
+    ['node:moving', nodeMovingHandler],
+    ['node:resized', nodeResizedHandler],
   ])
 }
 
