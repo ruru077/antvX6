@@ -1,5 +1,6 @@
 import {
   Clipboard,
+  Edge,
   Export,
   Graph,
   History,
@@ -18,7 +19,6 @@ import {
   PASTE_OFFSET,
   SNAP_RADIUS,
 } from '@/assets/constant'
-import { previewLink } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
@@ -31,27 +31,34 @@ import {
 import { useGraphStore } from '@/store/graphStore'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
-import { registerSimulinkSegmentsTool } from '@/utils/plugin/segmentsTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
+import { previewLinkAttrs } from './../assets/x6Model'
 import type { Graph as GraphType } from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
 
-// 模块级 Ctrl 键状态，供 interacting 回调使用
-let ctrlHeld = false
+function isPortConnectedByOtherEdge(
+  cell: Node,
+  portId: string,
+  currentEdge?: Edge,
+): boolean {
+  const connectedEdges = cell.model?.getConnectedEdges(cell) ?? []
+  return connectedEdges.some(
+    (edge) =>
+      (!currentEdge || edge !== currentEdge) &&
+      ((edge.getSourceCell()?.id === cell.id &&
+        edge.getSourcePortId() === portId) ||
+        (edge.getTargetCell()?.id === cell.id &&
+          edge.getTargetPortId() === portId)),
+  )
+}
+
 // 右键拉线中标志位，供 interacting 回调使用（需在 X6 mousedown 前由捕获阶段设置）
 let rightEdgeDragging = false
+const WHEEL_ZOOM_LEVELS = [0.5, 0.6, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 const setRightEdgeDragging = (val: boolean) => {
   rightEdgeDragging = val
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Control') ctrlHeld = true
-  })
-  window.addEventListener('keyup', (e) => {
-    if (e.key === 'Control') ctrlHeld = false
-  })
 }
 
 // ── 主入口 ──────────────────────────────────────────────────────────────────
@@ -61,6 +68,7 @@ function createAndSetupGraph(
   onScale: (zoom: number) => void,
 ): GraphType {
   const graph = createGraph(container)
+  registerSteppedMouseWheel(graph)
   setupDevTools(graph)
   registerPlugins(graph)
   registerKeyBindings(graph)
@@ -89,12 +97,7 @@ function createGraph(container: HTMLElement): GraphType {
       allowEdge: false,
       allowMulti: true,
       allowLoop: false,
-      sourceConnectionPoint: {
-        name: 'anchor',
-        args: {
-          offset: -EDGE_TARGET_CP_OFFSET + 5,
-        },
-      },
+      sourceConnectionPoint: 'anchor',
       targetConnectionPoint: {
         name: 'anchor',
         args: {
@@ -105,75 +108,61 @@ function createGraph(container: HTMLElement): GraphType {
         radius: SNAP_RADIUS,
         anchor: 'bbox',
       },
-      router: {
-        name: 'manhattan',
-      },
-      createEdge() {
-        return new Shape.Edge(previewLink)
+      createEdge({ sourceCell, sourceMagnet }) {
+        return new Shape.Edge(previewLinkAttrs)
       },
       highlight: true,
-      validateConnection({
-        sourceCell,
-        targetCell,
-        sourcePort,
-        targetPort,
-        edge,
-      }) {
-        if (!sourceCell || !targetCell || !targetPort) return true
+      // validateConnection({
+      //   sourceCell,
+      //   targetCell,
+      //   sourcePort,
+      //   targetPort,
+      //   edge,
+      // }) {
+      //   if (!sourceCell || !targetCell || !targetPort) return true
 
-        // 从 edge 拉出新线：sourceCell 是 Edge，无 sourcePort
-        // 只需验证目标端口是 in 方向且未被占用
-        if (sourceCell.isEdge()) {
-          const tgtDir = commonService.getPortGroup(
-            (targetCell as Node).getPort(targetPort),
-          )
-          if (tgtDir !== 'in') return false
-          const targetEdges =
-            targetCell.model?.getConnectedEdges(targetCell) ?? []
-          return !targetEdges.some(
-            (e) =>
-              e !== edge &&
-              (e.getSourcePortId() === targetPort ||
-                e.getTargetPortId() === targetPort),
-          )
-        } else if (sourceCell.isNode()) {
-          // 从 node 端口创建/重连：sourceCell 是 Node
-          if (!sourcePort || !targetPort) return true
-          const srcDir = commonService.getPortGroup(
-            (sourceCell as Node).getPort(sourcePort),
-          )
-          const tgtDir = commonService.getPortGroup(
-            (targetCell as Node).getPort(targetPort),
-          )
-          if (!srcDir || !tgtDir) {
-            console.warn(
-              '[validateConnection] port group 未定义，无法验证连接合法性',
-              { sourceCell, targetCell, sourcePort, targetPort },
-            )
-          }
-          // 只允许 out → in
-          if (srcDir !== 'out' || tgtDir !== 'in') return false
-        }
+      //   // 从 edge 拉出新线：sourceCell 是 Edge，无 sourcePort
+      //   // 只需验证目标端口是 in 方向且未被占用
+      //   if (sourceCell.isEdge()) {
+      //     const tgtDir = commonService.getPortGroup(
+      //       (targetCell as Node).getPort(targetPort),
+      //     )
+      //     if (tgtDir !== 'in') return false
+      //     return !isPortConnectedByOtherEdge(
+      //       targetCell as Node,
+      //       targetPort,
+      //       edge,
+      //     )
+      //   } else if (sourceCell.isNode()) {
+      //     // 从 node 端口创建/重连：sourceCell 是 Node
+      //     if (!sourcePort || !targetPort) return true
+      //     const srcDir = commonService.getPortGroup(
+      //       (sourceCell as Node).getPort(sourcePort),
+      //     )
+      //     const tgtDir = commonService.getPortGroup(
+      //       (targetCell as Node).getPort(targetPort),
+      //     )
+      //     if (!srcDir || !tgtDir) {
+      //       console.warn(
+      //         '[validateConnection] port group 未定义，无法验证连接合法性',
+      //         { sourceCell, targetCell, sourcePort, targetPort },
+      //       )
+      //     }
 
-        // 每个端口只允许一条连接（重连时排除当前 edge）
-        const sourceEdges =
-          sourceCell.model?.getConnectedEdges(sourceCell) ?? []
-        const targetEdges =
-          targetCell.model?.getConnectedEdges(targetCell) ?? []
-        const sourceBusy = sourceEdges.some(
-          (e) =>
-            e !== edge &&
-            (e.getSourcePortId() === sourcePort ||
-              e.getTargetPortId() === sourcePort),
-        )
-        const targetBusy = targetEdges.some(
-          (e) =>
-            e !== edge &&
-            (e.getSourcePortId() === targetPort ||
-              e.getTargetPortId() === targetPort),
-        )
-        return !sourceBusy && !targetBusy
-      },
+      //     // 允许 out → in 或 in → out，不允许同向连接
+      //     const directionValid =
+      //       (srcDir === 'out' && tgtDir === 'in') ||
+      //       (srcDir === 'in' && tgtDir === 'out')
+      //     if (!directionValid) return false
+
+      //     // 只有 in 端口限制为单连接；out 端口允许多条连接
+      //     const inCell = srcDir === 'in' ? sourceCell : targetCell
+      //     const inPort = srcDir === 'in' ? sourcePort : targetPort
+      //     return !isPortConnectedByOtherEdge(inCell as Node, inPort, edge)
+      //   }
+
+      //   return true
+      // },
     },
     highlighting: {
       // 拖拽开始时高亮所有可连接的端口
@@ -201,26 +190,60 @@ function createGraph(container: HTMLElement): GraphType {
     },
     grid: { visible: true, size: GRAPH_GRID, type: 'doubleMesh' },
     scaling: { min: 0.5, max: 5 },
-    mousewheel: {
-      enabled: true,
-      modifiers: ['ctrl', 'meta'],
-      factor: 1.1,
-    },
     panning: false,
     virtual: false,
     interacting: (cellView) => {
       if (cellView.cell.isEdge()) {
-        return { edgeMovable: ctrlHeld || rightEdgeDragging }
+        return { edgeMovable: rightEdgeDragging }
       }
       return {}
     },
   })
 }
 
+/**
+ * 定规格监听 mouseWheel
+ * @param graph 图示例
+ */
+function registerSteppedMouseWheel(graph: GraphType) {
+  const onWheel = (e: WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const currentScale = graph.zoom()
+    const zoomIn = e.deltaY < 0
+    const targetScale = zoomIn
+      ? (WHEEL_ZOOM_LEVELS.find((level) => level > currentScale) ??
+        WHEEL_ZOOM_LEVELS[WHEEL_ZOOM_LEVELS.length - 1])
+      : (WHEEL_ZOOM_LEVELS.findLast((level) => level < currentScale) ??
+        WHEEL_ZOOM_LEVELS[0])
+    if (targetScale === currentScale) return
+
+    const center = graph.getPlugin('scroller')
+      ? graph.clientToLocal(e.clientX, e.clientY)
+      : graph.clientToGraph(e.clientX, e.clientY)
+
+    graph.zoom(targetScale, {
+      absolute: true,
+      center,
+    })
+  }
+
+  graph.container.addEventListener('wheel', onWheel, { passive: false })
+
+  const dispose = graph.dispose.bind(graph)
+  graph.dispose = (clean?: boolean) => {
+    graph.container.removeEventListener('wheel', onWheel)
+    dispose(clean)
+  }
+}
+
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 
 registerRatioAnchorTool()
-registerSimulinkSegmentsTool()
+// registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
