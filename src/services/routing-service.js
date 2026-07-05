@@ -52,7 +52,7 @@ async function routeAllEdgesNow(graph) {
     if (requestId !== routeRequestId || pendingRouteGraph) return
     applyRoutes(routes)
   } catch (error) {
-    console.error('[avoid-route] routing failed', error)
+    // console.error('[avoid-route] routing failed', error)
   }
 }
 function getRoutableEdges(graph) {
