@@ -2,11 +2,11 @@ import { AvoidLib } from 'libavoid-js'
 import { GAP_SIZE, GRAPH_GRID, RED } from '@/assets/constant'
 // 参数配置
 const ROUTE_OPTIONS = {
-  edgeToNodeGap: 25,
+  edgeToNodeGap: 40,
   edgeToEdgeGap: 10,
   stubSize: 0,
   segmentPenalty: 80,
-  anglePenalty: 0,
+  anglePenalty: 100,
   crossingPenalty: 1000,
   reverseDirectionPenalty: 200,
   portDirectionPenalty: 100,

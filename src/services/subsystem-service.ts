@@ -20,6 +20,7 @@ import type {
   Cell,
   CellProperties,
   Edge,
+  EdgeProperties,
   Graph,
   History,
   Node,
@@ -393,6 +394,13 @@ function getInnerCells(
   return subGraphs[subsystemId]?.graphJson.cells ?? []
 }
 
+/** 获取全部图层的所有 cells Json*/
+function getAllCellsFromSubGraphs(subGraphs: SubGraphMap): CellProperties[] {
+  return Object.values(subGraphs).flatMap(
+    (subGraph) => subGraph.graphJson.cells,
+  )
+}
+
 // ─── 识别 ──────────────────────────────────────────────────────────────
 
 function isSubsystemBlock(node: NodeProperties): boolean {
@@ -625,6 +633,7 @@ function flatGraph(
 ): LineDTO[] {
   const result: LineDTO[] = []
   const visited = new Set<string>()
+  const allCells = getAllCellsFromSubGraphs(subGraphs)
   for (const layer of Object.values(subGraphs)) {
     const edgesPro = layer.graphJson.cells.filter((c) => c.shape === 'edge')
     for (const edgePro of edgesPro) {
@@ -637,27 +646,37 @@ function flatGraph(
       const { cell: targetCellId, port: targetPortId } = edgePro.target
 
       // source 有可能为 Edge
-      let sourceCell = graph.getCellById(sourceCellId) as Node | Edge
-      const targetNode = graph.getCellById(targetCellId) as Node
+      let sourceCell = allCells.find((cell) => cell.id === sourceCellId) as
+        | NodeProperties
+        | EdgeProperties
+      const targetNode = allCells.find(
+        (cell) => cell.id === targetCellId,
+      ) as NodeProperties
       // Edge 连线处理
-      while (sourceCell.isEdge()) {
-        sourcePortId = sourceCell.getSourcePortId()
-        sourceCell = sourceCell.getSourceCell() as Node | Edge
+      while (sourceCell?.shape === 'edge') {
+        sourcePortId = sourceCell.source?.port
+        // 所有的 sourceCell 都在 allCells 中，必定能找到
+        sourceCell = allCells.find(
+          (cell) => cell.id === sourceCell?.source?.cell,
+        )!
       }
-      const sourcePort = sourceCell._getMergedPort(sourcePortId)
-      const targetPort = targetNode._getMergedPort(targetPortId)
-      const srcJson = sourceCell.toJSON()
-      const tgtJson = targetNode.toJSON()
+      const sourcePort = getPortsByGroup(sourceCell)?.find(
+        (port) => port.id === sourcePortId,
+      )
+      const targetPort = getPortsByGroup(targetNode)?.find(
+        (port) => port.id === targetPortId,
+      )
+      if (!sourcePort || !targetPort) throw new Error('存在 src/tgt 绕过port')
       const srcResult = traceSignalBlock(
         sourcePort,
-        srcJson,
+        sourceCell,
         subGraphs,
         'source',
         visited,
       )
       const tgtResult = traceSignalBlock(
         targetPort,
-        tgtJson,
+        targetNode,
         subGraphs,
         'target',
         visited,
