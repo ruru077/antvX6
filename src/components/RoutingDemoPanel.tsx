@@ -198,7 +198,7 @@ function RoutingDemoPanel() {
   return (
     <div className="routing-demo-panel">
       <div className="routing-demo-panel__header">
-        <span>Route Obstacle 待实现交叉乘法</span>
+        <span>Route Obstacle 待实现交叉惩罚</span>
         <Button size="small" onClick={() => graph && void routeAllEdges(graph)}>
           Route
         </Button>

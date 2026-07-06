@@ -6,7 +6,7 @@ import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
  */
 async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
   try {
-    const response = await fetch('http://42.192.110.38/antvblocks')
+    const response = await fetch('https://www.stencil.top/antvblocks')
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -31,7 +31,7 @@ async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
  */
 async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
   try {
-    const response = await fetch('http://42.192.110.38/library')
+    const response = await fetch('https://www.stencil.top/library')
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
