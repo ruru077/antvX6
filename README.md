@@ -89,22 +89,13 @@ pnpm dev
 http://localhost:5173
 ```
 
-如果本机没有启用 pnpm，可以先通过 corepack 使用项目声明的包管理器：
-
-```bash
-corepack pnpm install
-corepack pnpm dev
-```
-
 ## 参与改进
 
-可以 clone 本分支到本地，体验 route demo，调整路由参数或实现逻辑，然后提交 PR。
+使用 `clone/fork` 仓库，在本地进行调试修改。
 
-提交 PR 前建议先执行：
+通过调整路由参数或实现逻辑，通过提交 PR 到 feat/avoidRouter 分支完成合并。
 
-```bash
-pnpm build
-```
+[第一次PR教程参考](https://github.com/firstcontributions/firstcontributions.github.io)
 
 改进方向：
 
