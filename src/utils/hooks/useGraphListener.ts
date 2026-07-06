@@ -8,7 +8,6 @@ import {
   previewLinkAttrs,
 } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { setRightEdgeDragging } from '@/services/graph-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   fallbackEdgeToManhattan,
@@ -19,13 +18,18 @@ import { ensureLabelUnique } from '@/services/stencil-service'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
+  currentNode,
+  isTransforming,
   setActiveToolEdgeId,
+  setCurrentNode,
+  setIsTransforming,
   setIsSelectionByKey,
   setPasteTarget,
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
+import { useDomListener } from '@/utils/hooks/useDomListener'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
@@ -41,10 +45,6 @@ import type {
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
 
-// 当前鼠标所在节点和是否正在变换 用于 Transform 工具显示控制
-let currentNode: Node | null = null
-let isTransforming = false
-
 /**
  * 图形编辑器事件监听 hook
  * graph 直接从 store 订阅，无需外部传参
@@ -56,6 +56,12 @@ function useGraphListener() {
   )
 
   const graph = useGraphStore((s) => s.graph)
+  const setRightEdgeDragEvent = useDomListener(
+    graph,
+    __mouseMove,
+    cancel__mouseMove,
+  )
+
   // ── 副作用：注册事件 ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!graph) return
@@ -65,7 +71,8 @@ function useGraphListener() {
       registerNodeEditListeners(graph),
       registerNodeRouteListeners(graph),
       // ── Edge ──────────────────────────────────────────────────────
-      registerEdgeBranchListeners(graph),
+      registerEdgeMarkerListeners(graph),
+      registerEdgeBranchListeners(graph, setRightEdgeDragEvent),
       registerEdgeToolListeners(graph),
       // ── 子系统 ──────────────────────────────────────────────────────
       registerSubsystemListeners(graph),
@@ -80,20 +87,12 @@ function useGraphListener() {
       // ── Label 唯一性与可编辑 ──────────────────────────────────────
       registerLabelUniqueListeners(graph),
       registerEditableLabelListeners(graph),
-      // ── 右键拖拽复制 ──────────────────────────────────────────────
-      registerRightClickDragListeners(graph),
     ]
 
-    // ── #5 鼠标移动（X6未注册 DOM 原生事件，节流）──────────────────────────────
-    const container = graph.container
-    container.addEventListener('mousemove', __mouseMove)
-
     return () => {
-      cancel__mouseMove()
-      container.removeEventListener('mousemove', __mouseMove)
       cleanups.forEach((fn) => fn())
     }
-  }, [graph, __mouseMove, cancel__mouseMove])
+  }, [graph, setRightEdgeDragEvent])
 }
 
 /**
@@ -166,11 +165,8 @@ function registerPasteTargetListeners(graph: Graph) {
   ])
 }
 
-// ──  Click+Ctrl 拉线 ──────────────────────────────────────────────────────
-function registerEdgeBranchListeners(graph: Graph) {
-  /** 右键拉线后短暂置 true，抑制紧随的 contextmenu */
-  let suppressEdgeContextMenu = false
-  // 根据连接状态 修改 source tgt 的 Marker
+// ── Edge 基础状态：连接归一、marker、路由 ───────────────────────────────
+function registerEdgeMarkerListeners(graph: Graph) {
   function applyEdgeMarkerState(edge: Edge) {
     const source = edge.getSource()
     const target = edge.getTarget()
@@ -197,7 +193,7 @@ function registerEdgeBranchListeners(graph: Graph) {
     })
   }
 
-  function isReverseConnection(edge: Edge): boolean {
+  function isReverseConnection(edge: Edge) {
     const srcCell = edge.getSourceCell() as Node | Edge | null
     const tgtCell = edge.getTargetCell() as Node | null
     if (!srcCell?.isNode() || !tgtCell?.isNode()) return false
@@ -211,51 +207,6 @@ function registerEdgeBranchListeners(graph: Graph) {
     return srcGroup === 'in' && tgtGroup === 'out'
   }
 
-  /**
-   * @param evt EventArgs ['edge:mousedown']
-   * @description: 事件委托，将临时线行为交给X6管理
-   */
-  function edgeMousedownHandler({ edge, e }: EventArgs['edge:mousedown']) {
-    // Ctrl+Click 或 右键均可触发拉线
-    if (!e.ctrlKey && !e.metaKey && e.button !== 2) return
-    // TODO: 临时线的Link拉线及连接时逻辑
-    if (edge.getAttrs()?.line?.stroke === RED) return
-
-    const graph = useGraphStore.getState().graph
-    const edgeView = graph.findViewByCell(edge) as EdgeView
-    if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
-
-    // 右键拉线后需抑制 contextmenu
-    if (e.button === 2) suppressEdgeContextMenu = true
-
-    e.stopPropagation()
-    e.preventDefault()
-    // 将 sourceEdge Tool 删除
-    edge.removeTools({ undo: false })
-    const startPos = graph.pageToLocal(e.pageX, e.pageY)
-    const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
-
-    const tempEdge = graph.addEdge({
-      source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
-      target: { x: startPos.x, y: startPos.y },
-      ...previewLinkAttrs,
-    })
-    // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
-    const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
-    tempEdgeView.setEventData(
-      e,
-      tempEdgeView.prepareArrowheadDragging('target', {
-        x: startPos.x,
-        y: startPos.y,
-        isNewEdge: true,
-      }),
-    )
-    setTimeout(() => {
-      const key = `__${graph.view.cid}__`
-      if (e.data?.[key]) e.data[key].currentView = tempEdgeView
-    }, 0)
-  }
-  // 连接成功 → formal，若反接（in→out）则自动交换 source/target
   function edgeConnectedHandler({
     edge,
     currentCell,
@@ -263,7 +214,6 @@ function registerEdgeBranchListeners(graph: Graph) {
     if (!currentCell) return
     if (!edge.getSourceCell() || !edge.getTargetCell()) return
 
-    // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
     if (isReverseConnection(edge)) {
       const source = edge.getSource()
       const target = edge.getTarget()
@@ -274,7 +224,6 @@ function registerEdgeBranchListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  // 实时检测断联：change:source / change:target 在拖拽中立即触发
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
     if (!cell.isEdge()) return
     applyEdgeMarkerState(cell)
@@ -300,54 +249,11 @@ function registerEdgeBranchListeners(graph: Graph) {
     fallbackEdgeToManhattan(edge)
   }
 
-  const unregister = registerListeners(graph, [
-    ['edge:mousedown', edgeMousedownHandler],
+  return registerListeners(graph, [
     ['edge:connected', edgeConnectedHandler],
     ['cell:change:source', edgeSourceChangedHandler],
     ['cell:change:target', edgeTargetChangedHandler],
   ])
-
-  // ── 覆写 X6 guard：允许右键 mousedown 到达 edge（触发拉线）──────────
-  // X6 默认 guard 忽略 button===2 的 mousedown，这里放行 edge 上的右键
-  const graphView = graph.view
-  const originalGuard = graphView.guard.bind(graphView)
-  graphView.guard = (e, view) => {
-    if (e.type === 'mousedown' && e.button === 2 && view?.cell?.isEdge?.())
-      return false
-    return originalGuard(e, view)
-  }
-
-  // 捕获阶段 mousedown：在 X6 处理前设置标志位，使 interacting 放行 edgeMovable
-  const onNativeMouseDown = (e: MouseEvent) => {
-    if (e.button !== 2) return
-    const view = graph.findViewByElem(e.target as Element)
-    if (view?.cell?.isEdge?.()) setRightEdgeDragging(true)
-  }
-  graph.container.addEventListener('mousedown', onNativeMouseDown, true)
-
-  // 右键释放时复位标志位
-  const onNativeMouseUp = () => {
-    setRightEdgeDragging(false)
-  }
-  document.addEventListener('mouseup', onNativeMouseUp)
-
-  // 捕获阶段抑制右键拉线后的 contextmenu
-  const onContextMenu = (e: MouseEvent) => {
-    if (!suppressEdgeContextMenu) return
-    e.preventDefault()
-    e.stopPropagation()
-    suppressEdgeContextMenu = false
-  }
-  graph.container.addEventListener('contextmenu', onContextMenu, true)
-
-  return () => {
-    unregister()
-    graphView.guard = originalGuard
-    graph.container.removeEventListener('mousedown', onNativeMouseDown, true)
-    document.removeEventListener('mouseup', onNativeMouseUp)
-    graph.container.removeEventListener('contextmenu', onContextMenu, true)
-    setRightEdgeDragging(false)
-  }
 }
 
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
@@ -390,10 +296,10 @@ function registerNodeRouteListeners(graph: Graph) {
 function registerTransformListeners(graph: Graph) {
   // 更新 resize 标志位
   function nodeResizeHandler(_args: EventArgs['node:resize']) {
-    isTransforming = true
+    setIsTransforming(true)
   }
   function nodeResizedHandler(_args: EventArgs['node:resized']) {
-    isTransforming = false
+    setIsTransforming(false)
   }
   function nodeMouseEnterHandler({ node }: EventArgs['node:mouseenter']) {
     const graph = useGraphStore.getState().graph
@@ -419,10 +325,10 @@ function onMouseMoveHandler(e: MouseEvent) {
   )
     return
   graph.clearTransformWidgets()
-  currentNode = null
+  setCurrentNode(null)
   const node = commonService.getNodeAtPoint(e)
   if (node) {
-    currentNode = node
+    setCurrentNode(node)
     graph.createTransformWidget(node)
   }
 }
@@ -583,133 +489,53 @@ function registerEditableLabelListeners(graph: Graph) {
 
   return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
 }
+// ── Ctrl+Click 拉线 ──────────────────────────────────────────────────────
+type RightEdgeDragEventSetter = (edge: Edge, edgeView: EdgeView, e: any) => void
 
-// ── 右键拖拽复制──────────────────────────────────────────
-// X6 guard 会忽略 button===2 的 mousedown，因此使用原生 DOM 事件监听。
-// 通过移动距离阈值区分"右键菜单"与"右键拖拽"：超过阈值即复制节点。
-function registerRightClickDragListeners(graph: Graph) {
-  /** 拖拽阈值（像素），超过此距离才判定为拖拽而非右键菜单 */
-  const DRAG_THRESHOLD = 5
+function registerEdgeBranchListeners(
+  graph: Graph,
+  setRightEdgeDragEvent: RightEdgeDragEventSetter,
+) {
+  function edgeMousedownHandler({ edge, e }: EventArgs['edge:mousedown']) {
+    if (edge.getAttrs()?.line?.stroke === RED) return
 
-  let dragState: {
-    sourceNode: Node
-    startX: number
-    startY: number
-    isDragging: boolean
-    ghostEl: HTMLDivElement | null
-  } | null = null
-  /** mouseup 后短暂置 true，抑制紧随其后的 contextmenu 事件 */
-  let suppressContextMenu = false
-
-  // ── 预览幽灵元素 ──────────────────────────────────────────────────────
-  function createGhost(node: Node, clientX: number, clientY: number) {
-    const zoom = graph.zoom()
-    const { width, height } = node.getSize()
-    const el = document.createElement('div')
-    Object.assign(el.style, {
-      position: 'fixed',
-      width: `${width * zoom}px`,
-      height: `${height * zoom}px`,
-      border: '2px dashed #1890ff',
-      backgroundColor: 'rgba(24, 144, 255, 0.1)',
-      borderRadius: '4px',
-      pointerEvents: 'none',
-      zIndex: '1000',
-      left: `${clientX}px`,
-      top: `${clientY}px`,
-      transform: 'translate(-50%, -50%)',
-    })
-    return el
-  }
-
-  // ── 原生事件：右键按下 → 记录起点与源节点 ───────────────────────────────
-  function onMouseDown(e: MouseEvent) {
-    if (e.button !== 2) return
-
-    const node = commonService.getNodeAtPoint(e)
-    if (!node) return
-
-    dragState = {
-      sourceNode: node,
-      startX: e.clientX,
-      startY: e.clientY,
-      isDragging: false,
-      ghostEl: null,
+    const edgeView = graph.findViewByCell(edge) as EdgeView
+    if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
+    if (e.button === 2) {
+      setRightEdgeDragEvent(edge, edgeView, e)
+      return
     }
-  }
+    if (!e.ctrlKey && !e.metaKey) return
 
-  // ── 原生事件：右键拖拽中 → 超过阈值后创建幽灵预览并跟随光标 ─────────────
-  function onMouseMove(e: MouseEvent) {
-    if (!dragState || e.buttons !== 2) return
-
-    if (!dragState.isDragging) {
-      const dx = e.clientX - dragState.startX
-      const dy = e.clientY - dragState.startY
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-
-      dragState.isDragging = true
-      const ghost = createGhost(dragState.sourceNode, e.clientX, e.clientY)
-      document.body.appendChild(ghost)
-      dragState.ghostEl = ghost
-      graph.container.style.cursor = 'copy'
-    }
-
-    if (dragState.ghostEl) {
-      dragState.ghostEl.style.left = `${e.clientX}px`
-      dragState.ghostEl.style.top = `${e.clientY}px`
-    }
-  }
-
-  // ── 原生事件：右键释放 → 拖拽则克隆节点到释放位置，并抑制右键菜单 ───────
-  function onMouseUp(e: MouseEvent) {
-    if (e.button !== 2 || !dragState) return
-
-    const state = dragState
-    dragState = null
-    if (!state.isDragging) return
-
-    // 标记抑制 contextmenu（mouseup 后浏览器会紧随触发 contextmenu）
-    suppressContextMenu = true
-    state.ghostEl?.remove()
-    graph.container.style.cursor = ''
-
-    // 克隆源节点；port id 保留业务语义，唯一性由 cell + port 确定
-    const clone = state.sourceNode.clone()
-
-    // 定位到释放点（居中于光标）
-    const pos = graph.pageToLocal(e.pageX, e.pageY)
-    const size = clone.getSize()
-    clone.position(pos.x - size.width / 2, pos.y - size.height / 2)
-
-    // 添加到画布（触发 node:added → ensureLabelUnique、syncSubGraph）
-    graph.addNode(clone)
-  }
-
-  // ── 捕获阶段拦截：拖拽后阻止右键菜单弹出 ───────────────────────────────
-  function onContextMenu(e: MouseEvent) {
-    if (!suppressContextMenu) return
-    e.preventDefault()
     e.stopPropagation()
-    suppressContextMenu = false
+    e.preventDefault()
+    edge.removeTools({ undo: false })
+    const startPos = graph.pageToLocal(e.pageX, e.pageY)
+    const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
+
+    const tempEdge = graph.addEdge({
+      source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
+      target: { x: startPos.x, y: startPos.y },
+      ...previewLinkAttrs,
+    })
+    // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
+    const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
+    tempEdgeView.setEventData(
+      e,
+      tempEdgeView.prepareArrowheadDragging('target', {
+        x: startPos.x,
+        y: startPos.y,
+        isNewEdge: true,
+      }),
+    )
+    setTimeout(() => {
+      const key = `__${graph.view.cid}__`
+      if (e.data?.[key]) e.data[key].currentView = tempEdgeView
+    }, 0)
   }
 
-  const container = graph.container
-  container.addEventListener('mousedown', onMouseDown)
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
-  container.addEventListener('contextmenu', onContextMenu, true)
-
-  return () => {
-    container.removeEventListener('mousedown', onMouseDown)
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
-    container.removeEventListener('contextmenu', onContextMenu, true)
-    dragState?.ghostEl?.remove()
-    graph.container.style.cursor = ''
-    dragState = null
-  }
+  return registerListeners(graph, [['edge:mousedown', edgeMousedownHandler]])
 }
-
 // ── 事件注册工具 ──────────────────────────────────────────────────────────
 type ListenerEntry = {
   [K in keyof EventArgs]: [event: K, handler: (args: EventArgs[K]) => void]

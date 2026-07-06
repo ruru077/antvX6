@@ -18,16 +18,24 @@ import {
   GRAPH_GRID,
   PASTE_OFFSET,
   SNAP_RADIUS,
+  WHEEL_ZOOM_LEVELS,
 } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
 import {
+  firstTimePaste,
   isSelectionByKey,
   pasteTarget,
+  rightEdgeDragging,
+  setFirstTimePaste,
   setIsSelectionByKey,
   setPasteTarget,
+  setSpaceComboUsed,
+  setSpaceHeld,
+  spaceComboUsed,
+  spaceHeld,
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
@@ -37,13 +45,6 @@ import type { Graph as GraphType } from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
-
-// 右键拉线中标志位，供 interacting 回调使用（需在 X6 mousedown 前由捕获阶段设置）
-let rightEdgeDragging = false
-const WHEEL_ZOOM_LEVELS = [0.5, 0.6, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
-const setRightEdgeDragging = (val: boolean) => {
-  rightEdgeDragging = val
-}
 
 // 从 edge 回溯上游 source，拿到源端口（按当前模型约定：源端最终可追到 Node）
 const resolveSourceFromUpstreamEdge = (
@@ -485,11 +486,6 @@ function moveKeyHandler(dir: ArrowDir) {
   }
 }
 
-// ── 行为标志位 ──────────────────────────────────────────────────────────────
-
-let firstTimePaste = true
-let spaceHeld = false
-
 // ── 快捷键 handler ──────────────────────────────────────────────────────────
 
 function copyHandler() {
@@ -516,11 +512,11 @@ function pasteHandler() {
     cells = graph.paste({ offset: PASTE_OFFSET })
   }
   graph.resetSelection(cells)
-  firstTimePaste = false
+  setFirstTimePaste(false)
 }
 
 function pasteUpHandler() {
-  firstTimePaste = true
+  setFirstTimePaste(true)
 }
 
 function cutHandler() {
@@ -557,12 +553,10 @@ function zoomToFitWithVirtual(graph: GraphType): void {
 // ── Space 键闭包 ────────────────────────────────────────────────────────────
 
 function createSpaceHandlers() {
-  let comboUsed = false
-
   function used(fn: () => void) {
     return () => {
       if (!spaceHeld) return false
-      comboUsed = true
+      setSpaceComboUsed(true)
       fn()
       return false
     }
@@ -583,12 +577,12 @@ function createSpaceHandlers() {
 
   return {
     down() {
-      comboUsed = false
-      spaceHeld = true
+      setSpaceComboUsed(false)
+      setSpaceHeld(true)
     },
     up() {
-      spaceHeld = false
-      if (!comboUsed) {
+      setSpaceHeld(false)
+      if (!spaceComboUsed) {
         zoomToFitWithVirtual(useGraphStore.getState().graph)
       }
     },
@@ -636,4 +630,4 @@ function registerKeys(graph: GraphType, entries: KeyEntry[]) {
   }
 }
 
-export { createAndSetupGraph, setRightEdgeDragging }
+export { createAndSetupGraph }
