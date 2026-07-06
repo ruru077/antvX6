@@ -129,7 +129,7 @@ function SubsystemParamModal({
 
   useEffect(() => {
     form.setFieldsValue({ ModelName: nodeLabel, list: initialList })
-  }, [])
+  })
 
   const handleOk = async () => {
     try {

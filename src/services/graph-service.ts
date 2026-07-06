@@ -19,6 +19,7 @@ import {
   PASTE_OFFSET,
   SNAP_RADIUS,
 } from '@/assets/constant'
+import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
@@ -32,33 +33,39 @@ import { useGraphStore } from '@/store/graphStore'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
-import { previewLinkAttrs } from './../assets/x6Model'
 import type { Graph as GraphType } from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
-
-function isPortConnectedByOtherEdge(
-  cell: Node,
-  portId: string,
-  currentEdge?: Edge,
-): boolean {
-  const connectedEdges = cell.model?.getConnectedEdges(cell) ?? []
-  return connectedEdges.some(
-    (edge) =>
-      (!currentEdge || edge !== currentEdge) &&
-      ((edge.getSourceCell()?.id === cell.id &&
-        edge.getSourcePortId() === portId) ||
-        (edge.getTargetCell()?.id === cell.id &&
-          edge.getTargetPortId() === portId)),
-  )
-}
 
 // 右键拉线中标志位，供 interacting 回调使用（需在 X6 mousedown 前由捕获阶段设置）
 let rightEdgeDragging = false
 const WHEEL_ZOOM_LEVELS = [0.5, 0.6, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 const setRightEdgeDragging = (val: boolean) => {
   rightEdgeDragging = val
+}
+
+// 从 edge 回溯上游 source，拿到源端口（按当前模型约定：源端最终可追到 Node）
+const resolveSourceFromUpstreamEdge = (
+  startEdge: Edge,
+): { cell: Node; portId: string } | null => {
+  let current: Edge | null = startEdge
+
+  while (current) {
+    // 读取当前边的上游 source 节点和端口
+    const srcCell = current.getSourceCell() as Node | Edge
+    const srcPortId = current.getSourcePortId()
+    if (srcCell.isNode()) {
+      return {
+        cell: srcCell,
+        portId: srcPortId,
+      }
+    }
+    // 不是 node 就是 edge，继续回溯
+    current = srcCell
+  }
+  // TODO feat: 空接 删除模块不删除连接线
+  return null
 }
 
 // ── 主入口 ──────────────────────────────────────────────────────────────────
@@ -89,14 +96,15 @@ function createAndSetupGraph(
 // ── Graph 实例创建 ────────────────────────────────────────────────────────────
 
 function createGraph(container: HTMLElement): GraphType {
-  return new Graph({
+  const graph = new Graph({
     container,
     autoResize: true,
     connecting: {
       allowNode: false,
+      // TODO Edge 拉线反接
       allowEdge: false,
-      allowMulti: true,
-      allowLoop: false,
+      allowMulti: 'withPort',
+      allowLoop: true,
       sourceConnectionPoint: 'anchor',
       targetConnectionPoint: {
         name: 'anchor',
@@ -112,57 +120,63 @@ function createGraph(container: HTMLElement): GraphType {
         return new Shape.Edge(previewLinkAttrs)
       },
       highlight: true,
-      // validateConnection({
-      //   sourceCell,
-      //   targetCell,
-      //   sourcePort,
-      //   targetPort,
-      //   edge,
-      // }) {
-      //   if (!sourceCell || !targetCell || !targetPort) return true
+      validateConnection({
+        sourceCell,
+        targetCell,
+        sourcePort,
+        targetPort,
+        edge,
+      }) {
+        // 缺少关键参数直接拒绝
+        if (!sourceCell || !targetCell || !targetPort) return false
+        // 统一算出当前连接起点的端口信息：节点直连 or edge 回溯
+        const sourcePortInfo = sourceCell.isNode()
+          ? {
+              cell: sourceCell,
+              portId: sourcePort!,
+            }
+          : resolveSourceFromUpstreamEdge(sourceCell as Edge)!
 
-      //   // 从 edge 拉出新线：sourceCell 是 Edge，无 sourcePort
-      //   // 只需验证目标端口是 in 方向且未被占用
-      //   if (sourceCell.isEdge()) {
-      //     const tgtDir = commonService.getPortGroup(
-      //       (targetCell as Node).getPort(targetPort),
-      //     )
-      //     if (tgtDir !== 'in') return false
-      //     return !isPortConnectedByOtherEdge(
-      //       targetCell as Node,
-      //       targetPort,
-      //       edge,
-      //     )
-      //   } else if (sourceCell.isNode()) {
-      //     // 从 node 端口创建/重连：sourceCell 是 Node
-      //     if (!sourcePort || !targetPort) return true
-      //     const srcDir = commonService.getPortGroup(
-      //       (sourceCell as Node).getPort(sourcePort),
-      //     )
-      //     const tgtDir = commonService.getPortGroup(
-      //       (targetCell as Node).getPort(targetPort),
-      //     )
-      //     if (!srcDir || !tgtDir) {
-      //       console.warn(
-      //         '[validateConnection] port group 未定义，无法验证连接合法性',
-      //         { sourceCell, targetCell, sourcePort, targetPort },
-      //       )
-      //     }
+        const sourceDir = commonService.getPortGroup(
+          sourcePortInfo.cell.getPort(sourcePortInfo.portId),
+        )
+        const targetDir = commonService.getPortGroup(
+          (targetCell as Node).getPort(targetPort),
+        )
+        // in <-> out
+        if (!sourceDir || !targetDir || sourceDir === targetDir) {
+          return false
+        }
 
-      //     // 允许 out → in 或 in → out，不允许同向连接
-      //     const directionValid =
-      //       (srcDir === 'out' && tgtDir === 'in') ||
-      //       (srcDir === 'in' && tgtDir === 'out')
-      //     if (!directionValid) return false
+        const currentEdgeId = edge?.id
+        if (sourceCell.isNode()) {
+          const sourcePortOccupied = graph
+            .getConnectedEdges(sourcePortInfo.cell)
+            .some(
+              (e) =>
+                e.id !== currentEdgeId &&
+                ((e.getSourceCell()?.id === sourcePortInfo.cell.id &&
+                  e.getSourcePortId() === sourcePortInfo.portId) ||
+                  (e.getTargetCell()?.id === sourcePortInfo.cell.id &&
+                    e.getTargetPortId() === sourcePortInfo.portId)),
+            )
+          if (sourcePortOccupied) return false
+        }
 
-      //     // 只有 in 端口限制为单连接；out 端口允许多条连接
-      //     const inCell = srcDir === 'in' ? sourceCell : targetCell
-      //     const inPort = srcDir === 'in' ? sourcePort : targetPort
-      //     return !isPortConnectedByOtherEdge(inCell as Node, inPort, edge)
-      //   }
+        const targetPortOccupied = graph
+          .getConnectedEdges(targetCell)
+          .some(
+            (e) =>
+              e.id !== currentEdgeId &&
+              ((e.getSourceCell()?.id === targetCell.id &&
+                e.getSourcePortId() === targetPort) ||
+                (e.getTargetCell()?.id === targetCell.id &&
+                  e.getTargetPortId() === targetPort)),
+          )
+        if (targetPortOccupied) return false
 
-      //   return true
-      // },
+        return true
+      },
     },
     highlighting: {
       // 拖拽开始时高亮所有可连接的端口
@@ -199,6 +213,8 @@ function createGraph(container: HTMLElement): GraphType {
       return {}
     },
   })
+
+  return graph
 }
 
 /**

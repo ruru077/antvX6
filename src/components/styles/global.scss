@@ -52,7 +52,7 @@ select {
 }
 
 /* 防止缩放时 SVG 描边产生亚像素抗锯齿光晕 */
-.x6-edge>path {
+.x6-edge > path {
   vector-effect: non-scaling-stroke;
   shape-rendering: crispEdges;
 }
@@ -191,7 +191,7 @@ select {
   padding: 0;
 }
 
-.x6-widget-transform>div {
+.x6-widget-transform > div {
   width: 10px;
   height: 10px;
   border: 1px solid rgb(140, 140, 140);
