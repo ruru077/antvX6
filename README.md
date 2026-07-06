@@ -95,7 +95,7 @@ http://localhost:5173
 
 通过调整路由参数或实现逻辑，通过提交 PR 到 feat/avoidRouter 分支完成合并。
 
-[第一次PR教程参考](https://github.com/firstcontributions/firstcontributions.github.io)
+[第一次PR教程参考](https://github.com/firstcontributions/first-contributions)
 
 改进方向：
 
