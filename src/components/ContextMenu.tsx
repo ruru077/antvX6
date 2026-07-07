@@ -2,6 +2,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  ExternalLink,
   GitMerge,
   Scissors,
   Trash2,
@@ -20,6 +21,7 @@ import {
 import { changeGraphView } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import type { Cell, Edge, EventArgs, Graph, Node } from '@antv/x6'
 
 type ContextInfo =
@@ -185,7 +187,6 @@ function ToolbarMenu({
 
 function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
   const isSubsystem = node.getData()?.blockType === 'Subsystem'
-  console.log(isSubsystem)
   return (
     <>
       <ContextMenuGroup>
@@ -219,6 +220,14 @@ function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
             >
               <GitMerge className="mr-2 size-4" />
               进入子系统
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                useSubSystemTabStore.getState().openOrSwitch(node.id)
+              }}
+            >
+              <ExternalLink className="mr-2 size-4" />
+              在 Tab 中打开
             </ContextMenuItem>
           </ContextMenuGroup>
           <ContextMenuSeparator />

@@ -11,6 +11,8 @@
   },
   "iconLibrary": "lucide",
   "rtl": false,
+  "menuColor": "inverted",
+  "menuAccent": "subtle",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",
@@ -18,9 +20,8 @@
     "lib": "@/lib",
     "hooks": "@/utils/hooks"
   },
-  "menuColor": "inverted",
-  "menuAccent": "subtle",
   "registries": {
-    "@acme": "https://acme.com/r/{name}.json"
+    "@acme": "https://acme.com/r/{name}.json",
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }

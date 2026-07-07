@@ -1,5 +1,13 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, redirect } from 'react-router'
 import RootLayout from '@/views/layout/RootLayout'
+import AboutPage from '@/views/site/AboutPage'
+import ContactPage from '@/views/site/ContactPage'
+import DocsHubPage from '@/views/site/DocsHubPage'
+import FeaturesPage from '@/views/site/FeaturesPage'
+import HomePage from '@/views/site/HomePage'
+import PlaygroundPage from '@/views/site/PlaygroundPage'
+import ScenariosPage from '@/views/site/ScenariosPage'
+import SolutionsPage from '@/views/site/SolutionsPage'
 
 const router = createBrowserRouter([
   {
@@ -9,7 +17,35 @@ const router = createBrowserRouter([
       // ── 首页（index route）── //
       {
         index: true,
-        lazy: () => import('@/views/BlockDiagram'),
+        Component: HomePage,
+      },
+      {
+        path: '/features',
+        Component: FeaturesPage,
+      },
+      {
+        path: '/scenarios',
+        Component: ScenariosPage,
+      },
+      {
+        path: '/solutions',
+        Component: SolutionsPage,
+      },
+      {
+        path: '/playground',
+        Component: PlaygroundPage,
+      },
+      {
+        path: '/docs',
+        Component: DocsHubPage,
+      },
+      {
+        path: '/docs/get-started',
+        loader: () => redirect('/docs/chapter-2-get-started'),
+      },
+      {
+        path: '/docs/:slug',
+        Component: DocsHubPage,
       },
       {
         path: '/model',
@@ -30,6 +66,14 @@ const router = createBrowserRouter([
       {
         path: '/model5',
         lazy: () => import('@/views/DiagramModel5'),
+      },
+      {
+        path: '/about',
+        Component: AboutPage,
+      },
+      {
+        path: '/contact',
+        Component: ContactPage,
       },
     ],
   },
