@@ -539,36 +539,4 @@ function createStencilService() {
 const getLibraryNames = () => loadedLibraryNames
 const getLibraryWithBlocks = () => loadedLibraryWithBlocks
 
-/**
- * 确保节点 label 在画布上唯一，重复时自动递增编号
- * @param graph 目标画布
- * @param node 待检查的节点
- */
-function ensureLabelUnique(graph: Graph, node: Node): void {
-  const rawLabel = node.attr<string>('label/text') ?? ''
-  if (!rawLabel) return
-
-  // 去掉末尾数字，提取基础名称作为递增基数
-  // 避免复制已递增的节点时把数字当作名称的一部分追加
-  const baseLabel = rawLabel.replace(/\d+$/, '')
-
-  const existingLabels = new Set<string>()
-  graph.getNodes().forEach((n) => {
-    if (n.id === node.id) return
-    const label = n.attr<string>('label/text')
-    if (label) existingLabels.add(label)
-  })
-
-  if (existingLabels.has(rawLabel)) {
-    let counter = 1
-    while (existingLabels.has(`${baseLabel}${counter}`)) counter++
-    node.attr('label/text', `${baseLabel}${counter}`)
-  }
-}
-
-export {
-  createStencilService,
-  getLibraryNames,
-  getLibraryWithBlocks,
-  ensureLabelUnique,
-}
+export { createStencilService, getLibraryNames, getLibraryWithBlocks }

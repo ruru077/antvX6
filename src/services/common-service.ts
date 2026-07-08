@@ -1,8 +1,8 @@
 import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import type { Edge, Node } from '@antv/x6'
-import type { EntryGraphModel } from '~/types/common/subGraph'
 import type { TextMatchOptions } from '~/types/common/text'
 
 type UnconnectedPortInfo = {
@@ -99,16 +99,17 @@ function createCommonService() {
     nodes.forEach((node) => {
       node.getPorts().forEach((port) => {
         if (!port.id) return
-        const g = port.group
+        const group = getPortGroup(port)
+        const key = `${node.id}:${port.id}`
         const portInfo: UnconnectedPortInfo = {
           nodeId: node.id,
           portId: port.id,
           group: port.group,
         }
-        if (g?.toLowerCase().includes('in')) {
-          unconnectedInPorts.set(port.id, portInfo)
-        } else if (g?.toLowerCase().includes('out')) {
-          unconnectedOutPorts.set(port.id, portInfo)
+        if (group === 'in') {
+          unconnectedInPorts.set(key, portInfo)
+        } else if (group === 'out') {
+          unconnectedOutPorts.set(key, portInfo)
         } else {
           // fallback: 未标识的 port group
           console.error('存在未标识的 port group', {
@@ -121,10 +122,12 @@ function createCommonService() {
     // 过滤已连接的端口
     if (internalEdges) {
       for (const edge of internalEdges) {
+        const srcCell = edge.getSourceCellId()
         const src = edge.getSourcePortId()
+        const tgtCell = edge.getTargetCellId()
         const tgt = edge.getTargetPortId()
-        if (src) unconnectedOutPorts.delete(src)
-        if (tgt) unconnectedInPorts.delete(tgt)
+        if (srcCell && src) unconnectedOutPorts.delete(`${srcCell}:${src}`)
+        if (tgtCell && tgt) unconnectedInPorts.delete(`${tgtCell}:${tgt}`)
       }
     }
 
@@ -193,24 +196,6 @@ function createCommonService() {
   }
 
   /**
-   * 递归移除对象中所有值为 null 的字段
-   * null 在 X6 attrs 中表示"清除该属性"，导出时不存在该字段效果等同
-   */
-  function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
-    function zip(val: unknown): unknown {
-      if (Array.isArray(val)) return val.map(zip)
-      if (val !== null && typeof val === 'object') {
-        return Object.fromEntries(
-          Object.entries(val as Record<string, unknown>)
-            .filter(([, v]) => v !== null)
-            .map(([k, v]) => [k, zip(v)]),
-        )
-      }
-      return val
-    }
-    return zip(obj) as EntryGraphModel
-  }
-  /**
    * svg字符串转换为路径数据，提取d属性值
    * @param svg import svg from url
    * @returns svg Path
@@ -238,7 +223,79 @@ function createCommonService() {
     if (lower.startsWith('out')) return 'out'
     return null
   }
+  /**
+   * 根据已有标签生成唯一标签
+   * @param rawLabel 原始 label
+   * @param labels 已存在的 labels
+   * @param allowOneSelf 是否允许当前 label 已存在一次
+   */
+  function getUniqueLabel(
+    rawLabel: string,
+    labels: string[],
+    allowOneSelf = false,
+  ): string {
+    const usedCount = labels.filter((label) => label === rawLabel).length
+    if (allowOneSelf ? usedCount <= 1 : usedCount === 0) return rawLabel
 
+    const existingLabels = new Set(labels)
+    const baseLabel = rawLabel.replace(/\d+$/, '')
+    let counter = 1
+    while (existingLabels.has(`${baseLabel}${counter}`)) counter++
+    return `${baseLabel}${counter}`
+  }
+
+  /**
+   * 判断标签在指定子图内是否唯一
+   * @param rawLabel 原始 label
+   * @param subGraphId 子图 ID
+   */
+  function isLabelUnique(rawLabel: string, subGraphId: string): boolean {
+    const labels =
+      useSubGraphStore
+        .getState()
+        .subGraphs[subGraphId]?.graphJson.cells.filter(
+          (cell) => cell.shape !== 'edge',
+        )
+        .map((cell) => cell.attrs?.label?.text)
+        .filter((label): label is string => typeof label === 'string') ?? []
+
+    return labels.filter((label) => label === rawLabel).length <= 1
+  }
+
+  /**
+   * 确保标签在指定子图内唯一，重复时自动递增
+   * @param rawLabel 原始 label
+   * @param subGraphId 子图 ID
+   */
+  function ensureLabelUnique(rawLabel: string, subGraphId: string): string {
+    const labels =
+      useSubGraphStore
+        .getState()
+        .subGraphs[subGraphId]?.graphJson.cells.filter(
+          (cell) => cell.shape !== 'edge',
+        )
+        .map((cell) => cell.attrs?.label?.text)
+        .filter((label): label is string => typeof label === 'string') ?? []
+
+    return getUniqueLabel(rawLabel, labels, true)
+  }
+
+  /**
+   * 复制文本到剪贴板
+   * - string 直接复制
+   * - 对象/数组自动 JSON.stringify
+   */
+  async function copyText(data: any): Promise<void> {
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+
+    if (!navigator.clipboard?.writeText) {
+      throw new Error(
+        '当前环境不支持 Clipboard API（需现代浏览器或 HTTPS/localhost）',
+      )
+    }
+
+    return navigator.clipboard.writeText(text)
+  }
   return {
     resize,
     isTextMatched,
@@ -246,9 +303,12 @@ function createCommonService() {
     isMouseOutCell,
     getNodeAtPoint,
     addPort,
-    zipGraphModelJson,
     svgToPath,
     getPortGroup,
+    getUniqueLabel,
+    ensureLabelUnique,
+    isLabelUnique,
+    copyText,
   }
 }
 

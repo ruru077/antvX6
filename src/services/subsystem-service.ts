@@ -1,11 +1,13 @@
 import { Model, StringExt } from '@antv/x6'
+import { message } from 'antd'
 import {
   formalLinkAttrs,
+  Inport,
   MASK_SELECTOR,
-  signalPortGroups,
+  Outport,
+  subsystemPortGroups,
 } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
 import {
   buildPaths,
@@ -37,12 +39,13 @@ import type {
   SubGraphMap,
 } from '~/types'
 import type { BlockDTO, LineDTO } from '~/types/dto/graphModel'
-import type { Block } from '~/types/vo/block'
 
 const commonService = createCommonService()
+const SUBSYSTEM_IO_OFFSET = 140
 
-type PortSide = 'in' | 'out' | 'top' | 'bottom'
 type PortGroup = 'in' | 'out'
+type IOPortSide = 'in' | 'out'
+type IOLabels = Record<IOPortSide, string[]>
 /**
  * 获取子系统port Label
  * @param port 子系统Port
@@ -102,6 +105,37 @@ function getPortsByGroup(
     return group === 'in' ? _group.includes('in') : _group.includes('out')
   })
 }
+// 获取 IO 节点
+function getIONodes(
+  cells: CellProperties[],
+  side?: IOPortSide,
+): NodeProperties[] {
+  return cells.filter(
+    (cell): cell is NodeProperties =>
+      cell.shape !== 'edge' && isIONode(cell, side),
+  )
+}
+
+function validateIOLabels(cells: CellProperties[]): IOLabels | null {
+  const used = new Set<string>()
+  const labels: IOLabels = { in: [], out: [] }
+
+  for (const node of getIONodes(cells)) {
+    const label = getBlockLabel(node)
+    if (!label) {
+      message.error('In/Out 节点 label 不能为空')
+      return null
+    }
+    if (used.has(label)) {
+      message.error(`In/Out 节点 label 不允许重名：${label}`)
+      return null
+    }
+    used.add(label)
+    if (isIONode(node, 'in')) labels.in.push(label)
+    if (isIONode(node, 'out')) labels.out.push(label)
+  }
+  return labels
+}
 
 /**
  * @description 根据端口标签查找端口
@@ -116,21 +150,7 @@ function findIOByLabel(
   subGraphs: SubGraphMap,
 ): NodeProperties | undefined {
   const cells = getInnerCells(subId, subGraphs)
-  return cells.find((cell) => getBlockLabel(cell) === label)
-}
-
-/**
- * @description 创建子系统端口
- * @param side PortSide
- * @param label string
- * @returns PortMetadata
- */
-function createSubsystemPort(side: PortSide, _label: string): PortMetadata {
-  return {
-    id: StringExt.uuid(),
-    group: side,
-    attrs: { label: { text: _label } },
-  }
+  return getIONodes(cells).find((cell) => getBlockLabel(cell) === label)
 }
 
 /**
@@ -186,7 +206,8 @@ function changeGraphView(subGraphId: string, graph: Graph) {
     })
   }
   graph.cleanSelection()
-  syncGraph(graph.toJSON())
+  const currentGraphJson = graph.toJSON()
+  syncGraph(currentGraphJson)
 
   // 切换期间禁用 history，过滤 fromJSON 进入历史栈
   graph.disableHistory()
@@ -216,93 +237,138 @@ function changeGraphView(subGraphId: string, graph: Graph) {
 }
 
 // ─── 合并为子系统 ─────────────────────────────────────────────────────────
-function createIONodeJson(
+/**
+ * @param node 节点
+ * @param portId 端口 ID
+ * @returns 端口的绝对坐标点 {x, y}
+ */
+function getPortPoint(node: Node, portId: string) {
+  const port = node.getPort(portId)
+  if (!port?.group) return { x: 0, y: 0 }
+  const layout = node.getPortsPosition(port.group)[portId]
+  const pos = node.getPosition()
+  return {
+    x: pos.x + layout.position.x,
+    y: pos.y + layout.position.y,
+  }
+}
+/**
+ * @param graph 工作 graph 示例
+ * @param dir Inport / outport
+ * @param nodeId 节点 ID
+ * @param portId 端口 ID
+ * @param usedLabels 已使用的标签
+ * @returns 对齐的输入/输出节点和连接线
+ */
+function createIOCells(
   graph: Graph,
-  extraJson: GraphJSON['cells'],
-  dir: 'in' | 'out',
+  dir: IOPortSide,
   nodeId: string,
   portId: string,
-) {
-  // const node = graph.getCellById(nodeId) as Node
-  // const pos = node.getPosition()
-  // const ioNodeId = StringExt.uuid()
-  // const isIn = dir === 'in'
-  // const portLabel = getPortLabel(node.getPort(portId))
-  // const offsetX = isIn ? pos.x - 200 : pos.x + node.getSize().width + 200
-  // extraJson.push({
-  //   id: ioNodeId,
-  //   shape: 'circle',
-  //   position: { x: offsetX, y: pos.y },
-  //   size: { width: 50, height: 40 },
-  //   attrs: {
-  //     label: { text: portLabel },
-  //     body: { fill: '#fff', stroke: '#8f8f8f', strokeWidth: 1 },
-  //   },
-  //   data: { blockType: isIn ? 'In' : 'Out' },
-  //   ports: {
-  //     groups: signalPortGroups,
-  //     items: [{ id: isIn ? 'out1' : 'in1', group: isIn ? 'out' : 'in' }],
-  //   },
-  // })
-  // extraJson.push({
-  //   id: StringExt.uuid(),
-  //   shape: 'edge',
-  //   source: isIn
-  //     ? { cell: ioNodeId, port: 'out1' }
-  //     : { cell: nodeId, port: portId },
-  //   target: isIn
-  //     ? { cell: nodeId, port: portId }
-  //     : { cell: ioNodeId, port: 'in1' },
-  //   ...formalLink,
-  // })
+  usedLabels: Set<string>,
+): GraphJSON['cells'] {
+  const node = graph.getCellById(nodeId) as Node
+  const isIn = dir === 'in'
+  const ioNode = JSON.parse(
+    JSON.stringify(isIn ? Inport : Outport),
+  ) as NodeProperties
+  const label = commonService.getUniqueLabel(isIn ? 'In' : 'Out', [
+    ...usedLabels,
+  ])
+  usedLabels.add(label)
+
+  // 创建和原端口水平对齐的内部 In/Out 节点
+  ioNode.id = StringExt.uuid()
+  ioNode.position = {
+    x:
+      node.getPosition().x +
+      (isIn ? -SUBSYSTEM_IO_OFFSET : SUBSYSTEM_IO_OFFSET),
+    y: getPortPoint(node, portId)?.y - (ioNode.size?.height ?? 0) / 2,
+  }
+  ioNode.attrs = {
+    ...ioNode.attrs,
+    label: {
+      ...ioNode.attrs?.label,
+      text: label,
+    },
+  }
+
+  // 用一条内部边把新 IO 节点和原端口接起来
+  return [
+    ioNode,
+    {
+      id: StringExt.uuid(),
+      shape: 'edge',
+      source: isIn
+        ? { cell: ioNode.id, port: 'o1' }
+        : { cell: nodeId, port: portId },
+      target: isIn
+        ? { cell: nodeId, port: portId }
+        : { cell: ioNode.id, port: 'i1' },
+      ...formalLinkAttrs,
+    } as EdgeProperties,
+  ]
 }
 
+/**
+ * 选中的元素合并为子系统
+ * @param cells 合并的 cells
+ * @param graph 图示例
+ * @returns SubSystem Node
+ */
 function mergeToSubsystem(cells: Cell[], graph: Graph) {
   const { currentGraphId, subGraphs } = useSubGraphStore.getState()
-
   // 1. 获取包围盒位置，作为新子系统节点的位置
   const bbox = graph.getCellsBBox(cells)
   const { x, y, width, height } = bbox
 
   const nodes = cells.filter((c) => c.isNode())
   const nodeIds = nodes.map((c) => c.id)
-  const edgeSet: Edge[] = []
-  nodes.forEach((node) => {
-    const edges = graph.getIncomingEdges(node) ?? []
-    edges.forEach((edge) => {
-      // 双连接 内部Edge
-      if (
+  const internalEdges = graph
+    .getEdges()
+    .filter(
+      (edge) =>
         nodeIds.includes(edge.getSourceCellId()) &&
-        nodeIds.includes(edge.getTargetCellId())
-      ) {
-        edgeSet.push(edge)
-      }
-    })
-  })
+        nodeIds.includes(edge.getTargetCellId()),
+    )
 
   // 统计未连接 port
+  const nodesNeedIO = nodes.filter((node) => !isIONode(node))
   const { unconnectedInPorts, unconnectedOutPorts } =
-    commonService.getUnconnectedPorts(nodes, edgeSet)
+    commonService.getUnconnectedPorts(nodesNeedIO, internalEdges)
 
-  // 加入 extraJson
-  const extraJson: GraphJSON['cells'] = []
+  const allCells = [...nodes, ...internalEdges]
+
+  // 清除 outline
+  // TODO 手动 Hack 应该统一处理
+  graph.cleanSelection()
+
+  const graphJson = Model.toJSON(allCells)
+  const usedIOLabels = new Set<string>()
+  // 选中的节点中 已有 IO 节点
+  nodes.forEach((node) => {
+    if (!isIONode(node)) return
+    const label = node.attr<string>('label/text')
+    if (label) usedIOLabels.add(label)
+  })
 
   for (const { nodeId, portId } of unconnectedInPorts.values()) {
-    createIONodeJson(graph, extraJson, 'in', nodeId, portId)
+    graphJson.cells.push(
+      ...createIOCells(graph, 'in', nodeId, portId, usedIOLabels),
+    )
   }
   for (const { nodeId, portId } of unconnectedOutPorts.values()) {
-    createIONodeJson(graph, extraJson, 'out', nodeId, portId)
+    graphJson.cells.push(
+      ...createIOCells(graph, 'out', nodeId, portId, usedIOLabels),
+    )
   }
 
-  const allCells = [...nodes, ...edgeSet]
-  // 清除 outline
-  graph.cleanSelection()
-  const graphJson = Model.toJSON(allCells)
-  graphJson.cells.push(...extraJson)
+  const ioLabels = validateIOLabels(graphJson.cells)
+  if (!ioLabels) return
 
   // 2. 找出被合并 nodes 中属于子系统的节点
   const mergedSubsystemIds = nodes
-    .filter((node) => node.getData()?.type === 'SubsystemBlock')
+    .filter((node) => node.getData()?.blockType === 'Subsystem')
     .map((node) => node.id)
 
   // 3. 生成当前 subGraphItem
@@ -335,7 +401,6 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
 
   // 5c. 注册新子系统
   nextSubGraphs[subGraphItem.id] = subGraphItem
-
   useSubGraphStore.setState({ subGraphs: nextSubGraphs })
 
   // 7. Batch 更新
@@ -344,7 +409,7 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
     const subsystemNode = graph.addNode(
       {
         id: subGraphItem.id,
-        shape: 'text-block',
+        shape: 'subsystem-block',
         x,
         y,
         width,
@@ -367,22 +432,21 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
           },
         },
         data: {
+          title: 'Subsystem',
+          srcBlock: 'simulink/Ports & Subsystems/Subsystem',
           blockType: 'Subsystem',
+          description: 'Subsystem',
+          paramLables: [],
+          paramValues: [],
+          level: 10,
           graphJson,
         },
       },
       { ignore: true },
     )
-    // syncSubsystemPorts(subGraphItem.id, graph, nextSubGraphs)
+    applySubsystemPortsByLabels(subsystemNode, ioLabels)
   })
-
-  // 8. 离屏渲染快照，回填缩略图
-  snapshotToDataURL(graphJson)
-    .then((dataUrl) => {
-      const node = graph.getCellById(subGraphItem.id) as Node
-      node?.setAttrs({ thumb: { xlinkHref: dataUrl } })
-    })
-    .catch((e) => console.warn('[snapshot] 子系统缩略图生成失败', e))
+  useSubGraphStore.getState().syncGraph(graph.toJSON())
 }
 // ─── 结构查询 ──────────────────────────────────────────────────────────
 
@@ -407,8 +471,13 @@ function isSubsystemBlock(node: NodeProperties): boolean {
   return node.data?.blockType === 'Subsystem'
 }
 
-function isIONode(node: NodeProperties): boolean {
-  return node.data?.blockType === 'In' || node.data?.blockType === 'Out'
+function isIONode(node: NodeProperties | Node, side?: IOPortSide): boolean {
+  const blockType =
+    'getData' in node ? node.getData()?.blockType : node.data?.blockType
+  if (blockType !== 'In' && blockType !== 'Out') return false
+  if (side === 'in') return blockType === 'In'
+  if (side === 'out') return blockType === 'Out'
+  return true
 }
 
 /** 判断子系统节点是否已添加封装（markup 中存在 MASK_SELECTOR） */
@@ -794,128 +863,102 @@ function removeMask(node: Node) {
  * - 将内部 block 搬到外层（保持相对位置）
  * - 重连外层边到内部 block（通过 resolveEndpoint 解析）
  * - 删除子系统节点 + 清理 subGraphs
+ * X6 群组
  */
 // function unmergeSubsystem(subsystemId: string, graph: Graph) {
-//   const { currentGraphId, subGraphs } = useSubGraphStore.getState()
-//   const subsystemNode = graph.getCellById(subsystemId) as Node | null
-//   if (!subsystemNode) return
 
-//   const innerCells = getInnerCells(subsystemId, subGraphs)
-//   const innerBlocks = getInnerBlocks(innerCells)
-//   const outerEdges = graph.getConnectedEdges(subsystemNode)
-//   const pos = subsystemNode.getPosition()
-//   const bbox = subsystemNode.getBBox()
-
-//   graph.batchUpdate(() => {
-//     // 1. 将内部 block 加到外层（保持相对位置）
-//     innerBlocks.forEach((blockProps) => {
-//       const bx =
-//         (
-//           blockProps as NodeProperties & {
-//             position?: { x: number; y: number }
-//           }
-//         ).position?.x ?? 0
-//       const by =
-//         (
-//           blockProps as NodeProperties & {
-//             position?: { x: number; y: number }
-//           }
-//         ).position?.y ?? 0
-//       graph.addNode({
-//         ...blockProps,
-//         position: { x: pos.x + (bx - bbox.x), y: pos.y + (by - bbox.y) },
-//       })
-//     })
-
-//     // 2. 重连外层边到内部 block
-//     outerEdges.forEach((edge) => {
-//       if (edge.getSourceCellId() === subsystemId) {
-//         const resolved = resolveEndpoint(
-//           subsystemId,
-//           edge.getSourcePortId() ?? '',
-//           'source',
-//           currentGraphId,
-//           subGraphs,
-//         )
-//         if (resolved)
-//           edge.setSource({ cell: resolved.blockId, port: resolved.portId })
-//       }
-//       if (edge.getTargetCellId() === subsystemId) {
-//         const resolved = resolveEndpoint(
-//           subsystemId,
-//           edge.getTargetPortId() ?? '',
-//           'target',
-//           currentGraphId,
-//           subGraphs,
-//         )
-//         if (resolved)
-//           edge.setTarget({ cell: resolved.blockId, port: resolved.portId })
-//       }
-//     })
-
-//     // 3. 删除子系统节点
-//     graph.removeCell(subsystemNode, { ignore: true })
-//   })
-
-//   // 4. 更新 subGraphs
-//   const nextSubGraphs = { ...subGraphs }
-//   const parentId = subGraphs[subsystemId].parentId
-//   delete nextSubGraphs[subsystemId]
-//   if (parentId) {
-//     nextSubGraphs[parentId] = {
-//       ...nextSubGraphs[parentId],
-//       childrenIds: nextSubGraphs[parentId].childrenIds.filter(
-//         (id) => id !== subsystemId,
-//       ),
-//     }
-//   }
-//   useSubGraphStore.setState({ subGraphs: nextSubGraphs })
 // }
 
 /**
  * 同步子系统外层端口与内部 IO 节点
  * 内部 InPort/OutPort 数量决定外层端口数量，端口 label 与内部 IO label 保持一致。
  */
-// function syncSubsystemPorts(
-//   subsystemId: string,
-//   graph: Graph,
-//   subGraphs: SubGraphMap,
-// ) {
-//   const subsystemNode = graph.getCellById(subsystemId) as Node | null
-//   if (!subsystemNode) return
+function createPortsByLabels(
+  side: IOPortSide,
+  labels: string[],
+): PortMetadata[] {
+  return labels.map((label, index) => {
+    return {
+      id: `${side === 'in' ? 'i' : 'o'}${index + 1}`,
+      group: side === 'in' ? 'inSYS' : 'outSYS',
+      label: {
+        markup: {
+          tagName: 'text',
+          selector: 'text',
+          textContent: label,
+        },
+      },
+    }
+  })
+}
 
-//   const node = subsystemNode
-//   const cells = getInnerCells(subsystemId, subGraphs)
+//返回一个 ports 已按 IO labels 同步后的 NodeProperties
+function withSyncedSubsystemPorts(
+  subsystem: NodeProperties,
+  labels: IOLabels,
+): NodeProperties {
+  const inPorts = createPortsByLabels('in', labels.in)
+  const outPorts = createPortsByLabels('out', labels.out)
 
-//   function syncSide(side: PortSide) {
-//     const labels = getIONodes(cells, side).map(getIONodeLabel).filter(Boolean)
-//     const labelSet = new Set(labels)
-//     const ports = node.getPorts().filter((port) => isPortSide(port, side))
+  return {
+    ...subsystem,
+    ports: {
+      groups: subsystemPortGroups,
+      items: [...inPorts, ...outPorts],
+    },
+  }
+}
 
-//     ports.forEach((port) => {
-//       if (labelSet.has(getPortLabel(port))) return
-//       if (!port.id) return
-//       node.removePort(port.id)
-//     })
+// 子系统端口处理入口
+function applySubsystemPortsByLabels(subsystemNode: Node, labels: IOLabels) {
+  const subsystem = withSyncedSubsystemPorts(
+    subsystemNode.toJSON() as NodeProperties,
+    labels,
+  )
+  subsystemNode.prop('ports', subsystem.ports)
+  commonService.resize(subsystemNode)
+}
 
-//     const currentLabels = new Set(
-//       node
-//         .getPorts()
-//         .filter((port) => isPortSide(port, side))
-//         .map(getPortLabel),
-//     )
+// 子系统内部 IO 节点与外层端口同步
+function syncParentSubsystemPorts(graph: Graph): boolean {
+  const { currentGraphId, subGraphs, syncGraph } = useSubGraphStore.getState()
+  const parentId = subGraphs[currentGraphId]?.parentId
+  if (!parentId) return true
 
-//     labels.forEach((label) => {
-//       if (currentLabels.has(label)) return
-//       node.addPort(createSubsystemPort(side, label))
-//     })
-//   }
+  syncGraph(graph.toJSON())
+  const latestSubGraphs = useSubGraphStore.getState().subGraphs
+  const labels = validateIOLabels(
+    getInnerCells(currentGraphId, latestSubGraphs),
+  )
+  if (!labels) return false
 
-//   subsystemNode.prop('ports/groups', signalPortGroups)
-//   syncSide('in')
-//   syncSide('out')
-//   commonService.resize(subsystemNode)
-// }
+  const parentItem = latestSubGraphs[parentId]
+  const nextParentCells = parentItem.graphJson.cells.map((cell) => {
+    if (cell.shape === 'edge' || cell.id !== currentGraphId) return cell
+    const subsystem = withSyncedSubsystemPorts(cell as NodeProperties, labels)
+    return {
+      ...subsystem,
+      data: {
+        ...subsystem.data,
+        graphJson: latestSubGraphs[currentGraphId].graphJson,
+      },
+    }
+  })
+
+  useSubGraphStore.setState({
+    subGraphs: {
+      ...latestSubGraphs,
+      [parentId]: {
+        ...parentItem,
+        graphJson: {
+          ...parentItem.graphJson,
+          cells: nextParentCells,
+        },
+      },
+    },
+  })
+  return true
+}
 
 // ─── DTO 导出 ──────────────────────────────────────────────────────────────
 /**
@@ -937,11 +980,11 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
   }
 }
 
-function buildGraphModelDTO(graph: Graph): GraphModelDTO {
+async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
   const { rootId, subGraphs } = useSubGraphStore.getState()
   const rootGraph = subGraphs[rootId]
   const { blocks, lines } = solve(subGraphs, rootId, graph)
-  console.log(JSON.stringify({ lines, blocks }, null, 2))
+  await commonService.copyText({ lines, blocks })
   return {
     userId: 0, // TODO: 从用户context中获取
     testRig: 0, // TODO: 从配置中获取
@@ -990,11 +1033,13 @@ export {
   // unmergeSubsystem,
   hasSubsystemMask,
   removeMask,
-  // syncSubsystemPorts,
+  syncParentSubsystemPorts,
+  withSyncedSubsystemPorts,
   buildGraphModelDTO,
   getInnerCells,
   portToIONode,
   ioNodeToPort,
+  isIONode,
   flatGraph,
   buildFlowChain,
   flowChainToDTO,

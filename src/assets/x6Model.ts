@@ -13,11 +13,51 @@ const commonService = createCommonService()
 
 // ── 注册 subsystem-block shape ──────────────────────────────────────────────
 // 继承 text-block（foreignObject + div label），默认 attrs 定位 label 到节点下方
+const XHTML_NS = 'http://www.w3.org/1999/xhtml'
+
 Graph.registerNode(
   'subsystem-block',
   {
     inherit: 'text-block',
+    markup: [
+      { tagName: 'rect', selector: 'body' },
+      { tagName: 'image', selector: 'thumb' },
+      {
+        tagName: 'foreignObject',
+        selector: 'foreignObject',
+        children: [
+          {
+            tagName: 'div',
+            ns: XHTML_NS,
+            selector: 'label',
+            style: {
+              width: '100%',
+              height: '100%',
+              position: 'static',
+              backgroundColor: 'transparent',
+              textAlign: 'center',
+              margin: 0,
+              padding: '0px 5px',
+              boxSizing: 'border-box',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          },
+        ],
+      },
+    ],
     attrs: {
+      body: {
+        refWidth: '100%',
+        refHeight: '100%',
+      },
+      thumb: {
+        refWidth: '100%',
+        refHeight: '100%',
+        preserveAspectRatio: 'xMidYMid meet',
+        pointerEvents: 'none',
+      },
       foreignObject: {
         refWidth: '100%',
         refHeight: null,
@@ -158,6 +198,75 @@ export const previewLinkAttrs = {
   },
 }
 
+/** 子系统外层端口组 */
+export const subsystemPortGroups = {
+  inSYS: {
+    markup: [
+      {
+        tagName: 'path',
+        selector: 'portBody',
+        attrs: { d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z' },
+      },
+    ],
+    z: 1,
+    attrs: {
+      portBody: {
+        magnet: true,
+        strokeWidth: 10,
+        strokeOpacity: 0,
+      },
+      text: {
+        fontSize: 12,
+        fontWeight: 'bold',
+      },
+    },
+    position: { name: 'left' },
+    label: {
+      markup: {
+        tagName: 'text',
+        selector: 'text',
+      },
+      position: {
+        name: 'right',
+        args: { x: 2 },
+      },
+    },
+  },
+  outSYS: {
+    markup: [
+      {
+        tagName: 'path',
+        selector: 'portBody',
+        attrs: { d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z' },
+      },
+    ],
+    z: 1,
+    attrs: {
+      portBody: {
+        magnet: true,
+        stroke: '#000000',
+        strokeWidth: 10,
+        strokeOpacity: 0,
+      },
+      text: {
+        fontSize: 12,
+        fontWeight: 'bold',
+      },
+    },
+    position: { name: 'right' },
+    label: {
+      markup: {
+        tagName: 'text',
+        selector: 'text',
+      },
+      position: {
+        name: 'left',
+        args: { x: -2 },
+      },
+    },
+  },
+}
+
 /** 信号端口组定义 */
 export const signalPortGroups = {
   in: {
@@ -201,6 +310,116 @@ export const signalPortGroups = {
     },
     position: { name: 'right' },
     label: { position: { name: 'right' } },
+  },
+}
+
+/** 子系统内部 Inport 模板 */
+export const Inport = {
+  shape: 'rect',
+  size: { width: 52, height: 26 },
+  attrs: {
+    body: {
+      strokeWidth: 2,
+      rx: 13,
+      ry: 13,
+      filter: {
+        name: 'dropShadow',
+        args: {
+          dx: 2.5,
+          dy: 2.5,
+          blur: 1.25,
+          color: 'black',
+          opacity: 0.55,
+        },
+      },
+    },
+    label: {
+      refX: '50%',
+      refY: '100%',
+      refY2: 5,
+      textAnchor: 'middle',
+      textVerticalAnchor: 'top',
+      text: 'In',
+    },
+  },
+  visible: true,
+  markup: [
+    { tagName: 'rect', selector: 'body' },
+    { tagName: 'text', selector: 'label' },
+  ],
+  data: {
+    title: 'In',
+    srcBlock: 'simulink/Ports & Subsystems/In1',
+    blockType: 'In',
+    description: 'Provide an input port for a subsystem or model.',
+    paramLables: {
+      No: 'No.',
+    },
+    paramValues: {
+      No: 1,
+    },
+    level: 10,
+  },
+  ports: {
+    items: [{ id: 'o1', group: 'out' }],
+    groups: {
+      out: signalPortGroups.out,
+    },
+  },
+}
+
+/** 子系统内部 Outport 模板 */
+export const Outport = {
+  shape: 'rect',
+  size: { width: 52, height: 26 },
+  attrs: {
+    body: {
+      strokeWidth: 2,
+      rx: 13,
+      ry: 13,
+      filter: {
+        name: 'dropShadow',
+        args: {
+          dx: 2.5,
+          dy: 2.5,
+          blur: 1.25,
+          color: 'black',
+          opacity: 0.55,
+        },
+      },
+    },
+    label: {
+      refX: '50%',
+      refY: '100%',
+      refY2: 5,
+      textAnchor: 'middle',
+      textVerticalAnchor: 'top',
+      text: 'Out',
+    },
+  },
+  visible: true,
+  markup: [
+    { tagName: 'rect', selector: 'body' },
+    { tagName: 'text', selector: 'label' },
+  ],
+  data: {
+    title: 'Out',
+    srcBlock: 'simulink/Ports & Subsystems/Out1',
+    blockType: 'Out',
+    description: 'Provide an output port for a subsystem or model.',
+    paramLables: {
+      No: 'No.',
+    },
+    paramValues: {
+      No: 1,
+    },
+    level: 10,
+  },
+  ports: {
+    items: [{ id: 'i1', group: 'in' }],
+    groups: {
+      in: signalPortGroups.in,
+    },
   },
 }
 
