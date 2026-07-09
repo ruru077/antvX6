@@ -100,13 +100,51 @@
     overflow: hidden;
     display: flex;
     background-color: #ffffff;
+    --paper-scrollbar-v-top: 0px;
+    --paper-scrollbar-v-height: 28px;
+    --paper-scrollbar-h-left: 0px;
+    --paper-scrollbar-h-width: 28px;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      z-index: 20;
+      pointer-events: none;
+      border-radius: 999px;
+      background-color: rgba(0, 0, 0, 0.28);
+      opacity: 0;
+      transition: opacity 500ms ease;
+    }
+
+    &.has-paper-v-scrollbar::before {
+      top: var(--paper-scrollbar-v-top);
+      right: 0;
+      width: 6px;
+      height: var(--paper-scrollbar-v-height);
+    }
+
+    &.has-paper-h-scrollbar::after {
+      left: var(--paper-scrollbar-h-left);
+      bottom: 0;
+      width: var(--paper-scrollbar-h-width);
+      height: 6px;
+    }
+
+    &.is-scrolling::before,
+    &.is-scrolling::after {
+      opacity: 1;
+      transition: none;
+    }
 
     .x6-graph-scroller-background {
       background-color: #ffffff !important;
     }
 
     .x6-graph-scroller {
-      overflow: overlay !important;
+      overflow: scroll !important;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
 
       // transition 写在父元素上，驱动 --x6-thumb-alpha 变化
       // 类移除时 500ms 渐隐；类添加时立即显示
@@ -120,22 +158,9 @@
 
       // --- WebKit ---
       &::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-track,
-      &::-webkit-scrollbar-corner {
-        background: transparent;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background-color: rgba(0, 0, 0, calc(0.28 * var(--x6-thumb-alpha)));
-        border-radius: 10px;
-      }
-
-      &::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(0, 0, 0, 0.45);
+        display: none;
+        width: 0;
+        height: 0;
       }
     }
 

@@ -23,7 +23,7 @@ interface SubSystemTabStore {
   /** 在当前选项卡内导航（双击子系统、mask 点击） */
   navigateWithin: (subGraphId: string) => void
 
-  /** 打开或切换：若目标已有选项卡则切换，否则新建（面包屑、Tree 选择） */
+  /** 在标签页打开或切换：若目标已有选项卡则切换，否则新建 */
   openOrSwitch: (subGraphId: string) => void
 
   /** 关闭选项卡 */
