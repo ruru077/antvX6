@@ -1,5 +1,6 @@
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
+import { message } from 'antd'
 import { RED } from '@/assets/constant'
 import {
   sourceMarkerAttrs,
@@ -14,8 +15,11 @@ import {
   isCompleteNodeEdge,
   routeAllEdges,
 } from '@/services/routing-service'
-import { ensureLabelUnique } from '@/services/stencil-service'
-import { hasSubsystemMask } from '@/services/subsystem-service'
+import {
+  hasSubsystemMask,
+  isIONode,
+  syncParentSubsystemPorts,
+} from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
   currentNode,
@@ -86,6 +90,7 @@ function useGraphListener() {
       registerScrollerSyncListener(graph),
       // ── Label 唯一性与可编辑 ──────────────────────────────────────
       registerLabelUniqueListeners(graph),
+      registerSubsystemPortSyncListeners(graph),
       registerEditableLabelListeners(graph),
     ]
 
@@ -122,11 +127,17 @@ function registerSubsystemListeners(graph: Graph) {
   function syncRemoveSubsystemHandler({ node }: EventArgs['node:removed']) {
     useSubGraphStore.getState().syncSubGraph(node, 'delete')
   }
+  function syncSubsystemNameHandler({ node }: EventArgs['node:change:attrs']) {
+    useSubGraphStore
+      .getState()
+      .syncSubGraphName(node.id, node.attr<string>('label/text') ?? '')
+  }
   return registerListeners(graph, [
     ['node:dblclick', withNodeGuard('subsystem', dblclickHandler)],
     ['node:click', withNodeGuard('subsystem', maskClickHandler)],
     ['node:added', withNodeGuard('subsystem', syncAddSubsystemHandler)],
     ['node:removed', withNodeGuard('subsystem', syncRemoveSubsystemHandler)],
+    ['node:change:attrs', withNodeGuard('subsystem', syncSubsystemNameHandler)],
   ])
 }
 
@@ -450,13 +461,68 @@ function registerScrollerSyncListener(graph: Graph) {
   return registerListeners(graph, [['node:added', nodeAddedHandler]])
 }
 
-// ── Label 唯一性（node:added 统一处理）─────────────────────────────────
+// ── Label 唯一性（node:added 自动递增，IO 改名重复时恢复）───────────────
 function registerLabelUniqueListeners(graph: Graph) {
   function nodeAddedHandler({ node }: EventArgs['node:added']) {
-    ensureLabelUnique(graph, node)
+    const rawLabel = node.attr<string>('label/text') ?? ''
+    if (!rawLabel) return
+
+    const { currentGraphId, syncGraph } = useSubGraphStore.getState()
+    syncGraph(graph.toJSON())
+    node.attr(
+      'label/text',
+      commonService.ensureLabelUnique(rawLabel, currentGraphId),
+    )
+    syncGraph(graph.toJSON())
   }
 
-  return registerListeners(graph, [['node:added', nodeAddedHandler]])
+  function IONodeChangeAttrsHandler({
+    node,
+    previous,
+  }: EventArgs['node:change:attrs']) {
+    const rawLabel = node.attr<string>('label/text') ?? ''
+    if (!rawLabel) return
+    if (!isIONode(node)) return
+
+    const { currentGraphId, syncGraph } = useSubGraphStore.getState()
+    syncGraph(graph.toJSON())
+    if (commonService.isLabelUnique(rawLabel, currentGraphId)) return
+
+    const previousLabel = previous?.label?.text
+    message.error(`IO节点不允许重名：${rawLabel}`)
+    node.attr('label/text', previousLabel, { ignore: true })
+    syncGraph(graph.toJSON())
+  }
+
+  return registerListeners(graph, [
+    ['node:added', nodeAddedHandler],
+    ['node:change:attrs', IONodeChangeAttrsHandler],
+  ])
+}
+
+// ── 子系统端口同步：内部 In/Out 节点变化 → 父级 Subsystem port ─────────────
+function registerSubsystemPortSyncListeners(graph: Graph) {
+  let timer: number | null = null
+
+  function scheduleSync({ node }: { node: Node }) {
+    if (!isIONode(node)) return
+    if (timer != null) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = null
+      syncParentSubsystemPorts(graph)
+    }, 0)
+  }
+
+  const unregister = registerListeners(graph, [
+    ['node:added', scheduleSync],
+    ['node:removed', scheduleSync],
+    ['node:change:attrs', scheduleSync],
+  ])
+
+  return () => {
+    if (timer != null) window.clearTimeout(timer)
+    unregister()
+  }
 }
 
 // ── 可编辑 Label（text-block subsystem，mouseenter 惰性设置）──────────────
