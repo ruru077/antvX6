@@ -61,7 +61,6 @@ function SubsystemTabBar() {
   const goUp = useSubSystemTabStore((s) => s.goUp)
   const setActiveTab = useSubSystemTabStore((s) => s.setActiveTab)
   const closeTab = useSubSystemTabStore((s) => s.closeTab)
-  const addTab = useSubSystemTabStore((s) => s.addTab)
   const reorderTabs = useSubSystemTabStore((s) => s.reorderTabs)
 
   const sensor = useSensor(PointerSensor, {
@@ -92,11 +91,7 @@ function SubsystemTabBar() {
     targetKey: React.MouseEvent | React.KeyboardEvent | string,
     action: 'add' | 'remove',
   ) {
-    if (action === 'add') {
-      addTab()
-    } else {
-      closeTab(targetKey as string)
-    }
+    if (action === 'remove') closeTab(targetKey as string)
   }
 
   return (
@@ -125,6 +120,7 @@ function SubsystemTabBar() {
         <Tabs
           type="editable-card"
           size="small"
+          hideAdd
           activeKey={activeKey}
           onChange={(key) => setActiveTab(key)}
           onEdit={onEdit}

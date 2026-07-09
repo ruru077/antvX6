@@ -29,9 +29,6 @@ interface SubSystemTabStore {
   /** 关闭选项卡 */
   closeTab: (key: string) => void
 
-  /** 新增选项卡（+ 按钮，默认 rootId） */
-  addTab: (subGraphId?: string) => void
-
   /** 拖拽排序 */
   reorderTabs: (fromKey: string, toKey: string) => void
 
@@ -132,11 +129,6 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
     } else {
       set({ tabs: nextTabs })
     }
-  },
-
-  addTab: (subGraphId) => {
-    const targetId = subGraphId ?? useSubGraphStore.getState().rootId
-    get().openOrSwitch(targetId)
   },
 
   reorderTabs: (fromKey, toKey) => {

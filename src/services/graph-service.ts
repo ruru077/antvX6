@@ -89,7 +89,7 @@ function createAndSetupGraph(
     })
     onScale(Math.round(sx * 100))
   })
-  graph.getPlugin<Scroller>('scroller')!.centerPoint(500, 500)
+  graph.getPlugin<Scroller>('scroller')!.centerPoint(1500, 1000)
   openAutoPan(graph)
   return graph
 }
@@ -303,8 +303,8 @@ function registerPlugins(graph: GraphType) {
   const scroller = new Scroller({
     enabled: true,
     pannable: true,
-    pageWidth: 1000,
-    pageHeight: 1000,
+    pageWidth: 3000,
+    pageHeight: 2000,
     pageBreak: false,
     pageVisible: true,
     autoResizeOptions: {

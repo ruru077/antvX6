@@ -18,7 +18,6 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { changeGraphView } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
@@ -215,7 +214,7 @@ function NodeMenu({ graph, node }: { graph: Graph | null; node: Node }) {
           <ContextMenuGroup>
             <ContextMenuItem
               onClick={() => {
-                changeGraphView(node.id, graph!)
+                useSubSystemTabStore.getState().navigateWithin(node.id)
               }}
             >
               <GitMerge className="mr-2 size-4" />

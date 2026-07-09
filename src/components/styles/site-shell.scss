@@ -23,6 +23,8 @@ body {
 
 .m2p-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .m2p-shell.m2p-shell-light {
@@ -574,7 +576,7 @@ body {
 }
 
 .playground-workspace {
-  height: calc(100svh - 58px);
+  flex: 1;
   min-height: 0;
   overflow: hidden;
   background: #f7f7fc;
@@ -591,6 +593,9 @@ body {
 
 .m2p-shell .m2p-main.editor {
   padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .home-landing {
@@ -1739,6 +1744,6 @@ body {
   }
 
   .playground-workspace {
-    height: calc(100svh - 102px);
+    height: auto;
   }
 }
