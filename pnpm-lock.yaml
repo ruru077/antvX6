@@ -205,6 +205,7 @@ settings:
 
 overrides:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.1
+  zod: 3.25.28
 
 importers:
 
@@ -359,7 +360,7 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.1)(@vitest/browser-preview@4.1.9)(@voidzero-dev/vite-plus-core@0.2.1(@types/node@25.9.1)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(typescript@6.0.3))
       zod:
-        specifier: ^3.25.28
+        specifier: 3.25.28
         version: 3.25.28
 
 packages:
@@ -646,7 +647,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
-      zod: ^3.25 || ^4.0
+      zod: 3.25.28
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
@@ -4875,10 +4876,7 @@ packages:
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
     peerDependencies:
-      zod: ^3.25.28 || ^4
-
-  zod@3.24.1:
-    resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
+      zod: 3.25.28
 
   zod@3.25.28:
     resolution: {integrity: sha512-/nt/67WYKnr5by3YS7LroZJbtcCBurDKKPBPWWzaxvVCGuG/NOsiKkrjoOhI8mJ+SQUXEbUzeB3S+6XDUEEj7Q==}
@@ -5272,7 +5270,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@3.24.1)':
+  '@modelcontextprotocol/sdk@1.29.0(zod@3.25.28)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.25)
       ajv: 8.20.0
@@ -5289,8 +5287,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.0
       raw-body: 3.0.2
-      zod: 3.24.1
-      zod-to-json-schema: 3.25.2(zod@3.24.1)
+      zod: 3.25.28
+      zod-to-json-schema: 3.25.2(zod@3.25.28)
     transitivePeerDependencies:
       - supports-color
 
@@ -8735,7 +8733,7 @@ snapshots:
       '@babel/plugin-transform-typescript': 7.29.7(@babel/core@7.29.7)
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.7)
       '@dotenvx/dotenvx': 1.73.1
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.24.1)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.28)
       '@types/validate-npm-package-name': 4.0.2
       browserslist: 4.28.2
       commander: 14.0.3
@@ -8761,8 +8759,8 @@ snapshots:
       ts-morph: 26.0.0
       tsconfig-paths: 4.2.0
       validate-npm-package-name: 7.0.2
-      zod: 3.24.1
-      zod-to-json-schema: 3.25.2(zod@3.24.1)
+      zod: 3.25.28
+      zod-to-json-schema: 3.25.2(zod@3.25.28)
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - babel-plugin-macros
@@ -9159,11 +9157,9 @@ snapshots:
 
   yoctocolors@2.1.2: {}
 
-  zod-to-json-schema@3.25.2(zod@3.24.1):
+  zod-to-json-schema@3.25.2(zod@3.25.28):
     dependencies:
-      zod: 3.24.1
-
-  zod@3.24.1: {}
+      zod: 3.25.28
 
   zod@3.25.28: {}
 

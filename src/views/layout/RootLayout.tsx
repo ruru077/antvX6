@@ -1,26 +1,27 @@
+import { GithubOutlined } from '@ant-design/icons'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { siteContent } from '@/views/site/siteContent'
-import {
-  SiteLanguageProvider,
-  useSiteLanguage,
-} from '@/views/site/SiteLanguageContext'
+import { Button } from '@/components/ui/button'
+import { SiteLanguageProvider } from '@/views/site/SiteLanguageContext'
 import '@/components/styles/site-shell.scss'
 
 function SiteHeader() {
-  const { locale, setLocale } = useSiteLanguage()
-  const copy = siteContent[locale]
   const { pathname } = useLocation()
-  const isLanding = pathname === '/'
+  const isLanding = pathname === '/' || pathname === '/blog'
+  const navItems = [
+    { text: 'Home', path: '/' },
+    { text: 'Playground', path: '/playground' },
+    { text: 'Blog', path: '/blog' },
+  ]
 
   return (
     <header className={`m2p-header ${isLanding ? 'landing' : ''}`}>
       <div className="m2p-brand">
         <Link to="/" className="m2p-brand-link">
-          <span className="m2p-brand-mark">{copy.brand.badge}</span>
+          <span className="m2p-brand-mark">LINK FOR M2PLAB</span>
         </Link>
       </div>
       <nav className="m2p-nav">
-        {copy.nav.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.text}
             to={item.path}
@@ -34,20 +35,16 @@ function SiteHeader() {
         ))}
       </nav>
       <div className="m2p-tools">
-        <button
-          className={`m2p-lang-btn ${locale === 'zh' ? 'active' : ''}`}
-          onClick={() => setLocale('zh')}
-          type="button"
-        >
-          中文
-        </button>
-        <button
-          className={`m2p-lang-btn ${locale === 'en' ? 'active' : ''}`}
-          onClick={() => setLocale('en')}
-          type="button"
-        >
-          EN
-        </button>
+        <Button asChild variant="ghost" size="sm" className="m2p-github-btn">
+          <a
+            href="https://github.com/ruru077/antvX6"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GithubOutlined data-icon="inline-start" />
+            Submit Issue Here
+          </a>
+        </Button>
       </div>
     </header>
   )
@@ -72,7 +69,7 @@ function SiteMain() {
 
 function RootLayout() {
   const { pathname } = useLocation()
-  const isLanding = pathname === '/'
+  const isLanding = pathname === '/' || pathname === '/blog'
   const isWorkspacePage =
     pathname === '/playground' ||
     pathname === '/model' ||
