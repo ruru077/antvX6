@@ -27,6 +27,7 @@ const SEARCH_OPTIONS: TextMatchOptions = {
   wholeWord: false,
 }
 const STENCIL_CONTENT_SELECTOR = '.x6-widget-stencil-content'
+const STENCIL_DRAG_LEFT_PORT_OFFSET = 9
 
 // 模块级：供外部读取当前已加载的库名列表
 let loadedLibraryNames: string[] = []
@@ -268,8 +269,14 @@ function createStencilService() {
       stencilGraphPadding: STENCIL_GROUP_PADDING,
       notFoundText: 'NOT FOUND',
       // 拖拽预处理：增加节点阴影，调整宽高
-      getDragNode(node) {
+      getDragNode(node, { draggingGraph, targetGraph }) {
         const res = node.clone()
+        const hasLeftPort = res
+          .getPorts()
+          .some((port) => port.group?.toLowerCase().startsWith('in'))
+        draggingGraph.container.style.transform = hasLeftPort
+          ? `translateX(${-STENCIL_DRAG_LEFT_PORT_OFFSET * targetGraph.zoom()}px)`
+          : ''
         // 节点阴影
         interactiveService.removeOutline(res)
         // 子系统：暂存 label 并清空，避免拖拽时 foreignObject 裁剪
