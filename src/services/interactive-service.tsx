@@ -80,7 +80,7 @@ function createInteractiveService() {
           name: 'outline',
           args: {
             color: 'rgb(102,194,255)',
-            width: getFilterWidth(4),
+            width: Math.min(getFilterWidth(4), 4),
             margin: 0,
           },
         },
@@ -93,7 +93,7 @@ function createInteractiveService() {
           name: 'outline',
           args: {
             color: 'rgb(102,194,255)',
-            width: getFilterWidth(3),
+            width: Math.min(getFilterWidth(3), 3),
             margin: 0,
           },
           attrs: {
