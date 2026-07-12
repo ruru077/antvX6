@@ -19,6 +19,7 @@ import {
   hasSubsystemMask,
   isIONode,
   syncParentSubsystemPorts,
+  syncParentSubsystemSnapshot,
 } from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
@@ -122,7 +123,17 @@ function registerSubsystemListeners(graph: Graph) {
     }
   }
   function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
-    useSubGraphStore.getState().syncSubGraph(node, 'add')
+    const { syncSubGraph, syncGraph } = useSubGraphStore.getState()
+    if (!syncSubGraph(node, 'add')) return
+
+    syncGraph(graph.toJSON())
+    const graphJson = useSubGraphStore.getState().subGraphs[node.id].graphJson
+    void syncParentSubsystemSnapshot(node.id, graphJson, graph).catch(
+      (error: unknown) => {
+        console.error(error)
+        message.error('子系统缩略图生成失败')
+      },
+    )
   }
   function syncRemoveSubsystemHandler({ node }: EventArgs['node:removed']) {
     useSubGraphStore.getState().syncSubGraph(node, 'delete')

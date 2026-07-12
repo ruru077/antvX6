@@ -26,7 +26,7 @@ interface SubGraphStore {
   // 同步当前Layer Graph数据
   syncGraph: (graphJson: GraphJSON) => void
   // 同步新增SubGraph数据
-  syncSubGraph: (subGraphNode: Node, action: 'add' | 'delete') => void
+  syncSubGraph: (subGraphNode: Node, action: 'add' | 'delete') => boolean
   // 同步子系统展示名称
   syncSubGraphName: (subGraphId: string, name: string) => void
   // 添加 mask 工具
@@ -268,7 +268,7 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
 
     if (action === 'add') {
       // 如果已经存在，则不重复添加
-      if (subGraphs[subGraphNode.id]) return
+      if (subGraphs[subGraphNode.id]) return false
 
       // subGraph 加入当前Layer
       const currentSubGraphItem = subGraphs[currentGraphId]
@@ -298,6 +298,7 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
           ...nestedSubGraphs,
         },
       })
+      return true
     } else if (action === 'delete') {
       const nextSubGraphs = { ...subGraphs }
       delete nextSubGraphs[subGraphNode.id]
@@ -314,7 +315,9 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
           },
         },
       })
+      return true
     }
+    return false
   },
   syncSubGraphName: (subGraphId, name) => {
     const trimmed = name.trim()

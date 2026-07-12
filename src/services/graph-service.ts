@@ -317,10 +317,10 @@ function registerPlugins(graph: GraphType) {
   const transformPlugin = new Transform({
     resizing: {
       enabled: true,
-      minWidth: 30,
-      maxWidth: 200,
-      minHeight: 30,
-      maxHeight: 150,
+      minWidth: 40,
+      maxWidth: 800,
+      minHeight: 40,
+      maxHeight: 400,
       orthogonal: false,
       restrict: false,
       preserveAspectRatio: false,
@@ -496,8 +496,13 @@ function copyHandler() {
 
 function pasteHandler() {
   if (!firstTimePaste) return
+  if (!pasteAndSelect()) return
+  setFirstTimePaste(false)
+}
+
+function pasteAndSelect() {
   const graph = useGraphStore.getState().graph
-  if (graph.isClipboardEmpty()) return
+  if (graph.isClipboardEmpty()) return false
   let cells
   if (pasteTarget) {
     const clipboardCells = graph.getCellsInClipboard()
@@ -512,7 +517,7 @@ function pasteHandler() {
     cells = graph.paste({ offset: PASTE_OFFSET })
   }
   graph.resetSelection(cells)
-  setFirstTimePaste(false)
+  return true
 }
 
 function pasteUpHandler() {
@@ -630,4 +635,4 @@ function registerKeys(graph: GraphType, entries: KeyEntry[]) {
   }
 }
 
-export { createAndSetupGraph }
+export { createAndSetupGraph, pasteAndSelect }

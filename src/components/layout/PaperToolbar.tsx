@@ -152,7 +152,7 @@ function PaperToolbar(_: PaperToolbarProps) {
               if (!graph) return
               syncGraph(graph.toJSON())
               // console.log(JSON.stringify(buildGraphModelDTO(graph), null, 2))
-              buildGraphModelDTO(graph)
+              void buildGraphModelDTO(graph)
             }}
           >
             测试DTO

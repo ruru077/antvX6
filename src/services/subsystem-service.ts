@@ -1,13 +1,17 @@
 import { Model, StringExt } from '@antv/x6'
 import { message } from 'antd'
+import { GRAPH_GRID } from '@/assets/constant'
 import {
   formalLinkAttrs,
   Inport,
   MASK_SELECTOR,
   Outport,
+  sourceMarkerAttrs,
   subsystemPortGroups,
+  targetMarkerAttrs,
 } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
 import {
   buildPaths,
@@ -18,6 +22,7 @@ import {
   _patchScrollerForceUpdate,
   mergePortMetadata,
 } from '@/utils/plugin/X6patch'
+import type { SnapshotSize } from '@/services/snapshot-service'
 import type {
   Cell,
   CellProperties,
@@ -42,6 +47,7 @@ import type { BlockDTO, LineDTO } from '~/types/dto/graphModel'
 
 const commonService = createCommonService()
 const SUBSYSTEM_IO_OFFSET = 140
+const snapshotVersions = new Map<string, number>()
 
 type PortGroup = 'in' | 'out'
 type IOPortSide = 'in' | 'out'
@@ -186,6 +192,76 @@ function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
 }
 
 // ─── 切换视图 ─────────────────────────────────────────────────────────────
+async function syncParentSubsystemSnapshot(
+  subGraphId: string,
+  graphJson: GraphJSON,
+  graph: Graph,
+) {
+  const version = (snapshotVersions.get(subGraphId) ?? 0) + 1
+  snapshotVersions.set(subGraphId, version)
+  const initialSubGraphs = useSubGraphStore.getState().subGraphs
+  const initialParentId = initialSubGraphs[subGraphId].parentId
+  if (!initialParentId) return
+
+  const subsystemCell = initialSubGraphs[initialParentId].graphJson.cells.find(
+    (cell) => cell.shape !== 'edge' && cell.id === subGraphId,
+  )
+  if (!subsystemCell?.size) {
+    throw new Error(`Subsystem ${subGraphId} size is required`)
+  }
+
+  const targetSize: SnapshotSize = subsystemCell.size
+  const dataUrl = await snapshotToDataURL(graphJson, targetSize)
+  if (snapshotVersions.get(subGraphId) !== version) return
+
+  const { currentGraphId, subGraphs } = useSubGraphStore.getState()
+  const parentId = subGraphs[subGraphId].parentId
+  if (!parentId) return
+
+  const parent = subGraphs[parentId]
+  const cells = parent.graphJson.cells.map((cell) => {
+    if (cell.shape === 'edge' || cell.id !== subGraphId) return cell
+    return {
+      ...cell,
+      attrs: {
+        ...cell.attrs,
+        thumb: {
+          ...cell.attrs?.thumb,
+          xlinkHref: dataUrl,
+        },
+      },
+      data: {
+        ...cell.data,
+        graphJson,
+      },
+    }
+  })
+
+  useSubGraphStore.setState({
+    subGraphs: {
+      ...subGraphs,
+      [parentId]: {
+        ...parent,
+        graphJson: { ...parent.graphJson, cells },
+      },
+    },
+  })
+
+  if (currentGraphId === parentId) {
+    const subsystem = graph.getCellById(subGraphId)
+    if (subsystem?.isNode()) {
+      subsystem.attr('thumb/xlinkHref', dataUrl, {
+        ignore: true,
+        undo: false,
+      })
+      subsystem.setData(
+        { ...subsystem.getData(), graphJson },
+        { ignore: true, undo: false },
+      )
+    }
+  }
+}
+
 /**
  * @description 切换图层视图
  * @param subGraphId string
@@ -208,6 +284,16 @@ function changeGraphView(subGraphId: string, graph: Graph) {
   graph.cleanSelection()
   const currentGraphJson = graph.toJSON()
   syncGraph(currentGraphJson)
+  if (subGraphs[currentGraphId].parentId) {
+    void syncParentSubsystemSnapshot(
+      currentGraphId,
+      currentGraphJson,
+      graph,
+    ).catch((error: unknown) => {
+      console.error(error)
+      message.error('子系统缩略图生成失败')
+    })
+  }
 
   // 切换期间禁用 history，过滤 fromJSON 进入历史栈
   graph.disableHistory()
@@ -305,6 +391,10 @@ function createIOCells(
       target: isIn
         ? { cell: nodeId, port: portId }
         : { cell: ioNode.id, port: 'i1' },
+      router: {
+        name: 'manhattan',
+        args: { step: GRAPH_GRID },
+      },
       ...formalLinkAttrs,
     } as EdgeProperties,
   ]
@@ -362,6 +452,20 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
       ...createIOCells(graph, 'out', nodeId, portId, usedIOLabels),
     )
   }
+
+  graphJson.cells.forEach((cell) => {
+    if (cell.shape !== 'edge') return
+    cell.attrs = {
+      ...cell.attrs,
+      ...formalLinkAttrs.attrs,
+      line: {
+        ...cell.attrs?.line,
+        ...formalLinkAttrs.attrs.line,
+        sourceMarker: sourceMarkerAttrs('full'),
+        targetMarker: targetMarkerAttrs('full'),
+      },
+    }
+  })
 
   const ioLabels = validateIOLabels(graphJson.cells)
   if (!ioLabels) return
@@ -447,6 +551,12 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
     applySubsystemPortsByLabels(subsystemNode, ioLabels)
   })
   useSubGraphStore.getState().syncGraph(graph.toJSON())
+  void syncParentSubsystemSnapshot(subGraphItem.id, graphJson, graph).catch(
+    (error: unknown) => {
+      console.error(error)
+      message.error('子系统缩略图生成失败')
+    },
+  )
 }
 // ─── 结构查询 ──────────────────────────────────────────────────────────
 
@@ -1034,6 +1144,7 @@ export {
   hasSubsystemMask,
   removeMask,
   syncParentSubsystemPorts,
+  syncParentSubsystemSnapshot,
   withSyncedSubsystemPorts,
   buildGraphModelDTO,
   getInnerCells,

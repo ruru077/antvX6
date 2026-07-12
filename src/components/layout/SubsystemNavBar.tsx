@@ -166,8 +166,6 @@ function SubsystemNavBar({
       rootId: s.rootId,
     })),
   )
-  const graph = useGraphStore((s) => s.graph)
-
   // 在当前 Tab 内切换子系统层级。
   function navigateTo(subGraphId: string) {
     useSubSystemTabStore.getState().navigateWithin(subGraphId)
@@ -214,24 +212,16 @@ function SubsystemNavBar({
     function onKeyDown(e: KeyboardEvent) {
       if ((!e.ctrlKey && !e.metaKey) || e.key.toLowerCase() !== 'f') return
       e.preventDefault()
-      syncCurrentGraph()
       setDrawerOpen(true)
       requestAnimationFrame(() => searchInputRef.current?.focus())
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [graph])
-
-  // 把当前可见画布写回 subGraphs，避免搜索读到旧 JSON。
-  function syncCurrentGraph() {
-    if (!graph) return
-    useSubGraphStore.getState().syncGraph(graph.toJSON())
-  }
+  }, [])
 
   // 打开查找器，并让输入框立即获得焦点。
   function openSearchPanel() {
-    syncCurrentGraph()
     setDrawerOpen(true)
     requestAnimationFrame(() => searchInputRef.current?.focus())
   }
