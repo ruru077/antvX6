@@ -15,6 +15,9 @@ const commonService = createCommonService()
 // 继承 text-block（foreignObject + div label），默认 attrs 定位 label 到节点下方
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 
+export const SUBSYSTEM_BACKGROUND_TOP = '#ffffff'
+export const SUBSYSTEM_BACKGROUND_BOTTOM = '#dadada'
+
 Graph.registerNode(
   'subsystem-block',
   {
@@ -51,6 +54,16 @@ Graph.registerNode(
       body: {
         refWidth: '100%',
         refHeight: '100%',
+        stroke: '#333333',
+        strokeWidth: 1,
+        fill: {
+          type: 'linearGradient',
+          stops: [
+            { offset: 0, color: SUBSYSTEM_BACKGROUND_TOP },
+            { offset: 1, color: SUBSYSTEM_BACKGROUND_BOTTOM },
+          ],
+          attrs: { x1: 0, y1: 0, x2: 0, y2: 1 },
+        },
       },
       thumb: {
         refWidth: '100%',

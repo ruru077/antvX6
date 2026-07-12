@@ -1,9 +1,5 @@
 import { Export, Graph } from '@antv/x6'
 import { EDGE_TARGET_CP_OFFSET } from '@/assets/constant'
-import {
-  SUBSYSTEM_BACKGROUND_BOTTOM,
-  SUBSYSTEM_BACKGROUND_TOP,
-} from '@/assets/x6Model'
 import type { ExportToImageOptions } from '@antv/x6/lib/plugin/export/type'
 import type { GraphJSON } from '~/types'
 import '@antv/x6/lib/plugin/export/api'
@@ -98,44 +94,7 @@ function getExportSize(targetSize: SnapshotSize): SnapshotSize {
       }
 }
 
-function decorateSnapshot(svg: SVGSVGElement, viewBox: SnapshotViewBox) {
-  const ns = 'http://www.w3.org/2000/svg'
-  const gradientId = `subsystem-snapshot-gradient-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`
-  let defs = svg.querySelector('defs')
-  if (!defs) {
-    defs = document.createElementNS(ns, 'defs')
-    svg.insertBefore(defs, svg.firstChild)
-  }
-
-  const gradient = document.createElementNS(ns, 'linearGradient')
-  gradient.setAttribute('id', gradientId)
-  gradient.setAttribute('x1', '0')
-  gradient.setAttribute('y1', '0')
-  gradient.setAttribute('x2', '0')
-  gradient.setAttribute('y2', '1')
-
-  const top = document.createElementNS(ns, 'stop')
-  top.setAttribute('offset', '0%')
-  top.setAttribute('stop-color', SUBSYSTEM_BACKGROUND_TOP)
-  const bottom = document.createElementNS(ns, 'stop')
-  bottom.setAttribute('offset', '100%')
-  bottom.setAttribute('stop-color', SUBSYSTEM_BACKGROUND_BOTTOM)
-  gradient.append(top, bottom)
-  defs.appendChild(gradient)
-
-  const stage = svg.querySelector<SVGGElement>('.x6-graph-svg-stage')
-  if (stage) {
-    const background = document.createElementNS(ns, 'rect')
-    background.setAttribute('x', String(viewBox.x))
-    background.setAttribute('y', String(viewBox.y))
-    background.setAttribute('width', String(viewBox.width))
-    background.setAttribute('height', String(viewBox.height))
-    background.setAttribute('fill', `url(#${gradientId})`)
-    stage.insertBefore(background, stage.firstChild)
-  }
-
+function decorateSnapshot(svg: SVGSVGElement) {
   svg
     .querySelectorAll<SVGElement>(
       '.x6-node [data-selector="body"], .x6-node [data-selector="portBody"]',
@@ -197,11 +156,11 @@ export async function snapshotToDataURL(
 
     const options: ExportToImageOptions = {
       ...exportSize,
-      backgroundColor: '#ffffff',
+      backgroundColor: 'transparent',
       copyStyles: false,
       viewBox,
       beforeSerialize(svg) {
-        decorateSnapshot(svg, viewBox)
+        decorateSnapshot(svg)
       },
     }
 
