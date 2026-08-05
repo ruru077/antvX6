@@ -23,6 +23,7 @@ import {
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
+import { routeAllEdges } from '@/services/routing-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
 import {
   firstTimePaste,
@@ -68,6 +69,63 @@ const resolveSourceFromUpstreamEdge = (
   // TODO feat: 空接 删除模块不删除连接线
   return null
 }
+/**
+ * Graph 连线合法性校验
+ * @description TODO 当前校验规则：out-> in，端口只能单连，允许自环
+ * @returns boolean 是否合法
+ */
+function isConnectionValid(
+  graph: GraphType,
+  sourceCell: Node | Edge,
+  sourcePort: string | null | undefined,
+  targetCell: Node,
+  targetPort: string,
+  edge?: Edge | null,
+) {
+  // 统一算出当前连接起点的端口信息：节点直连 or edge 回溯
+  const sourcePortInfo = sourceCell.isNode()
+    ? {
+        cell: sourceCell,
+        portId: sourcePort!,
+      }
+    : resolveSourceFromUpstreamEdge(sourceCell as Edge)!
+
+  const sourceDir = commonService.getPortGroup(
+    sourcePortInfo.cell.getPort(sourcePortInfo.portId),
+  )
+  const targetDir = commonService.getPortGroup(targetCell.getPort(targetPort))
+  // in <-> out
+  if (!sourceDir || !targetDir || sourceDir === targetDir) return false
+
+  const currentEdgeId = edge?.id
+  if (sourceCell.isNode()) {
+    const sourcePortOccupied = graph
+      .getConnectedEdges(sourcePortInfo.cell)
+      .some(
+        (e) =>
+          e.id !== currentEdgeId &&
+          ((e.getSourceCell()?.id === sourcePortInfo.cell.id &&
+            e.getSourcePortId() === sourcePortInfo.portId) ||
+            (e.getTargetCell()?.id === sourcePortInfo.cell.id &&
+              e.getTargetPortId() === sourcePortInfo.portId)),
+      )
+    if (sourcePortOccupied) return false
+  }
+
+  const targetPortOccupied = graph
+    .getConnectedEdges(targetCell)
+    .some(
+      (e) =>
+        e.id !== currentEdgeId &&
+        ((e.getSourceCell()?.id === targetCell.id &&
+          e.getSourcePortId() === targetPort) ||
+          (e.getTargetCell()?.id === targetCell.id &&
+            e.getTargetPortId() === targetPort)),
+    )
+  if (targetPortOccupied) return false
+
+  return true
+}
 
 // ── 主入口 ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +137,7 @@ function createAndSetupGraph(
   registerSteppedMouseWheel(graph)
   setupDevTools(graph)
   registerPlugins(graph)
+  registerCtrlClickConnection(graph)
   registerKeyBindings(graph)
   graph.on('scale', ({ sx }: { sx: number }) => {
     // 使用selection 插件选择多个cell 之后滚轮进行缩放，选择框错位 #3452
@@ -127,56 +186,17 @@ function createGraph(container: HTMLElement): GraphType {
         sourcePort,
         targetPort,
         edge,
-      }) {
+      }): boolean {
         // 缺少关键参数直接拒绝
         if (!sourceCell || !targetCell || !targetPort) return false
-        // 统一算出当前连接起点的端口信息：节点直连 or edge 回溯
-        const sourcePortInfo = sourceCell.isNode()
-          ? {
-              cell: sourceCell,
-              portId: sourcePort!,
-            }
-          : resolveSourceFromUpstreamEdge(sourceCell as Edge)!
-
-        const sourceDir = commonService.getPortGroup(
-          sourcePortInfo.cell.getPort(sourcePortInfo.portId),
+        return isConnectionValid(
+          graph,
+          sourceCell as Node | Edge,
+          sourcePort,
+          targetCell as Node,
+          targetPort,
+          edge,
         )
-        const targetDir = commonService.getPortGroup(
-          (targetCell as Node).getPort(targetPort),
-        )
-        // in <-> out
-        if (!sourceDir || !targetDir || sourceDir === targetDir) {
-          return false
-        }
-
-        const currentEdgeId = edge?.id
-        if (sourceCell.isNode()) {
-          const sourcePortOccupied = graph
-            .getConnectedEdges(sourcePortInfo.cell)
-            .some(
-              (e) =>
-                e.id !== currentEdgeId &&
-                ((e.getSourceCell()?.id === sourcePortInfo.cell.id &&
-                  e.getSourcePortId() === sourcePortInfo.portId) ||
-                  (e.getTargetCell()?.id === sourcePortInfo.cell.id &&
-                    e.getTargetPortId() === sourcePortInfo.portId)),
-            )
-          if (sourcePortOccupied) return false
-        }
-
-        const targetPortOccupied = graph
-          .getConnectedEdges(targetCell)
-          .some(
-            (e) =>
-              e.id !== currentEdgeId &&
-              ((e.getSourceCell()?.id === targetCell.id &&
-                e.getSourcePortId() === targetPort) ||
-                (e.getTargetCell()?.id === targetCell.id &&
-                  e.getTargetPortId() === targetPort)),
-          )
-        if (targetPortOccupied) return false
-
-        return true
       },
     },
     highlighting: {
@@ -216,6 +236,76 @@ function createGraph(container: HTMLElement): GraphType {
   })
 
   return graph
+}
+
+function registerCtrlClickConnection(graph: GraphType) {
+  let selectedNodes: Node[] = []
+  // mousedown 更新选中节点列表
+  graph.on('node:mousedown', ({ node, e }) => {
+    selectedNodes = []
+    if (e.button !== 0 || (!e.ctrlKey && !e.metaKey)) return
+    if (e.target.closest('.x6-port')) return
+
+    const currentSelection = graph
+      .getSelectedCells()
+      .filter((cell): cell is Node => cell.isNode())
+    if (currentSelection.some((cell) => cell.id === node.id)) return
+
+    selectedNodes = currentSelection
+  })
+  // Ctrl / Command + 鼠标点击连接
+  graph.on('node:click', ({ node, e }) => {
+    const sourceNodes = selectedNodes
+    selectedNodes = []
+    if ((!e.ctrlKey && !e.metaKey) || sourceNodes.length === 0) return
+    // y轴优先排序，x轴次之，保证连接顺序可控
+    sourceNodes.sort((a, b) => {
+      const aPosition = a.getPosition()
+      const bPosition = b.getPosition()
+      return aPosition.y - bPosition.y || aPosition.x - bPosition.x
+    })
+
+    const targetPorts = node
+      .getPorts()
+      .filter(
+        (port) => port.id !== null && commonService.getPortGroup(port) === 'in',
+      )
+      .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
+
+    let connected = false
+    graph.startBatch('ctrl-click-connect')
+    try {
+      sourceNodes.forEach((sourceNode) => {
+        const sourcePorts = sourceNode
+          .getPorts()
+          .filter(
+            (port) =>
+              port.id !== null && commonService.getPortGroup(port) === 'out',
+          )
+          .sort((a, b) =>
+            a.id!.localeCompare(b.id!, undefined, { numeric: true }),
+          )
+
+        for (const targetPort of targetPorts) {
+          const sourcePort = sourcePorts.find((port) =>
+            isConnectionValid(graph, sourceNode, port.id, node, targetPort.id!),
+          )
+          if (!sourcePort) continue
+
+          const edge = graph.addEdge({
+            source: { cell: sourceNode.id, port: sourcePort.id },
+            ...previewLinkAttrs,
+          })
+          edge.setTarget({ cell: node.id, port: targetPort.id })
+          connected = true
+          break
+        }
+      })
+    } finally {
+      graph.stopBatch('ctrl-click-connect')
+    }
+    if (connected) void routeAllEdges(graph)
+  })
 }
 
 /**
@@ -268,7 +358,8 @@ function registerPlugins(graph: GraphType) {
   graph.use(
     new Selection({
       enabled: true,
-      multiple: true,
+      // 关闭内置多选 使用 Ctrl/Command + 鼠标点击 进行模块连接
+      multiple: false,
       rubberband: true,
       rubberEdge: true,
       showNodeSelectionBox: true,
