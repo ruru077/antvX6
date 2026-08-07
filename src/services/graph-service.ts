@@ -240,24 +240,29 @@ function createGraph(container: HTMLElement): GraphType {
 
 function registerCtrlClickConnection(graph: GraphType) {
   let selectedNodes: Node[] = []
+
   // mousedown 更新选中节点列表
   graph.on('node:mousedown', ({ node, e }) => {
     selectedNodes = []
-    if (e.button !== 0 || (!e.ctrlKey && !e.metaKey)) return
-    if (e.target.closest('.x6-port')) return
-
     const currentSelection = graph
       .getSelectedCells()
       .filter((cell): cell is Node => cell.isNode())
-    if (currentSelection.some((cell) => cell.id === node.id)) return
+    if (
+      e.button !== 0 ||
+      (!e.ctrlKey && !e.metaKey) ||
+      e.target.closest('.x6-port')
+    ) {
+      return
+    }
 
-    selectedNodes = currentSelection
+    selectedNodes = currentSelection.filter((cell) => cell.id !== node.id)
   })
   // Ctrl / Command + 鼠标点击连接
-  graph.on('node:click', ({ node, e }) => {
+  graph.on('node:click', async ({ node, e }) => {
     const sourceNodes = selectedNodes
     selectedNodes = []
-    if ((!e.ctrlKey && !e.metaKey) || sourceNodes.length === 0) return
+    if (!e.ctrlKey && !e.metaKey) return
+    if (sourceNodes.length === 0) return
     // y轴优先排序，x轴次之，保证连接顺序可控
     sourceNodes.sort((a, b) => {
       const aPosition = a.getPosition()
@@ -298,13 +303,12 @@ function registerCtrlClickConnection(graph: GraphType) {
           })
           edge.setTarget({ cell: node.id, port: targetPort.id })
           connected = true
-          break
         }
       })
+      if (connected) await routeAllEdges(graph)
     } finally {
       graph.stopBatch('ctrl-click-connect')
     }
-    if (connected) void routeAllEdges(graph)
   })
 }
 
@@ -726,4 +730,4 @@ function registerKeys(graph: GraphType, entries: KeyEntry[]) {
   }
 }
 
-export { createAndSetupGraph, pasteAndSelect }
+export { createAndSetupGraph, isConnectionValid, pasteAndSelect }
