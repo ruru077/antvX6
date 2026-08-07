@@ -9,6 +9,10 @@ import {
   STENCIL_SIDE_PADDING,
 } from '@/assets/constant'
 import { createCommonService } from '@/services/common-service'
+import {
+  clearEdgeInsertionPreview,
+  updateEdgeInsertionPreview,
+} from '@/services/edge-insertion-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { createPermissionService } from '@/services/permission-service'
 import { useConfigStore } from '@/store/configStore'
@@ -144,6 +148,7 @@ function createStencilService() {
     dispose(): void
   } | null = null
   let currentKeyword = ''
+  let stopEdgeInsertionPreview: (() => void) | null = null
   // 拖拽中间变量：暂存 label，拖拽时清空避免 foreignObject 裁剪，drop 时恢复
   let pendingLabelText = ''
   let searchOptions: TextMatchOptions = { ...SEARCH_OPTIONS }
@@ -151,6 +156,80 @@ function createStencilService() {
   let savedLibraryGroupStates: Map<string, boolean> | null = null
   // 上一次的视图模式，用于检测 library ↔ results 切换
   let prevViewMode: 'library' | 'results' = 'library'
+
+  function startEdgeInsertionPreview(
+    node: Node,
+    draggingGraph: Graph,
+    targetGraph: Graph,
+    leftPortOffset: number,
+  ) {
+    stopEdgeInsertionPreview?.()
+
+    let registrationTimer: ReturnType<typeof setTimeout> | null = setTimeout(
+      () => {
+        registrationTimer = null
+
+        const moveHandler = () => {
+          // Stencil 为左侧输入端口预留了视觉偏移；先恢复这个基础偏移，再以画布中的
+          // 吸附点为准追加拖拽层位移，避免基础偏移被重复计入距离计算。
+          const baseOffsetX = -leftPortOffset
+          draggingGraph.container.style.transform = baseOffsetX
+            ? `translateX(${baseOffsetX}px)`
+            : ''
+          const snapped = updateEdgeInsertionPreview(targetGraph, node)
+          if (!snapped) return
+
+          const snapClient = targetGraph.localToClient(
+            node.getBBox().getCenter(),
+          )
+          const draggingView = draggingGraph.findViewByCell(node)
+          if (!draggingView) {
+            throw new Error(`Stencil dragging view is missing: ${node.id}`)
+          }
+          const body = draggingView.findOne('body')
+          if (!body) {
+            throw new Error(`Stencil dragging node body is missing: ${node.id}`)
+          }
+          // 只用 body 的可见中心对齐吸附点。NodeView 的包围盒还包含 label，使用它会
+          // 让 Stencil 模块与画布模块采用不同的视觉中心，从而产生吸附偏移。
+          const visibleBBox = body.getBoundingClientRect()
+          const visibleCenter = {
+            x: visibleBBox.left + visibleBBox.width / 2,
+            y: visibleBBox.top + visibleBBox.height / 2,
+          }
+          const translate = {
+            x: baseOffsetX + snapClient.x - visibleCenter.x,
+            y: snapClient.y - visibleCenter.y,
+          }
+          draggingGraph.container.style.transform = `translate(${translate.x}px, ${translate.y}px)`
+        }
+
+        const endHandler = () => setTimeout(cleanup, 0)
+
+        const cleanup = () => {
+          if (stopEdgeInsertionPreview !== cleanup) return
+          document.removeEventListener('mousemove', moveHandler)
+          document.removeEventListener('mouseup', endHandler)
+          draggingGraph.container.style.transform = ''
+          clearEdgeInsertionPreview(targetGraph)
+          stopEdgeInsertionPreview = null
+        }
+
+        document.addEventListener('mousemove', moveHandler)
+        document.addEventListener('mouseup', endHandler, { once: true })
+        stopEdgeInsertionPreview = cleanup
+      },
+      0,
+    )
+
+    stopEdgeInsertionPreview = () => {
+      if (registrationTimer) clearTimeout(registrationTimer)
+      registrationTimer = null
+      draggingGraph.container.style.transform = ''
+      clearEdgeInsertionPreview(targetGraph)
+      stopEdgeInsertionPreview = null
+    }
+  }
 
   /**
    * @description 删去边距和滚动条占位后剩余的宽度，作为 greedy layout 的可用宽度
@@ -274,8 +353,11 @@ function createStencilService() {
         const hasLeftPort = res
           .getPorts()
           .some((port) => port.group?.toLowerCase().startsWith('in'))
-        draggingGraph.container.style.transform = hasLeftPort
-          ? `translateX(${-STENCIL_DRAG_LEFT_PORT_OFFSET * targetGraph.zoom()}px)`
+        const leftPortOffset = hasLeftPort
+          ? STENCIL_DRAG_LEFT_PORT_OFFSET * targetGraph.zoom()
+          : 0
+        draggingGraph.container.style.transform = leftPortOffset
+          ? `translateX(${-leftPortOffset}px)`
           : ''
         // 节点阴影
         interactiveService.removeOutline(res)
@@ -283,17 +365,24 @@ function createStencilService() {
         if (node.getData()?.blockType === 'Subsystem') {
           pendingLabelText = res.attr<string>('label/text') ?? ''
           res.attr('label/text', '')
-          return res
+        } else {
+          const { width, height } = res.getSize()
+          /// 宽高不相等为特调模块 不进行处理
+          if (width === height) {
+            res.size(Math.max(60, width), Math.max(60, height))
+          }
         }
         // // 更新port id 确保唯一性
         // res.getPorts().forEach((port) => {
         //   if (port.id) res.portProp(port.id, 'id', StringExt.uuid())
         // })
-        const { width, height } = res.getSize()
-        /// 宽高不相等为特调模块 不进行处理
-        return width !== height
-          ? res
-          : res.size(Math.max(60, width), Math.max(60, height))
+        startEdgeInsertionPreview(
+          res,
+          draggingGraph,
+          targetGraph,
+          leftPortOffset,
+        )
+        return res
       },
       // 拖拽结束放置到画布时：确保 label 唯一性，相同类型模块自动递增编号
       getDropNode(draggingNode) {
@@ -370,6 +459,7 @@ function createStencilService() {
       content,
       lastHasVerticalScrollbar,
       dispose() {
+        stopEdgeInsertionPreview?.()
         syncContainerWidth.cancel()
         contentMutationObserver.disconnect()
         containerResizeObserver.disconnect()

@@ -12,7 +12,7 @@ const ROUTE_OPTIONS = {
   portDirectionPenalty: 100,
   gridSize: 0,
   gapSize: GAP_SIZE,
-  cornerRadius: 1,
+  cornerRadius: 0,
 }
 let routeRequestId = 0
 let activeRoutePromise = null
@@ -23,6 +23,8 @@ const AVOID_CONN_DIR_DOWN = 2
 const AVOID_CONN_DIR_LEFT = 4
 const AVOID_CONN_DIR_RIGHT = 8
 const AVOID_CONN_DIR_ALL = 15
+const INSERT_PREVIEW = 'edgeInsertionPreview'
+const INSERT_PREVIEW_TERMINALS = 'edgeInsertionPreviewTerminals'
 async function routeAllEdges(graph) {
   pendingRouteGraph = graph
   if (activeRoutePromise) return activeRoutePromise
@@ -60,6 +62,7 @@ function getRoutableEdges(graph) {
     .getEdges()
     .map((edge) => {
       if (isPreviewEdge(edge)) return null
+      if (edge.attr('line/visibility') === 'hidden') return null
       const source = getTerminalInfo(graph, edge, 'source')
       const target = getTerminalInfo(graph, edge, 'target')
       if (!source || !target) return null
@@ -85,11 +88,33 @@ function alignBranchDirections(source, target) {
   }
 }
 function getTerminalInfo(graph, edge, terminal) {
+  const terminalConfig = getTerminalConfig(edge, terminal)
   const nodeId =
     terminal === 'source' ? edge.getSourceCellId() : edge.getTargetCellId()
   const portId =
     terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
-  if (!nodeId) return null
+  if (!nodeId) {
+    const previewTerminal =
+      edge.getData()?.[INSERT_PREVIEW_TERMINALS]?.[terminal]
+    if (
+      !previewTerminal ||
+      typeof terminalConfig?.x !== 'number' ||
+      typeof terminalConfig?.y !== 'number'
+    ) {
+      return null
+    }
+    const routeNodeId = `__preview_node__:${previewTerminal.nodeId}`
+    return {
+      kind: 'virtualNode',
+      nodeId: routeNodeId,
+      portId: previewTerminal.portId,
+      routeNodeId,
+      routePortId: `${routeNodeId}:${previewTerminal.portId}`,
+      point: { x: terminalConfig.x, y: terminalConfig.y },
+      direction: previewTerminal.direction,
+      bbox: previewTerminal.bbox,
+    }
+  }
   const cell = graph.getCellById(nodeId)
   if (!cell) return null
   if (cell.isEdge()) {
@@ -149,6 +174,42 @@ async function routeWithAvoid(graph, routableEdges) {
         pin.setExclusive(false)
         pins.set(`${node.id}:${port.id}`, pinClass)
       })
+    })
+    const virtualPinClasses = new Map()
+    routableEdges.forEach(({ source, target }) => {
+      for (const terminal of [source, target]) {
+        if (terminal.kind !== 'virtualNode') continue
+        if (!shapes.has(terminal.routeNodeId)) {
+          const { bbox } = terminal
+          shapes.set(
+            terminal.routeNodeId,
+            new avoid.ShapeRef(
+              router,
+              new avoid.Rectangle(
+                new avoid.Point(bbox.x, bbox.y),
+                new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height),
+              ),
+            ),
+          )
+          virtualPinClasses.set(terminal.routeNodeId, 2)
+        }
+        if (pins.has(terminal.routePortId)) continue
+        const shapeRef = shapes.get(terminal.routeNodeId)
+        const pinClass = virtualPinClasses.get(terminal.routeNodeId)
+        const proportion = getBBoxPointProportion(terminal.bbox, terminal.point)
+        const pin = new avoid.ShapeConnectionPin(
+          shapeRef,
+          pinClass,
+          proportion.x,
+          proportion.y,
+          true,
+          0,
+          toAvoidDirection(terminal.direction),
+        )
+        pin.setExclusive(false)
+        pins.set(terminal.routePortId, pinClass)
+        virtualPinClasses.set(terminal.routeNodeId, pinClass + 1)
+      }
     })
     const connectors = routableEdges.map((routeEdge) => {
       const sourceShape = shapes.get(routeEdge.source.nodeId)
@@ -344,7 +405,9 @@ function applyRoutes(routes) {
     const vertices = normalized.slice(1, -1)
     edge.removeRouter({ ui: true, ignore: true })
     edge.setVertices(vertices, { ui: true, ignore: true })
-    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+    if (edge.attr('line/visibility') !== 'hidden') {
+      edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+    }
     setJumpoverConnector(edge)
   })
 }
@@ -498,6 +561,9 @@ function inferPortDirectionFromName(portId, groupName) {
 }
 function getPortProportion(node, point) {
   const bbox = node.getBBox()
+  return getBBoxPointProportion(bbox, point)
+}
+function getBBoxPointProportion(bbox, point) {
   return {
     x: clamp((point.x - bbox.x) / bbox.width, 0, 1),
     y: clamp((point.y - bbox.y) / bbox.height, 0, 1),
@@ -534,7 +600,10 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 function isPreviewEdge(edge) {
-  return edge.getAttrs()?.line?.stroke === RED
+  return (
+    edge.getAttrs()?.line?.stroke === RED &&
+    edge.getData()?.[INSERT_PREVIEW] !== true
+  )
 }
 function isCompleteNodeEdge(edge) {
   return (

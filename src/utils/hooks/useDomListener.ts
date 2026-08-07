@@ -1,6 +1,12 @@
 import { RED, RIGHT_DRAG_COPY_THRESHOLD } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import {
+  clearEdgeInsertionPreview,
+  commitEdgeInsertion,
+  updateEdgeInsertionPreview,
+} from '@/services/edge-insertion-service'
+import { routeAllEdges } from '@/services/routing-service'
+import {
   rightEdgeDragging,
   setRightEdgeDragging,
   setSuppressDomContextMenu,
@@ -52,6 +58,7 @@ function useDomListener(
       startX: number
       startY: number
       ghostEl: HTMLDivElement | null
+      previewNode: Node | null
     } | null = null
 
     // ── X6 guard 覆写：允许右键 mousedown 到达 edge ─────────────────────
@@ -97,6 +104,7 @@ function useDomListener(
         startX: e.clientX,
         startY: e.clientY,
         ghostEl: null,
+        previewNode: null,
       }
     }
 
@@ -162,7 +170,8 @@ function useDomListener(
         if (Math.hypot(dx, dy) < RIGHT_DRAG_COPY_THRESHOLD) return
 
         const zoom = currentGraph.zoom()
-        const { width, height } = rightDragNode.sourceNode.getSize()
+        const previewNode = rightDragNode.sourceNode.clone()
+        const { width, height } = previewNode.getSize()
         const ghost = document.createElement('div')
         Object.assign(ghost.style, {
           position: 'fixed',
@@ -177,16 +186,31 @@ function useDomListener(
         })
         document.body.appendChild(ghost)
         rightDragNode.ghostEl = ghost
+        rightDragNode.previewNode = previewNode
         currentGraph.container.style.cursor = 'copy'
         setSuppressDomContextMenu(true)
       }
 
       e.preventDefault()
-      rightDragNode.ghostEl.style.left = `${e.clientX}px`
-      rightDragNode.ghostEl.style.top = `${e.clientY}px`
+      const previewNode = rightDragNode.previewNode
+      if (!previewNode) {
+        throw new Error('Right-drag copy preview node is missing')
+      }
+      const position = currentGraph.pageToLocal(e.pageX, e.pageY)
+      const size = previewNode.getSize()
+      previewNode.position(
+        position.x - size.width / 2,
+        position.y - size.height / 2,
+      )
+      updateEdgeInsertionPreview(currentGraph, previewNode)
+      const previewCenter = currentGraph.localToClient(
+        previewNode.getBBox().getCenter(),
+      )
+      rightDragNode.ghostEl.style.left = `${previewCenter.x}px`
+      rightDragNode.ghostEl.style.top = `${previewCenter.y}px`
     }
 
-    // ── 右键释放：结束 edge 拉线状态；node 已拖拽则克隆到释放位置 ─────────
+    // ── 右键释放：结束 edge 拉线状态；将复制预览节点放入 Graph 并尝试 insertion ──
     function onMouseUp(e: MouseEvent) {
       setRightEdgeDragging(false)
       scroller?.togglePanning(true)
@@ -201,11 +225,16 @@ function useDomListener(
       e.preventDefault()
       state.ghostEl.remove()
 
-      const clone = state.sourceNode.clone()
+      const clone = state.previewNode
+      if (!clone) throw new Error('Right-drag copy node is missing')
       const pos = currentGraph.pageToLocal(e.pageX, e.pageY)
       const size = clone.getSize()
       clone.position(pos.x - size.width / 2, pos.y - size.height / 2)
+      updateEdgeInsertionPreview(currentGraph, clone)
       currentGraph.addNode(clone)
+      if (!commitEdgeInsertion(currentGraph, clone)) {
+        void routeAllEdges(currentGraph)
+      }
     }
 
     // ── 右键拉线或拖拽复制后，抑制紧随其后的原生菜单 ───────────────────
@@ -234,6 +263,7 @@ function useDomListener(
       document.removeEventListener('mouseup', onMouseUp, true)
       container.removeEventListener('contextmenu', onContextMenu, true)
       rightDragNode?.ghostEl?.remove()
+      clearEdgeInsertionPreview(currentGraph)
       rightDragEdgeRef.current = null
       currentGraph.container.style.cursor = ''
       setRightEdgeDragging(false)
