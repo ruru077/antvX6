@@ -9,6 +9,12 @@ import {
   previewLinkAttrs,
 } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import {
+  canInsertNodeOnEdge,
+  clearEdgeInsertionPreview,
+  commitEdgeInsertion,
+  updateEdgeInsertionPreview,
+} from '@/services/edge-insertion-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   fallbackEdgeToManhattan,
@@ -32,6 +38,7 @@ import {
   setPasteTarget,
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
+import { useSimulationStore } from '@/store/simulationStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { useDomListener } from '@/utils/hooks/useDomListener'
@@ -42,13 +49,13 @@ import type {
   EdgeView,
   EventArgs,
   Graph,
-  History,
   Node,
   Scroller,
 } from '@antv/x6'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
+const EDGE_INSERTION_PREVIEW = 'edgeInsertionPreview'
 
 /**
  * 图形编辑器事件监听 hook
@@ -74,6 +81,8 @@ function useGraphListener() {
       // TODO 任务调度Emit 顺序分离
       // ── Node ──────────────────────────────────────────────────────
       registerNodeEditListeners(graph),
+      registerScopeListeners(graph),
+      registerEdgeInsertionListeners(graph),
       registerNodeRouteListeners(graph),
       // ── Edge ──────────────────────────────────────────────────────
       registerEdgeMarkerListeners(graph),
@@ -99,6 +108,16 @@ function useGraphListener() {
       cleanups.forEach((fn) => fn())
     }
   }, [graph, setRightEdgeDragEvent])
+}
+
+function registerScopeListeners(graph: Graph) {
+  function nodeDblClickHandler({ node }: EventArgs['node:dblclick']) {
+    const blockType = String(node.getData()?.blockType ?? '').toLowerCase()
+    if (blockType !== 'scope') return
+    useSimulationStore.getState().openScope(node.id)
+  }
+
+  return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])
 }
 
 /**
@@ -248,11 +267,13 @@ function registerEdgeMarkerListeners(graph: Graph) {
 
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
     if (!cell.isEdge()) return
+    if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
     handleEdgeTerminalChanged(cell)
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
     if (!cell.isEdge()) return
+    if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
     handleEdgeTerminalChanged(cell)
   }
@@ -298,9 +319,44 @@ function registerEdgeToolListeners(graph: Graph) {
   ])
 }
 
+// ── 拖放模块到 Edge：预览并拆分连接 ────────────────────────────────────────
+function registerEdgeInsertionListeners(graph: Graph) {
+  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    updateEdgeInsertionPreview(graph, node)
+  }
+
+  function nodeMovedHandler({ node }: EventArgs['node:moved']) {
+    if (!commitEdgeInsertion(graph, node)) void routeAllEdges(graph)
+  }
+
+  function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
+    if (!options.stencil) return
+    if (!commitEdgeInsertion(graph, node)) void routeAllEdges(graph)
+  }
+
+  function nodeRemovedHandler() {
+    clearEdgeInsertionPreview(graph)
+  }
+
+  const unregister = registerListeners(graph, [
+    ['node:moving', nodeMovingHandler],
+    ['node:moved', nodeMovedHandler],
+    ['node:added', nodeAddedHandler],
+    ['node:removed', nodeRemovedHandler],
+  ])
+  return () => {
+    unregister()
+    clearEdgeInsertionPreview(graph)
+  }
+}
+
 // ── Node 移动时重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
-  function nodeMovingHandler(_args: EventArgs['node:moving']) {
+  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    // 未连接的单输入单输出模块可能要插入 Edge。拖动期间必须保持正式
+    // Edge 原路线不动，否则全局避障会先把 Edge 绕开，永远无法进入吸附范围。
+    // 命中后仅由 insertion service 触发预览 Edge 的 Avoid 路由。
+    if (canInsertNodeOnEdge(graph, node)) return
     void routeAllEdges(graph)
   }
 
@@ -308,9 +364,20 @@ function registerNodeRouteListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
+  function selectionMovingHandler({ nodes }: EventArgs['box:mousemove']) {
+    if (nodes.length === 1 && canInsertNodeOnEdge(graph, nodes[0])) return
+    void routeAllEdges(graph)
+  }
+
+  function selectionMovedHandler(_args: EventArgs['box:mouseup']) {
+    void routeAllEdges(graph)
+  }
+
   return registerListeners(graph, [
     ['node:moving', nodeMovingHandler],
     ['node:resized', nodeResizedHandler],
+    ['box:mousemove', selectionMovingHandler],
+    ['box:mouseup', selectionMovedHandler],
   ])
 }
 
@@ -419,6 +486,8 @@ function registerNodeEditListeners(graph: Graph) {
   function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
     // 特殊 GUARD_BLOCK_TYPES 跳过
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
+    if (String(node.getData()?.blockType ?? '').toLowerCase() === 'scope')
+      return
 
     const target = e.target as Element
     // 判断双击目标是否为文本元素（兼容 SVG text / foreignObject）
@@ -438,12 +507,19 @@ function registerNodeEditListeners(graph: Graph) {
 
 // ── 历史 ──────────────────────────────────────────────────────────────────
 function registerHistoryListeners(graph: Graph) {
-  function historyChangeHandler() {
-    const history = useGraphStore.getState().graph.getPlugin<History>('history')
-    if (!history) return
-    console.log(history['undoStack'])
+  function historyUndoHandler({ cmds }: EventArgs['history:undo']) {
+    const cellsById = new Map<string, Cell>()
+    cmds.forEach((cmd) => {
+      const id = cmd.data.id
+      if (!id) return
+      const cell = graph.getCellById(id)
+      if (cell) cellsById.set(id, cell)
+    })
+    const undoCells = [...cellsById.values()]
+
+    if (undoCells.length > 0) graph.resetSelection(undoCells)
   }
-  return registerListeners(graph, [['history:change', historyChangeHandler]])
+  return registerListeners(graph, [['history:undo', historyUndoHandler]])
 }
 
 // ── Scroller 区域同步 ──────────────────────────────────────────────────────
