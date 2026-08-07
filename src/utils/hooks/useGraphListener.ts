@@ -9,6 +9,7 @@ import {
   previewLinkAttrs,
 } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { createDomService } from '@/services/dom-service'
 import {
   canInsertNodeOnEdge,
   clearEdgeInsertionPreview,
@@ -55,6 +56,7 @@ import type {
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
+const domService = createDomService()
 const EDGE_INSERTION_PREVIEW = 'edgeInsertionPreview'
 
 /**
@@ -364,12 +366,14 @@ function registerNodeRouteListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  function selectionMovingHandler({ nodes }: EventArgs['box:mousemove']) {
+  function selectionMovingHandler({ e, nodes }: EventArgs['box:mousemove']) {
+    if (e.button !== 0) return
     if (nodes.length === 1 && canInsertNodeOnEdge(graph, nodes[0])) return
     void routeAllEdges(graph)
   }
 
-  function selectionMovedHandler(_args: EventArgs['box:mouseup']) {
+  function selectionMovedHandler({ e }: EventArgs['box:mouseup']) {
+    if (e.button !== 0) return
     void routeAllEdges(graph)
   }
 
@@ -422,61 +426,42 @@ function onMouseMoveHandler(e: MouseEvent) {
   }
 }
 
-// ── Outline ───────────────────────────────────────────────────────────────
+// ── Outline 同步（框选/选择态） ────────────────────────────────────────
 function registerOutlineListeners(graph: Graph) {
-  let stopBlockingWheel: (() => void) | null = null
-
-  function startBlockingWheel() {
-    if (stopBlockingWheel) return
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    document.addEventListener('wheel', onWheel, {
-      passive: false,
-      capture: true,
-    })
-    stopBlockingWheel = () => {
-      document.removeEventListener('wheel', onWheel, { capture: true })
-      stopBlockingWheel = null
-    }
-  }
-
-  function stopBlockingWheelIfNeeded() {
-    stopBlockingWheel?.()
-  }
+  const wheelBlocker = domService.createPageWheelBlocker()
+  let prevCells = new Set<Cell>()
 
   function mouseMoveHandler() {
-    let prevCells = new Set<Cell>()
     return ({ nodes, edges }: EventArgs['box:mousemove']) => {
       const curr = new Set<Cell>([...nodes, ...edges])
-      curr.forEach((c) => {
-        if (!prevCells.has(c)) interactiveService.addOutline(c)
+      curr.forEach((cell) => {
+        if (!prevCells.has(cell)) interactiveService.addOutline(cell)
       })
-      prevCells.forEach((c) => {
-        if (!curr.has(c)) interactiveService.removeOutline(c)
+      prevCells.forEach((cell) => {
+        if (!curr.has(cell)) interactiveService.removeOutline(cell)
       })
       prevCells = curr
     }
   }
+
   function cellSelectedHandler({ cell }: EventArgs['cell:selected']) {
     interactiveService.addOutline(cell)
   }
+
   function cellUnselectedHandler({ cell }: EventArgs['cell:unselected']) {
     interactiveService.removeOutline(cell)
   }
+
   const unregister = registerListeners(graph, [
-    ['box:mousedown', startBlockingWheel],
+    ['box:mousedown', wheelBlocker.blockPageWheel],
     ['box:mousemove', mouseMoveHandler()],
-    ['box:mouseup', stopBlockingWheelIfNeeded],
+    ['box:mouseup', wheelBlocker.releasePageWheel],
     ['cell:selected', cellSelectedHandler],
     ['cell:unselected', cellUnselectedHandler],
   ])
 
   return () => {
-    stopBlockingWheelIfNeeded()
+    wheelBlocker.releasePageWheel()
     unregister()
   }
 }
