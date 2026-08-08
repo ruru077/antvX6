@@ -12,7 +12,7 @@ import {
   setSuppressDomContextMenu,
   suppressDomContextMenu,
 } from '@/store/flags'
-import type { Edge, EdgeView, Graph, Node } from '@antv/x6'
+import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 
 type RightDragEdge = {
   edge: Edge
@@ -29,7 +29,7 @@ type RightDragEdge = {
  * 原生 DOM 事件监听 hook
  *
  * useGraphListener 只负责 X6 的 graph.on 事件；这里集中处理 X6 之外的
- * addEventListener 事件，包括右键 edge 拉线前置状态、右键拖拽复制节点、
+ * addEventListener 事件，包括右键 edge 拉线前置状态、右键拖拽复制 cells、
  * 以及浏览器原生 contextmenu 抑制。
  */
 function useDomListener(
@@ -53,13 +53,52 @@ function useDomListener(
       | { togglePanning: (pannable?: boolean) => void }
       | undefined
 
-    let rightDragNode: {
-      sourceNode: Node
+    let rightDragCells: {
+      dragId: number
+      moveCount: number
+      sourceCells: Cell[]
       startX: number
       startY: number
-      ghostEl: HTMLDivElement | null
-      previewNode: Node | null
+      lastPoint: { x: number; y: number } | null
+      cloneCells: Cell[] | null
+      insertionNode: Node | null
+      hideSelectionOverlay: boolean
     } | null = null
+    let nextDragId = 0
+
+    let selectionOverlayVisibility: Array<{
+      element: HTMLElement
+      visibility: string
+    }> | null = null
+    function setSelectionOverlayVisibility(visible: boolean) {
+      if (visible) {
+        selectionOverlayVisibility?.forEach(({ element, visibility }) => {
+          element.style.visibility = visibility
+        })
+        selectionOverlayVisibility = null
+        return
+      }
+
+      if (selectionOverlayVisibility !== null) return
+
+      const selection = currentGraph.container.querySelector<HTMLElement>(
+        '.x6-widget-selection',
+      )
+      if (!selection) return
+
+      const elements = [
+        selection,
+        selection.querySelector<HTMLElement>('.x6-widget-selection-inner'),
+        selection.querySelector<HTMLElement>('.x6-widget-selection-content'),
+      ].filter((element): element is HTMLElement => element !== null)
+      selectionOverlayVisibility = elements.map((element) => ({
+        element,
+        visibility: element.style.visibility,
+      }))
+      elements.forEach((element) => {
+        element.style.visibility = 'hidden'
+      })
+    }
 
     // ── X6 guard 覆写：允许右键 mousedown 到达 edge ─────────────────────
     const graphView = currentGraph.view
@@ -71,7 +110,7 @@ function useDomListener(
       return originalGuard(e, view)
     }
 
-    // ── 按下：edge 拉线先关 Scroller 平移；node 右键进入拖拽复制候选状态 ───
+    // ── 按下：edge 拉线先关 Scroller 平移；右键进入拖拽复制候选状态 ───
     function onMouseDown(e: MouseEvent) {
       const view = currentGraph.findViewByElem(e.target as Element)
       if (
@@ -98,23 +137,59 @@ function useDomListener(
       }
 
       if (e.button !== 2) return
-      if (!view?.cell?.isNode?.()) return
-      const sourceNode = view.cell as Node
-      rightDragNode = {
-        sourceNode,
-        startX: e.clientX,
-        startY: e.clientY,
-        ghostEl: null,
-        previewNode: null,
+      const target = e.target instanceof Element ? e.target : null
+      const isSelectionContent = !!target?.closest(
+        '.x6-widget-selection-content',
+      )
+      const isSelectionContainer =
+        !isSelectionContent && !!target?.closest('.x6-widget-selection-inner')
+      const selectedCells = currentGraph.getSelectedCells().slice()
+
+      if (view?.cell?.isNode?.()) {
+        const node = view.cell as Node
+        const isNodeSelected = selectedCells.some((cell) => cell.id === node.id)
+        const sourceCells = isNodeSelected ? selectedCells : [node]
+        if (!isNodeSelected) currentGraph.resetSelection([node])
+
+        rightDragCells = {
+          dragId: ++nextDragId,
+          moveCount: 0,
+          sourceCells,
+          startX: e.clientX,
+          startY: e.clientY,
+          lastPoint: null,
+          cloneCells: null,
+          insertionNode: null,
+          hideSelectionOverlay:
+            sourceCells.filter((cell) => cell.isNode()).length > 1,
+        }
+        if (rightDragCells.hideSelectionOverlay) {
+          setSelectionOverlayVisibility(false)
+        }
+        e.stopPropagation()
+        return
       }
 
-      const isSelected = currentGraph
-        .getSelectedCells()
-        .some((cell) => cell.id === sourceNode.id)
-      if (isSelected) e.stopPropagation()
+      if (!isSelectionContainer || selectedCells.length === 0) return
+      rightDragCells = {
+        dragId: ++nextDragId,
+        moveCount: 0,
+        sourceCells: selectedCells,
+        startX: e.clientX,
+        startY: e.clientY,
+        lastPoint: null,
+        cloneCells: null,
+        insertionNode: null,
+        hideSelectionOverlay:
+          selectedCells.filter((cell) => cell.isNode()).length > 1,
+      }
+      if (rightDragCells.hideSelectionOverlay) {
+        setSelectionOverlayVisibility(false)
+      }
+      e.stopPropagation()
     }
 
-    // ── 右键移动：阻止浏览器手势；node 超过阈值后显示复制预览 ─────────────
+    // ── 右键移动：阻止浏览器手势；node 超过阈值后创建复制节点 ─────────────
     function onMouseMove(e: MouseEvent) {
       const rightDragEdge = rightDragEdgeRef.current
       if (rightDragEdge && e.buttons === 2) {
@@ -168,78 +243,121 @@ function useDomListener(
       }
 
       if (rightEdgeDragging) e.preventDefault()
-      if (!rightDragNode || e.buttons !== 2) return
+      if (!rightDragCells || e.buttons !== 2) return
 
-      if (!rightDragNode.ghostEl) {
-        const dx = e.clientX - rightDragNode.startX
-        const dy = e.clientY - rightDragNode.startY
+      rightDragCells.moveCount += 1
+      if (!rightDragCells.cloneCells) {
+        const dx = e.clientX - rightDragCells.startX
+        const dy = e.clientY - rightDragCells.startY
         if (Math.hypot(dx, dy) < RIGHT_DRAG_COPY_THRESHOLD) return
 
-        const zoom = currentGraph.zoom()
-        const previewNode = rightDragNode.sourceNode.clone()
-        const { width, height } = previewNode.getSize()
-        const ghost = document.createElement('div')
-        Object.assign(ghost.style, {
-          position: 'fixed',
-          width: `${width * zoom}px`,
-          height: `${height * zoom}px`,
-          border: '2px dashed #1890ff',
-          backgroundColor: 'rgba(24, 144, 255, 0.1)',
-          borderRadius: '4px',
-          pointerEvents: 'none',
-          zIndex: '1000',
-          transform: 'translate(-50%, -50%)',
-        })
-        document.body.appendChild(ghost)
-        rightDragNode.ghostEl = ghost
-        rightDragNode.previewNode = previewNode
+        const sourceBBox = currentGraph.getCellsBBox(rightDragCells.sourceCells)
+        if (!sourceBBox) {
+          throw new Error('Right-drag copy source cells bbox is missing')
+        }
+
+        const cloneMap = currentGraph.model.cloneSubGraph(
+          rightDragCells.sourceCells,
+        )
+        const cloneCells = Object.values(cloneMap).sort(
+          (a, b) => Number(a.isEdge()) - Number(b.isEdge()),
+        )
+        const position = currentGraph.pageToLocal(e.pageX, e.pageY)
+        const sourceCenter = sourceBBox.getCenter()
+        const offsetX = position.x - sourceCenter.x
+        const offsetY = position.y - sourceCenter.y
+        cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+        currentGraph.model.addCells(cloneCells)
+        currentGraph.resetSelection(cloneCells)
+        if (rightDragCells.hideSelectionOverlay) {
+          setSelectionOverlayVisibility(false)
+        }
+
+        rightDragCells.cloneCells = cloneCells
+        rightDragCells.lastPoint = position
+        rightDragCells.insertionNode =
+          cloneCells.length === 1 && cloneCells[0].isNode()
+            ? cloneCells[0]
+            : null
         currentGraph.container.style.cursor = 'copy'
         setSuppressDomContextMenu(true)
       }
 
       e.preventDefault()
-      const previewNode = rightDragNode.previewNode
-      if (!previewNode) {
-        throw new Error('Right-drag copy preview node is missing')
+      const cloneCells = rightDragCells.cloneCells
+      const lastPoint = rightDragCells.lastPoint
+      if (!cloneCells || !lastPoint) {
+        throw new Error('Right-drag copy cells are missing')
       }
       const position = currentGraph.pageToLocal(e.pageX, e.pageY)
-      const size = previewNode.getSize()
-      previewNode.position(
-        position.x - size.width / 2,
-        position.y - size.height / 2,
-      )
-      updateEdgeInsertionPreview(currentGraph, previewNode)
-      const previewCenter = currentGraph.localToClient(
-        previewNode.getBBox().getCenter(),
-      )
-      rightDragNode.ghostEl.style.left = `${previewCenter.x}px`
-      rightDragNode.ghostEl.style.top = `${previewCenter.y}px`
+      // insertion 可能把节点吸到 Edge 上，单节点必须按鼠标位置绝对移动，
+      // 否则每次只累加小增量会一直停留在 SNAP_RADIUS 内并反复吸回。
+      if (rightDragCells.insertionNode) {
+        const size = rightDragCells.insertionNode.getSize()
+        rightDragCells.insertionNode.position(
+          position.x - size.width / 2,
+          position.y - size.height / 2,
+          { ignore: true, undo: false },
+        )
+      } else {
+        const offsetX = position.x - lastPoint.x
+        const offsetY = position.y - lastPoint.y
+        cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+      }
+      rightDragCells.lastPoint = position
+      if (rightDragCells.insertionNode) {
+        updateEdgeInsertionPreview(currentGraph, rightDragCells.insertionNode)
+      }
     }
 
-    // ── 右键释放：结束 edge 拉线状态；将复制预览节点放入 Graph 并尝试 insertion ──
+    // ── 右键释放：结束 edge 拉线状态；完成复制 cells 的 insertion ──────
     function onMouseUp(e: MouseEvent) {
       setRightEdgeDragging(false)
       scroller?.togglePanning(true)
       rightDragEdgeRef.current = null
-      if (e.button !== 2 || !rightDragNode) return
+      if (e.button !== 2 || !rightDragCells) return
 
-      const state = rightDragNode
-      rightDragNode = null
+      const state = rightDragCells
+      rightDragCells = null
       currentGraph.container.style.cursor = ''
-      if (!state.ghostEl) return
+      if (!state.cloneCells) {
+        if (state.hideSelectionOverlay) {
+          setSelectionOverlayVisibility(true)
+        }
+        return
+      }
 
       e.preventDefault()
-      state.ghostEl.remove()
+      const position = currentGraph.pageToLocal(e.pageX, e.pageY)
+      const lastPoint = state.lastPoint
+      if (!lastPoint) {
+        throw new Error('Right-drag copy position is missing')
+      }
+      if (state.insertionNode) {
+        const size = state.insertionNode.getSize()
+        state.insertionNode.position(
+          position.x - size.width / 2,
+          position.y - size.height / 2,
+          { ignore: true, undo: false },
+        )
+      } else {
+        const offsetX = position.x - lastPoint.x
+        const offsetY = position.y - lastPoint.y
+        state.cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+      }
 
-      const clone = state.previewNode
-      if (!clone) throw new Error('Right-drag copy node is missing')
-      const pos = currentGraph.pageToLocal(e.pageX, e.pageY)
-      const size = clone.getSize()
-      clone.position(pos.x - size.width / 2, pos.y - size.height / 2)
-      updateEdgeInsertionPreview(currentGraph, clone)
-      currentGraph.addNode(clone)
-      if (!commitEdgeInsertion(currentGraph, clone)) {
+      if (state.insertionNode) {
+        updateEdgeInsertionPreview(currentGraph, state.insertionNode)
+        const committed = commitEdgeInsertion(currentGraph, state.insertionNode)
+        if (!committed) {
+          void routeAllEdges(currentGraph)
+        }
+      } else {
+        clearEdgeInsertionPreview(currentGraph)
         void routeAllEdges(currentGraph)
+      }
+      if (state.hideSelectionOverlay) {
+        setSelectionOverlayVisibility(true)
       }
     }
 
@@ -268,8 +386,17 @@ function useDomListener(
       document.removeEventListener('mousemove', onMouseMove, true)
       document.removeEventListener('mouseup', onMouseUp, true)
       container.removeEventListener('contextmenu', onContextMenu, true)
-      rightDragNode?.ghostEl?.remove()
       clearEdgeInsertionPreview(currentGraph)
+      if (rightDragCells?.hideSelectionOverlay) {
+        setSelectionOverlayVisibility(true)
+      }
+      if (rightDragCells?.cloneCells) {
+        currentGraph.removeCells(rightDragCells.cloneCells, {
+          ignore: true,
+          undo: false,
+        })
+      }
+      rightDragCells = null
       rightDragEdgeRef.current = null
       currentGraph.container.style.cursor = ''
       setRightEdgeDragging(false)

@@ -83,6 +83,7 @@ function useGraphListener() {
       // TODO 任务调度Emit 顺序分离
       // ── Node ──────────────────────────────────────────────────────
       registerNodeEditListeners(graph),
+      registerCellSelectionListeners(graph),
       registerScopeListeners(graph),
       registerEdgeInsertionListeners(graph),
       registerNodeRouteListeners(graph),
@@ -120,6 +121,19 @@ function registerScopeListeners(graph: Graph) {
   }
 
   return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])
+}
+
+// ── Cell 交互：按下即选中 ───────────────────────────────────────────────
+function registerCellSelectionListeners(graph: Graph) {
+  function cellMouseDownHandler({ cell, e }: EventArgs['cell:mousedown']) {
+    if (e.button !== 0) return
+    if (e.ctrlKey || e.metaKey) return
+    if (e.target.closest('.x6-port')) return
+
+    graph.resetSelection([cell])
+  }
+
+  return registerListeners(graph, [['cell:mousedown', cellMouseDownHandler]])
 }
 
 /**
@@ -336,15 +350,10 @@ function registerEdgeInsertionListeners(graph: Graph) {
     if (!commitEdgeInsertion(graph, node)) void routeAllEdges(graph)
   }
 
-  function nodeRemovedHandler() {
-    clearEdgeInsertionPreview(graph)
-  }
-
   const unregister = registerListeners(graph, [
     ['node:moving', nodeMovingHandler],
     ['node:moved', nodeMovedHandler],
     ['node:added', nodeAddedHandler],
-    ['node:removed', nodeRemovedHandler],
   ])
   return () => {
     unregister()

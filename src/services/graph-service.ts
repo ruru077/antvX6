@@ -244,9 +244,6 @@ function registerCtrlClickConnection(graph: GraphType) {
   // mousedown 更新选中节点列表
   graph.on('node:mousedown', ({ node, e }) => {
     selectedNodes = []
-    const currentSelection = graph
-      .getSelectedCells()
-      .filter((cell): cell is Node => cell.isNode())
     if (
       e.button !== 0 ||
       (!e.ctrlKey && !e.metaKey) ||
@@ -255,6 +252,9 @@ function registerCtrlClickConnection(graph: GraphType) {
       return
     }
 
+    const currentSelection = graph
+      .getSelectedCells()
+      .filter((cell): cell is Node => cell.isNode())
     selectedNodes = currentSelection.filter((cell) => cell.id !== node.id)
   })
   // Ctrl / Command + 鼠标点击连接
