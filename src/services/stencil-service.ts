@@ -211,7 +211,7 @@ function createStencilService() {
           document.removeEventListener('mousemove', moveHandler)
           document.removeEventListener('mouseup', endHandler)
           draggingGraph.container.style.transform = ''
-          clearEdgeInsertionPreview(targetGraph)
+          clearEdgeInsertionPreview(targetGraph, node.id)
           stopEdgeInsertionPreview = null
         }
 
@@ -226,7 +226,7 @@ function createStencilService() {
       if (registrationTimer) clearTimeout(registrationTimer)
       registrationTimer = null
       draggingGraph.container.style.transform = ''
-      clearEdgeInsertionPreview(targetGraph)
+      clearEdgeInsertionPreview(targetGraph, node.id)
       stopEdgeInsertionPreview = null
     }
   }

@@ -21,6 +21,7 @@ type Point = { x: number; y: number }
 
 type PreviewState = {
   nodeId: string
+  ownerWasInGraph: boolean
   targetEdge: Edge
   snapPoint: Point
   previewEdges: Edge[]
@@ -193,9 +194,10 @@ function snapNode(node: Node, point: Point) {
   })
 }
 
-function clearEdgeInsertionPreview(graph: Graph) {
+function clearEdgeInsertionPreview(graph: Graph, ownerNodeId?: string) {
   const state = previewStates.get(graph)
   if (!state) return
+  if (ownerNodeId && state.nodeId !== ownerNodeId) return
   state.targetEdge.attr('line/visibility', 'visible', {
     ignore: true,
     undo: false,
@@ -268,6 +270,7 @@ function createPreview(
 
   previewStates.set(graph, {
     nodeId: node.id,
+    ownerWasInGraph: nodeInGraph,
     targetEdge,
     snapPoint,
     previewEdges: [upstream, downstream],
@@ -278,13 +281,22 @@ function createPreview(
 }
 
 function updateEdgeInsertionPreview(graph: Graph, node: Node) {
+  const point = node.getBBox().getCenter()
+  const nodeInGraph = graph.getCellById(node.id) === node
+  const existingPreview = previewStates.get(graph)
+
+  // Stencil 拖拽节点不属于 targetGraph。它的 move/cleanup 事件可能与画布
+  // 右键复制的拖拽事件交错，但不能因此清理另一个节点持有的预览。
+  if (existingPreview && existingPreview.nodeId !== node.id && !nodeInGraph) {
+    return false
+  }
+
   const ports = getInsertPorts(graph, node)
   if (!ports) {
     clearEdgeInsertionPreview(graph)
     return false
   }
 
-  const point = node.getBBox().getCenter()
   const candidates = graph
     .getEdges()
     .filter((edge) => !isPreviewEdge(edge) && isCompleteNodeEdge(edge))
@@ -304,7 +316,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
     return false
   }
 
-  const current = previewStates.get(graph)
+  const current = existingPreview
   if (
     current?.targetEdge.id === candidate.edge.id &&
     current.nodeId === node.id
@@ -377,6 +389,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
 function commitEdgeInsertion(graph: Graph, node: Node) {
   const state = previewStates.get(graph)
   if (!state) return false
+  if (state.nodeId !== node.id && state.ownerWasInGraph) return false
   if (graph.getCellById(state.targetEdge.id) !== state.targetEdge) {
     clearEdgeInsertionPreview(graph)
     return false
