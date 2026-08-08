@@ -99,13 +99,19 @@ function useDomListener(
 
       if (e.button !== 2) return
       if (!view?.cell?.isNode?.()) return
+      const sourceNode = view.cell as Node
       rightDragNode = {
-        sourceNode: view.cell as Node,
+        sourceNode,
         startX: e.clientX,
         startY: e.clientY,
         ghostEl: null,
         previewNode: null,
       }
+
+      const isSelected = currentGraph
+        .getSelectedCells()
+        .some((cell) => cell.id === sourceNode.id)
+      if (isSelected) e.stopPropagation()
     }
 
     // ── 右键移动：阻止浏览器手势；node 超过阈值后显示复制预览 ─────────────
