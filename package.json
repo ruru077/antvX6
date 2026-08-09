@@ -34,6 +34,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-intl-universal": "^2.13.4",
+    "react-rnd": "^10.5.3",
     "react-router": "^7.18.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
@@ -61,7 +62,7 @@
     "vite-plugin-svgr": "^5.2.0",
     "vite-plus": "0.2.4",
     "vitest": "^4.1.10",
-    "zod": "3.25.28"
+    "zod": "3.25.76"
   },
   "devEngines": {
     "runtime": {

@@ -143,8 +143,8 @@ function registerCellSelectionListeners(graph: Graph) {
 function registerSubsystemListeners(graph: Graph) {
   function dblclickHandler({ node }: EventArgs['node:dblclick']) {
     if (hasSubsystemMask(node)) {
-      // 已封装 → 打开子系统参数弹窗
-      interactiveService.openNodeModal(node)
+      // 已封装 → 打开子系统参数悬浮窗口
+      interactiveService.openNodeParamWindow(node)
     } else {
       // 未封装 → 进入子系统
       useSubSystemTabStore.getState().navigateWithin(node.id)
@@ -190,7 +190,7 @@ function registerSubsystemListeners(graph: Graph) {
 // ── 空白双击 → 添加模块 ──────────────────────────────────────────────
 function registerBlankPaperListeners(graph: Graph) {
   function blankDblClickHandler({ x, y, e }: EventArgs['blank:dblclick']) {
-    interactiveService.openAddBlockModal(x, y, e.clientX, e.clientY)
+    interactiveService.openAddBlockCommand(x, y, e.clientX, e.clientY)
   }
   return registerListeners(graph, [['blank:dblclick', blankDblClickHandler]])
 }
@@ -492,8 +492,8 @@ function registerNodeEditListeners(graph: Graph) {
       interactiveService.openLabelEditor(node, textEl)
       return
     }
-    // 默认：打开参数设置弹窗
-    interactiveService.openNodeModal(node)
+    // 默认：打开参数设置悬浮窗口
+    interactiveService.openNodeParamWindow(node)
   }
 
   return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])

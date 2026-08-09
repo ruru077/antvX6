@@ -2,7 +2,7 @@ import Icon, { SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import { Button, ConfigProvider, Input, Tabs, Tooltip, Badge } from 'antd'
 import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
-import { SettingDialog } from '@/components/SettingDialog'
+import { SettingModal } from '@/components/SettingModal'
 import { Button as SButton } from '@/components/ui/button'
 import {
   HoverCard,
@@ -136,7 +136,7 @@ function StencilLayout() {
         <SearchBar {...search} />
         <div ref={stencilContainerRef} className="stencil-mount"></div>
       </div>
-      <SettingDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingModal open={settingsOpen} onOpenChange={setSettingsOpen} />
     </ConfigProvider>
   )
 }

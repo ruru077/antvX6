@@ -1,22 +1,23 @@
 import { CloseOutlined } from '@ant-design/icons'
-import { Alert, Button, Form, Input, Modal, Select, Space } from 'antd'
+import { Alert, Button as AntButton, Form, Input, Select, Space } from 'antd'
 import { CONTACT_ME_EMAIL } from '@/assets/constant'
+import { Button } from '@/components/ui/button'
+import { FloatingWindow } from '@/components/ui/floating-window'
 import type { Node } from '@antv/x6'
 import type { BlockData } from '~/types/vo/block'
 
-// ── BlockParamModal ─────────────────────────────────────────────────────────
+// ── BlockParamWindow ────────────────────────────────────────────────────────
 
 /**
- * @description 模块参数设置 Modal 组件
+ * @description 模块参数设置悬浮窗口
  */
-function BlockParamModal({
+function BlockParamWindow({
   node,
   onDestroy,
 }: {
   node: Node
   onDestroy: () => void
 }) {
-  const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
 
   const data = node.getData<BlockData>()
@@ -34,7 +35,7 @@ function BlockParamModal({
     try {
       const values = await form.validateFields()
       node.setData({ paramValues: values })
-      setOpen(false)
+      onDestroy()
     } catch (error) {
       console.error('表单验证失败:', error)
     }
@@ -61,23 +62,41 @@ function BlockParamModal({
   }
 
   return (
-    <Modal
-      open={open}
+    <FloatingWindow
       title={`参数设置 — ${nodeLabel || '未定义模块名'}`}
-      onOk={handleOk}
-      onCancel={() => setOpen(false)}
-      afterClose={onDestroy}
-      okText="确认"
-      cancelText="取消"
-      width={600}
+      defaultWidth={600}
+      defaultHeight={188}
+      minWidth={480}
+      minHeight={188}
+      autoFitHeight
+      maxAutoHeight={520}
+      onClose={onDestroy}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="rounded-md"
+            onClick={onDestroy}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            className="rounded-md"
+            onClick={handleOk}
+          >
+            确认
+          </Button>
+        </>
+      }
     >
       {data?.description && (
-        <Alert
-          type="info"
-          title={data.description}
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
+        <div className="mb-4">
+          <Alert type="info" title={data.description} showIcon />
+        </div>
       )}
       <Form
         form={form}
@@ -89,32 +108,29 @@ function BlockParamModal({
         {paramKeys.map(renderFormItem)}
       </Form>
       {paramKeys.length === 0 && (
-        <div
-          style={{ textAlign: 'center', color: '#e61f1f', padding: '24px 0' }}
-        >
+        <div className="py-6 text-center text-destructive">
           {` 当前模块暂无配置参数，如有需求请联系：${CONTACT_ME_EMAIL}`}
         </div>
       )}
-    </Modal>
+    </FloatingWindow>
   )
 }
 
-// ── SubsystemParamModal ─────────────────────────────────────────────────────
+// ── SubsystemParamWindow ────────────────────────────────────────────────────
 
 type MaskParamItem = { name?: string; value?: string }
 
 /**
- * @description 子系统封装参数 Modal 组件
+ * @description 子系统封装参数悬浮窗口
  * 读取 node.data.maskParam，表单可动态增删参数项，确认后写回 maskParam
  */
-function SubsystemParamModal({
+function SubsystemParamWindow({
   node,
   onDestroy,
 }: {
   node: Node
   onDestroy: () => void
 }) {
-  const [open, setOpen] = useState(true)
   const [form] = Form.useForm<{ ModelName: string; list: MaskParamItem[] }>()
 
   const data = node.getData<BlockData>()
@@ -141,32 +157,48 @@ function SubsystemParamModal({
           .map((item) => [item.name!, item.value ?? '']),
       )
       node.setData({ maskParam: result })
-      setOpen(false)
+      onDestroy()
     } catch (error) {
       console.error('表单验证失败:', error)
     }
   }
 
   return (
-    <Modal
-      open={open}
+    <FloatingWindow
       title={`子系统封装参数 — ${nodeLabel || '未命名子系统'}`}
-      onOk={handleOk}
-      onCancel={() => setOpen(false)}
-      afterClose={onDestroy}
-      okText="确认"
-      cancelText="取消"
-      width={720}
-      centered
-      destroyOnHidden
+      defaultWidth={720}
+      defaultHeight={268}
+      minWidth={560}
+      minHeight={248}
+      autoFitHeight
+      maxAutoHeight={520}
+      onClose={onDestroy}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="rounded-md"
+            onClick={onDestroy}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            className="rounded-md"
+            onClick={handleOk}
+          >
+            确认
+          </Button>
+        </>
+      }
     >
       {data?.description && (
-        <Alert
-          type="info"
-          message={data.description}
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
+        <div className="mb-4">
+          <Alert type="info" message={data.description} showIcon />
+        </div>
       )}
       <Form
         form={form}
@@ -205,16 +237,16 @@ function SubsystemParamModal({
                     />
                   </Space>
                 ))}
-                <Button type="dashed" onClick={() => add()} block>
+                <AntButton type="dashed" onClick={() => add()} block>
                   + 添加参数
-                </Button>
+                </AntButton>
               </div>
             )}
           </Form.List>
         </Form.Item>
       </Form>
-    </Modal>
+    </FloatingWindow>
   )
 }
 
-export { BlockParamModal, SubsystemParamModal }
+export { BlockParamWindow, SubsystemParamWindow }

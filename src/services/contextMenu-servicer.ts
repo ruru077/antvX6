@@ -49,7 +49,7 @@ function createContextMenuService(graph: Graph | null, cell?: Cell) {
     },
     openNodeParameters() {
       if (!cell?.isNode()) return
-      interactiveService.openNodeModal(cell)
+      interactiveService.openNodeParamWindow(cell)
     },
     openSubsystem() {
       if (!cell?.isNode()) return

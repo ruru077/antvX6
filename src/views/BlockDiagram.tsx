@@ -11,6 +11,7 @@ import {
   StencilLayout,
   SubsystemNavBar,
   SubsystemTabBar,
+  ScopeWindow,
 } from '@/components'
 import { useGraphStore } from '@/store/graphStore'
 import '@styles/BlockDiagram.scss'
@@ -102,6 +103,7 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
               </div>
             </div>
           </div>
+          <ScopeWindow />
         </Splitter.Panel>
       </Splitter>
     </ConfigProvider>

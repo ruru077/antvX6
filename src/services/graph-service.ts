@@ -237,38 +237,22 @@ function createGraph(container: HTMLElement): GraphType {
 
   return graph
 }
-
+/**
+ * 右键Ctrl 点击快速连接
+ * @param graph 图实例
+ * @author codex
+ */
 function registerCtrlClickConnection(graph: GraphType) {
-  let selectedNodes: Node[] = []
+  let selectedNode: Node | null = null
 
-  // mousedown 更新选中节点列表
-  graph.on('node:mousedown', ({ node, e }) => {
-    selectedNodes = []
-    if (
-      e.button !== 0 ||
-      (!e.ctrlKey && !e.metaKey) ||
-      e.target.closest('.x6-port')
-    ) {
-      return
-    }
-
-    const currentSelection = graph
-      .getSelectedCells()
-      .filter((cell): cell is Node => cell.isNode())
-    selectedNodes = currentSelection.filter((cell) => cell.id !== node.id)
-  })
-  // Ctrl / Command + 鼠标点击连接
   graph.on('node:click', async ({ node, e }) => {
-    const sourceNodes = selectedNodes
-    selectedNodes = []
+    if (e.button !== 0 || e.target.closest('.x6-port')) return
+
+    const sourceNode = selectedNode
+    selectedNode = node
+    // Ctrl / Command 未按下，或者点击了同一个节点，直接 return
     if (!e.ctrlKey && !e.metaKey) return
-    if (sourceNodes.length === 0) return
-    // y轴优先排序，x轴次之，保证连接顺序可控
-    sourceNodes.sort((a, b) => {
-      const aPosition = a.getPosition()
-      const bPosition = b.getPosition()
-      return aPosition.y - bPosition.y || aPosition.x - bPosition.x
-    })
+    if (!sourceNode || sourceNode.id === node.id) return
 
     const targetPorts = node
       .getPorts()
@@ -276,35 +260,30 @@ function registerCtrlClickConnection(graph: GraphType) {
         (port) => port.id !== null && commonService.getPortGroup(port) === 'in',
       )
       .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
+    const sourcePorts = sourceNode
+      .getPorts()
+      .filter(
+        (port) =>
+          port.id !== null && commonService.getPortGroup(port) === 'out',
+      )
+      .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
 
     let connected = false
     graph.startBatch('ctrl-click-connect')
     try {
-      sourceNodes.forEach((sourceNode) => {
-        const sourcePorts = sourceNode
-          .getPorts()
-          .filter(
-            (port) =>
-              port.id !== null && commonService.getPortGroup(port) === 'out',
-          )
-          .sort((a, b) =>
-            a.id!.localeCompare(b.id!, undefined, { numeric: true }),
-          )
+      for (const targetPort of targetPorts) {
+        const sourcePort = sourcePorts.find((port) =>
+          isConnectionValid(graph, sourceNode, port.id, node, targetPort.id!),
+        )
+        if (!sourcePort) continue
 
-        for (const targetPort of targetPorts) {
-          const sourcePort = sourcePorts.find((port) =>
-            isConnectionValid(graph, sourceNode, port.id, node, targetPort.id!),
-          )
-          if (!sourcePort) continue
-
-          const edge = graph.addEdge({
-            source: { cell: sourceNode.id, port: sourcePort.id },
-            ...previewLinkAttrs,
-          })
-          edge.setTarget({ cell: node.id, port: targetPort.id })
-          connected = true
-        }
-      })
+        const edge = graph.addEdge({
+          source: { cell: sourceNode.id, port: sourcePort.id },
+          ...previewLinkAttrs,
+        })
+        edge.setTarget({ cell: node.id, port: targetPort.id })
+        connected = true
+      }
       if (connected) await routeAllEdges(graph)
     } finally {
       graph.stopBatch('ctrl-click-connect')
@@ -314,7 +293,7 @@ function registerCtrlClickConnection(graph: GraphType) {
 
 /**
  * 定规格监听 mouseWheel
- * @param graph 图示例
+ * @param graph 图实例
  */
 function registerSteppedMouseWheel(graph: GraphType) {
   const onWheel = (e: WheelEvent) => {

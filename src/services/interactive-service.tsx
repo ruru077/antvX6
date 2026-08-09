@@ -5,8 +5,11 @@ import {
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
-import { AddBlockModal } from '@/components/AddBlockModal'
-import { BlockParamModal, SubsystemParamModal } from '@/components/Modal'
+import { AddBlockCommand } from '@/components/AddBlockCommand'
+import {
+  BlockParamWindow,
+  SubsystemParamWindow,
+} from '@/components/NodeParamWindow'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
@@ -198,15 +201,15 @@ function createInteractiveService() {
   }
 
   /**
-   * 统一节点参数弹窗入口。
-   * - 已封装子系统 → SubsystemParamModal（读取 maskParam）
-   * - 其他 block → BlockParamModal（读取 paramValues）
+   * 统一节点参数悬浮窗口入口。
+   * - 已封装子系统 → SubsystemParamWindow（读取 maskParam）
+   * - 其他 block → BlockParamWindow（读取 paramValues）
    * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
-  function openNodeModal(node: Node) {
-    const ModalComponent = hasSubsystemMask(node)
-      ? SubsystemParamModal
-      : BlockParamModal
+  function openNodeParamWindow(node: Node) {
+    const ParamWindow = hasSubsystemMask(node)
+      ? SubsystemParamWindow
+      : BlockParamWindow
 
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -219,7 +222,7 @@ function createInteractiveService() {
       })
     }
 
-    root.render(<ModalComponent node={node} onDestroy={destroy} />)
+    root.render(<ParamWindow node={node} onDestroy={destroy} />)
   }
 
   /**
@@ -279,7 +282,7 @@ function createInteractiveService() {
    * @param screenX 屏幕坐标 X（用于面板定位，clientX）
    * @param screenY 屏幕坐标 Y（用于面板定位，clientY）
    */
-  function openAddBlockModal(
+  function openAddBlockCommand(
     graphX: number,
     graphY: number,
     screenX: number,
@@ -297,7 +300,7 @@ function createInteractiveService() {
     }
 
     root.render(
-      <AddBlockModal
+      <AddBlockCommand
         screenX={screenX}
         screenY={screenY}
         onDestroy={destroy}
@@ -339,9 +342,9 @@ function createInteractiveService() {
     removeOutline,
     addBoundaryTool,
     addEdgeTools,
-    openNodeModal,
+    openNodeParamWindow,
     openLabelEditor,
-    openAddBlockModal,
+    openAddBlockCommand,
     addNodeFromBlock,
     zoomToFitWithVirtual,
   }

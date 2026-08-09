@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { getLibraryWithBlocks } from '@/services/stencil-service'
 import type { Block } from '~/types/vo/block'
 
-interface AddBlockModalProps {
+interface AddBlockCommandProps {
   /** 面板定位的屏幕 X 坐标（clientX） */
   screenX: number
   /** 面板定位的屏幕 Y 坐标（clientY） */
@@ -27,12 +27,12 @@ const PANEL_MAX_HEIGHT = 400
  * @description 双击画布空白处弹出的浮动"添加模块"面板
  * 使用 shadcn Command（cmdk）组件，内置搜索过滤、键盘导航（↑↓+Enter）、高亮和自动滚动
  */
-function AddBlockModal({
+function AddBlockCommand({
   screenX,
   screenY,
   onDestroy,
   onSelect,
-}: AddBlockModalProps) {
+}: AddBlockCommandProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const libraryWithBlocks = getLibraryWithBlocks()
 
@@ -134,4 +134,4 @@ function AddBlockModal({
   )
 }
 
-export { AddBlockModal }
+export { AddBlockCommand }

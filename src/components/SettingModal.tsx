@@ -35,7 +35,7 @@ import { useConfigStore } from '@/store/configStore'
 import type { ConfigStore, Locale, Theme } from '@/store/configStore'
 
 // type ----------------------------------------------------
-interface SettingDialogProps {
+interface SettingModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -428,7 +428,7 @@ function GenericSettings({ items }: { items: SettingItem[] }) {
 }
 
 // UI -------------------------------------------------------
-function SettingDialog({ open, onOpenChange }: SettingDialogProps) {
+function SettingModal({ open, onOpenChange }: SettingModalProps) {
   const [activeNav, setActiveNav] = useState(NAV_ITEMS[0].name)
   const [subPage, setSubPage] = useState<string | null>(null)
   const items = SETTING_SCHEMA[subPage ? '' : activeNav] ?? []
@@ -468,4 +468,4 @@ function SettingDialog({ open, onOpenChange }: SettingDialogProps) {
   )
 }
 
-export { SettingDialog }
+export { SettingModal }
