@@ -1,11 +1,13 @@
 import {
   CellView,
+  Dom,
   FunctionExt,
   Node,
   NodeView,
   Scroller,
   Shape,
 } from '@antv/x6'
+import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
@@ -27,6 +29,66 @@ CellView.prototype._getSelectors = function () {
 }
 
 const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
+
+const selectionProto = SelectionImpl.prototype as unknown as Record<string, any>
+
+/**
+ * X6 框选结束后默认用已选节点的包围盒重算选择外框。
+ * 保留 mousedown 到 mouseup 形成的框选区域，并在整体移动时同步该区域。
+ */
+if (!selectionProto._preserveRubberbandPatched) {
+  const selectionRectKey = '_rubberbandSelectionRect'
+
+  for (const methodName of ['select', 'unselect', 'reset', 'clean']) {
+    const original = selectionProto[methodName]
+    selectionProto[methodName] = function (this: any, ...args: any[]) {
+      this[selectionRectKey] = null
+      return original.apply(this, args)
+    }
+  }
+
+  const originalStopSelecting = selectionProto.stopSelecting
+  selectionProto.stopSelecting = function (this: any, evt: any) {
+    const eventData = this.getEventData(evt)
+    const selectingRect =
+      eventData?.action === 'selecting' ? this.getSelectingRect() : null
+
+    const result = originalStopSelecting.call(this, evt)
+    if (selectingRect && this.length > 0) {
+      this[selectionRectKey] = selectingRect
+      this.updateContainer()
+    }
+    return result
+  }
+
+  const originalUpdateContainer = selectionProto.updateContainer
+  selectionProto.updateContainer = function (this: any) {
+    const result = originalUpdateContainer.call(this)
+    const rect = this[selectionRectKey]
+    if (rect) {
+      Dom.css(this.selectionContainer, {
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      })
+    }
+    return result
+  }
+
+  const originalApplyDraggingPreview = selectionProto.applyDraggingPreview
+  selectionProto.applyDraggingPreview = function (
+    this: any,
+    offset: { dx: number; dy: number },
+  ) {
+    if (this.options.following) {
+      this[selectionRectKey]?.translate(offset.dx, offset.dy)
+    }
+    return originalApplyDraggingPreview.call(this, offset)
+  }
+
+  selectionProto._preserveRubberbandPatched = true
+}
 
 /**
  * X6 默认把 mousedown 的端口固定为 source，只拖动 target；
