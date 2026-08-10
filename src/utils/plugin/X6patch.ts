@@ -10,6 +10,8 @@ import {
 import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { routeAllEdges } from '@/services/routing-service'
+import type { Cell, Edge, EdgeView, Graph } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
 
 const commonService = createCommonService()
@@ -88,6 +90,137 @@ if (!selectionProto._preserveRubberbandPatched) {
   }
 
   selectionProto._preserveRubberbandPatched = true
+}
+
+interface SelectionTranslationState {
+  graph: Graph
+  collection: {
+    toArray(): Cell[]
+  }
+  translatingCache: {
+    nodeIdSet: Set<string>
+    edgesToTranslate: Edge[]
+  } | null
+}
+
+interface FixedEdgeTerminal {
+  edge: Edge
+  source?: { horizontal: boolean; x: number; y: number }
+  target?: { horizontal: boolean; x: number; y: number }
+}
+
+/**
+ * Selection 整体平移 Edge vertices 时，引用未选中 Node 的端点不会移动，
+ * 首尾线段因此会倾斜。平移后在同一帧校正固定端旁的 vertex：内部 Edge
+ * 保持相对位置不变，边界 Edge 保持正交连接，全程不触发 Avoid。
+ */
+if (!selectionProto._fixedTerminalVertexPatched) {
+  const originalTranslateSelectedNodes =
+    selectionProto.translateSelectedNodes as (
+      this: SelectionTranslationState,
+      dx: number,
+      dy: number,
+      exclude?: Cell,
+      otherOptions?: Record<string, unknown>,
+    ) => void
+
+  selectionProto.translateSelectedNodes = function (
+    this: SelectionTranslationState,
+    dx: number,
+    dy: number,
+    exclude?: Cell,
+    otherOptions?: Record<string, unknown>,
+  ) {
+    const movingNodeIds = this.translatingCache?.nodeIdSet ?? new Set<string>()
+    const fixedTerminals =
+      this.translatingCache?.edgesToTranslate
+        .map((edge) => {
+          const vertices = edge.getVertices()
+          if (vertices.length === 0) return null
+
+          const view = this.graph.findViewByCell(edge) as EdgeView | null
+          if (!view) return null
+
+          const item: FixedEdgeTerminal = { edge }
+          const sourceId = edge.getSourceCellId()
+          const targetId = edge.getTargetCellId()
+          const firstVertex = vertices[0]
+          const lastVertex = vertices[vertices.length - 1]
+
+          if (sourceId && !movingNodeIds.has(sourceId)) {
+            item.source = {
+              horizontal:
+                Math.abs(view.sourcePoint.x - firstVertex.x) >=
+                Math.abs(view.sourcePoint.y - firstVertex.y),
+              x: view.sourcePoint.x,
+              y: view.sourcePoint.y,
+            }
+          }
+          if (targetId && !movingNodeIds.has(targetId)) {
+            item.target = {
+              horizontal:
+                Math.abs(view.targetPoint.x - lastVertex.x) >=
+                Math.abs(view.targetPoint.y - lastVertex.y),
+              x: view.targetPoint.x,
+              y: view.targetPoint.y,
+            }
+          }
+
+          return item.source || item.target ? item : null
+        })
+        .filter((item): item is FixedEdgeTerminal => item !== null) ?? []
+
+    originalTranslateSelectedNodes.call(this, dx, dy, exclude, otherOptions)
+
+    fixedTerminals.forEach(({ edge, source, target }) => {
+      const vertices = edge.getVertices().map((point) => ({ ...point }))
+      if (vertices.length === 0) return
+
+      if (source) {
+        if (source.horizontal) vertices[0].y = source.y
+        else vertices[0].x = source.x
+      }
+      if (target) {
+        const lastVertex = vertices[vertices.length - 1]
+        if (target.horizontal) lastVertex.y = target.y
+        else lastVertex.x = target.x
+      }
+
+      edge.setVertices(vertices, { ui: true })
+    })
+  }
+
+  selectionProto._fixedTerminalVertexPatched = true
+}
+
+/**
+ * 一个模块和 Edge 一起移动时，整体平移可能让路线穿过其他模块。
+ * 必须等 Selection 在当前帧提交节点和 vertices 后，再按最新坐标执行 Avoid。
+ * 多个模块一起移动时不寻路，保持组内 Cell 的相对位置不变。
+ */
+if (!selectionProto._routeSingleNodeSelectionPatched) {
+  const originalApplyDraggingPreview = selectionProto.applyDraggingPreview as (
+    this: SelectionTranslationState,
+    offset: { dx: number; dy: number },
+  ) => void
+
+  selectionProto.applyDraggingPreview = function (
+    this: SelectionTranslationState,
+    offset: { dx: number; dy: number },
+  ) {
+    const result = originalApplyDraggingPreview.call(this, offset)
+    const selectedCells = this.collection.toArray()
+    const selectedNodeCount = selectedCells.filter((cell) =>
+      cell.isNode(),
+    ).length
+
+    if (selectedCells.length > 1 && selectedNodeCount === 1) {
+      void routeAllEdges(this.graph)
+    }
+    return result
+  }
+
+  selectionProto._routeSingleNodeSelectionPatched = true
 }
 
 /**
