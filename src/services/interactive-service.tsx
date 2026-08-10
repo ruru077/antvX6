@@ -12,6 +12,7 @@ import {
 } from '@/components/NodeParamWindow'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
+import { addTransientEdgeTools } from '@/utils/plugin/EdgeEditTool'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
@@ -197,7 +198,7 @@ function createInteractiveService() {
         },
       },
     })
-    edge.addTools(tools, { undo: false })
+    addTransientEdgeTools(edge, tools)
   }
 
   /**

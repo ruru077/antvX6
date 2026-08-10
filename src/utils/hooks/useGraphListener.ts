@@ -43,6 +43,7 @@ import { useSimulationStore } from '@/store/simulationStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { useDomListener } from '@/utils/hooks/useDomListener'
+import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
@@ -317,19 +318,27 @@ function registerEdgeMarkerListeners(graph: Graph) {
 
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
 function registerEdgeToolListeners(graph: Graph) {
+  function edgeAddedHandler({ edge }: EventArgs['edge:added']) {
+    if (edge.getAttrs()?.line?.stroke === RED) return
+    addEdgeEditTool(edge)
+  }
+  function edgeConnectedHandler({ edge }: EventArgs['edge:connected']) {
+    addEdgeEditTool(edge)
+  }
   function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
     if (activeToolEdgeId) return
     setActiveToolEdgeId(edge.id)
+    addEdgeEditTool(edge)
     interactiveService.addEdgeTools(edge)
   }
   function edgeMouseleaveHandler({ edge, e }: EventArgs['edge:mouseleave']) {
     // 鼠标按键按住中（正在拖拽），不移除工具
     if (e.buttons !== 0) return
     setActiveToolEdgeId(null)
-    edge.removeTools({ undo: false })
   }
   return registerListeners(graph, [
-    ['edge:added', () => {}],
+    ['edge:added', edgeAddedHandler],
+    ['edge:connected', edgeConnectedHandler],
     ['edge:mouseenter', edgeMouseenterHandler],
     ['edge:mouseleave', edgeMouseleaveHandler],
   ])
@@ -375,22 +384,9 @@ function registerNodeRouteListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  function selectionMovingHandler({ e, nodes }: EventArgs['box:mousemove']) {
-    if (e.button !== 0) return
-    if (nodes.length === 1 && canInsertNodeOnEdge(graph, nodes[0])) return
-    void routeAllEdges(graph)
-  }
-
-  function selectionMovedHandler({ e }: EventArgs['box:mouseup']) {
-    if (e.button !== 0) return
-    void routeAllEdges(graph)
-  }
-
   return registerListeners(graph, [
     ['node:moving', nodeMovingHandler],
     ['node:resized', nodeResizedHandler],
-    ['box:mousemove', selectionMovingHandler],
-    ['box:mouseup', selectionMovedHandler],
   ])
 }
 

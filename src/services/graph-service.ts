@@ -39,6 +39,7 @@ import {
   spaceHeld,
 } from '@/store/flags'
 import { useGraphStore } from '@/store/graphStore'
+import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
@@ -332,6 +333,7 @@ function registerSteppedMouseWheel(graph: GraphType) {
 
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 
+registerEdgeEditTool()
 registerRatioAnchorTool()
 // registerSimulinkSegmentsTool()
 
