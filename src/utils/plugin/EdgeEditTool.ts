@@ -53,6 +53,7 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
 
   private updateFrame: number | null = null
   private cleanupAfterEditing = false
+  private graphScale = () => this.scheduleUpdate()
   private cellDblClick = ({ e }: { e: Dom.DoubleClickEvent }) => {
     e.stopPropagation()
     const label = this.getLabel() ?? this.createLabel()
@@ -100,6 +101,7 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
   protected onRender() {
     this.cellView.on('cell:dblclick', this.cellDblClick)
     this.cellView.on('cell:mouseleave', this.cellMouseLeave)
+    this.graph.on('scale', this.graphScale)
     const label = this.getLabel()
     if (!label) {
       this.hide()
@@ -219,6 +221,7 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
     editingEdgeIds.delete(this.cell.id)
     this.cellView.off('cell:dblclick', this.cellDblClick)
     this.cellView.off('cell:mouseleave', this.cellMouseLeave)
+    this.graph.off('scale', this.graphScale)
     if (this.updateFrame != null) {
       cancelAnimationFrame(this.updateFrame)
       this.updateFrame = null
