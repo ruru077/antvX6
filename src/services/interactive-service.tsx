@@ -1,6 +1,7 @@
 import { Input } from 'antd'
 import { createRoot } from 'react-dom/client'
 import {
+  HOVER_EDGE_TOOL_CLASS,
   RED,
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
@@ -12,7 +13,6 @@ import {
 } from '@/components/NodeParamWindow'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
-import { addTransientEdgeTools } from '@/utils/plugin/EdgeEditTool'
 import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
@@ -157,20 +157,34 @@ function createInteractiveService() {
     )
   }
 
-  function addEdgeTools(edge: Edge) {
+  function initializeEdgeTools(edge: Edge) {
     const graph = useGraphStore.getState().graph
     const isPreview = edge.getAttrs()?.line?.stroke === RED
 
     const sourceCell = graph.getCellById(edge.getSourceCellId())
     const isBranchEdge = sourceCell?.isEdge()
-    const tools = []
+    const tools = edge.getTools()
+    const persistentTools =
+      tools?.items.filter((item) => {
+        const name = typeof item === 'string' ? item : item.name
+        return ![
+          'ratio-anchor',
+          'source-arrowhead',
+          'target-arrowhead',
+        ].includes(name)
+      }) ?? []
+    const hoverTools = []
     if (isBranchEdge) {
-      tools.push({ name: 'ratio-anchor' })
+      hoverTools.push({
+        name: 'ratio-anchor',
+        args: { className: HOVER_EDGE_TOOL_CLASS },
+      })
     } else {
-      tools.push(
+      hoverTools.push(
         {
           name: 'source-arrowhead',
           args: {
+            className: HOVER_EDGE_TOOL_CLASS,
             attrs: {
               d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
               fill: 'white',
@@ -184,9 +198,10 @@ function createInteractiveService() {
         // { name: 'segments' },
       )
     }
-    tools.push({
+    hoverTools.push({
       name: 'target-arrowhead',
       args: {
+        className: HOVER_EDGE_TOOL_CLASS,
         // ratio: isPreview ? 1 : 1,
         attrs: {
           // 使用 d 反转箭头 防止嵌入 Block 造成预期行为错乱
@@ -198,7 +213,24 @@ function createInteractiveService() {
         },
       },
     })
-    addTransientEdgeTools(edge, tools)
+    const currentNames = tools?.items.map((item) =>
+      typeof item === 'string' ? item : item.name,
+    )
+    const expectedNames = hoverTools.map((item) => item.name)
+    const alreadyInitialized =
+      currentNames
+        ?.filter((name) =>
+          ['ratio-anchor', 'source-arrowhead', 'target-arrowhead'].includes(
+            name,
+          ),
+        )
+        .join() === expectedNames.join()
+    if (alreadyInitialized) return
+
+    edge.setTools(
+      { ...tools, items: [...persistentTools, ...hoverTools] },
+      { undo: false },
+    )
   }
 
   /**
@@ -342,7 +374,7 @@ function createInteractiveService() {
     addOutline,
     removeOutline,
     addBoundaryTool,
-    addEdgeTools,
+    initializeEdgeTools,
     openNodeParamWindow,
     openLabelEditor,
     openAddBlockCommand,

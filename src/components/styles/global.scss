@@ -222,3 +222,14 @@ select {
 .x6-graph-scroller.x6-graph-scroller-panning {
   cursor: default !important;
 }
+
+// Edge hover 工具只切换显隐，避免 addTools/removeTools 重建常驻 EdgeEdit。
+.edge-hover-tool {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.edge-hover-tool.edge-hover-tool-visible {
+  visibility: visible;
+  pointer-events: auto;
+}

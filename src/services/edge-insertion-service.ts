@@ -1,7 +1,7 @@
 import { EDGE_TARGET_CP_OFFSET, RED, SNAP_RADIUS } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { isConnectionValid } from '@/services/graph-service'
+import { isConnectionValid } from '@/services/connection-service'
 import {
   fallbackEdgeToManhattan,
   isCompleteNodeEdge,

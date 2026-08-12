@@ -44,6 +44,10 @@ import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { useDomListener } from '@/utils/hooks/useDomListener'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
+import {
+  getHoverEdgeToolId,
+  setHoverEdgeToolsVisible,
+} from '@/utils/plugin/edgeToolVisibility'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
@@ -127,10 +131,8 @@ function registerScopeListeners(graph: Graph) {
 // ── Cell 交互：按下即选中 ───────────────────────────────────────────────
 function registerCellSelectionListeners(graph: Graph) {
   function cellMouseDownHandler({ cell, e }: EventArgs['cell:mousedown']) {
-    if (e.button !== 0) return
-    if (e.ctrlKey || e.metaKey) return
+    // 点击 Port 时不选中 cell
     if (e.target.closest('.x6-port')) return
-
     graph.resetSelection([cell])
   }
 
@@ -318,30 +320,78 @@ function registerEdgeMarkerListeners(graph: Graph) {
 
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
 function registerEdgeToolListeners(graph: Graph) {
+  let hideTimer: number | null = null
+
+  function showEdgeTools(edge: Edge) {
+    if (hideTimer != null) {
+      window.clearTimeout(hideTimer)
+      hideTimer = null
+    }
+    if (activeToolEdgeId && activeToolEdgeId !== edge.id) {
+      setHoverEdgeToolsVisible(graph, activeToolEdgeId, false)
+    }
+    setActiveToolEdgeId(edge.id)
+    setHoverEdgeToolsVisible(graph, edge.id, true)
+  }
+
+  function scheduleHideEdgeTools(edge: Edge) {
+    if (hideTimer != null) window.clearTimeout(hideTimer)
+    hideTimer = window.setTimeout(() => {
+      hideTimer = null
+      if (activeToolEdgeId !== edge.id) return
+      setHoverEdgeToolsVisible(graph, edge.id, false)
+      setActiveToolEdgeId(null)
+    })
+  }
+
   function edgeAddedHandler({ edge }: EventArgs['edge:added']) {
-    if (edge.getAttrs()?.line?.stroke === RED) return
+    // 插入模块时生成的内部预览线会立即销毁，不需要编辑工具。
+    if (edge.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     addEdgeEditTool(edge)
+    interactiveService.initializeEdgeTools(edge)
   }
   function edgeConnectedHandler({ edge }: EventArgs['edge:connected']) {
     addEdgeEditTool(edge)
+    interactiveService.initializeEdgeTools(edge)
   }
   function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
-    if (activeToolEdgeId) return
-    setActiveToolEdgeId(edge.id)
-    addEdgeEditTool(edge)
-    interactiveService.addEdgeTools(edge)
+    showEdgeTools(edge)
   }
   function edgeMouseleaveHandler({ edge, e }: EventArgs['edge:mouseleave']) {
-    // 鼠标按键按住中（正在拖拽），不移除工具
+    // 鼠标按键按住中（正在拖拽），不隐藏工具
     if (e.buttons !== 0) return
-    setActiveToolEdgeId(null)
+    scheduleHideEdgeTools(edge)
   }
-  return registerListeners(graph, [
+
+  function hoverToolMouseoverHandler(event: MouseEvent) {
+    const edgeId = getHoverEdgeToolId(event.target)
+    if (!edgeId) return
+    const edge = graph.getCellById(edgeId)
+    if (edge?.isEdge()) showEdgeTools(edge)
+  }
+
+  function hoverToolMouseoutHandler(event: MouseEvent) {
+    if (event.buttons !== 0) return
+    const edgeId = getHoverEdgeToolId(event.target)
+    if (!edgeId) return
+    const edge = graph.getCellById(edgeId)
+    if (edge?.isEdge()) scheduleHideEdgeTools(edge)
+  }
+
+  graph.container.addEventListener('mouseover', hoverToolMouseoverHandler)
+  graph.container.addEventListener('mouseout', hoverToolMouseoutHandler)
+  const unregisterGraphListeners = registerListeners(graph, [
     ['edge:added', edgeAddedHandler],
     ['edge:connected', edgeConnectedHandler],
     ['edge:mouseenter', edgeMouseenterHandler],
     ['edge:mouseleave', edgeMouseleaveHandler],
   ])
+  return () => {
+    unregisterGraphListeners()
+    graph.container.removeEventListener('mouseover', hoverToolMouseoverHandler)
+    graph.container.removeEventListener('mouseout', hoverToolMouseoutHandler)
+    if (hideTimer != null) window.clearTimeout(hideTimer)
+  }
 }
 
 // ── 拖放模块到 Edge：预览并拆分连接 ────────────────────────────────────────
@@ -633,7 +683,11 @@ function registerEditableLabelListeners(graph: Graph) {
   return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
 }
 // ── Ctrl+Click 拉线 ──────────────────────────────────────────────────────
-type RightEdgeDragEventSetter = (edge: Edge, edgeView: EdgeView, e: any) => void
+type RightEdgeDragEventSetter = (
+  edge: Edge,
+  edgeView: EdgeView,
+  e: EventArgs['edge:mousedown']['e'],
+) => void
 
 function registerEdgeBranchListeners(
   graph: Graph,
@@ -652,7 +706,8 @@ function registerEdgeBranchListeners(
 
     e.stopPropagation()
     e.preventDefault()
-    edge.removeTools({ undo: false })
+    // 拉出 Branch 时只隐藏箭头和 ratio anchor，常驻 EdgeEdit/label 保持不变。
+    setHoverEdgeToolsVisible(graph, edge.id, false)
     const startPos = graph.pageToLocal(e.pageX, e.pageY)
     const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
 
@@ -661,6 +716,7 @@ function registerEdgeBranchListeners(
       target: { x: startPos.x, y: startPos.y },
       ...previewLinkAttrs,
     })
+    graph.resetSelection([edge, tempEdge])
     // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
     const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
     tempEdgeView.setEventData(

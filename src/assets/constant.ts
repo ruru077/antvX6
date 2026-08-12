@@ -44,6 +44,9 @@ const CONTACT_ME_EMAIL = 'yesw@sustech.edu.cn'
 const WHEEL_ZOOM_LEVELS = [0.5, 0.6, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 // 右键拖拽复制触发阈值
 const RIGHT_DRAG_COPY_THRESHOLD = 5
+// Edge 悬浮工具的基础 class 与可见状态 class
+const HOVER_EDGE_TOOL_CLASS = 'edge-hover-tool'
+const HOVER_EDGE_TOOL_VISIBLE_CLASS = 'edge-hover-tool-visible'
 export {
   GRAPH_GRID,
   RED,
@@ -66,4 +69,6 @@ export {
   CONTACT_ME_EMAIL,
   WHEEL_ZOOM_LEVELS,
   RIGHT_DRAG_COPY_THRESHOLD,
+  HOVER_EDGE_TOOL_CLASS,
+  HOVER_EDGE_TOOL_VISIBLE_CLASS,
 }

@@ -1,6 +1,7 @@
 import { Dom, Graph, ToolItem } from '@antv/x6'
 import { SOURCE_ARROWHEAD_STROKE_WIDTH } from '@/assets/constant'
 import { setActiveToolEdgeId } from '@/store/flags'
+import { setHoverEdgeToolsVisible } from '@/utils/plugin/edgeToolVisibility'
 import type { Edge, EdgeView } from '@antv/x6'
 import type { ToolItemOptions } from '@antv/x6/lib/view/tool/tool-item'
 
@@ -119,13 +120,13 @@ class RatioAnchorTool extends ToolItem<EdgeView, RatioAnchorOptions> {
   protected onMouseUp(evt: Dom.MouseUpEvent) {
     this.undelegateDocumentEvents()
     ;(this.container as HTMLElement).style.pointerEvents = ''
-    // 拖拽结束后，若鼠标已离开 edge 容器则主动清除工具
+    // 拖拽结束后，若鼠标已离开 edge 容器则隐藏 hover 工具
     const e = this.normalizeEvent(evt)
     const target = document.elementFromPoint(e.clientX, e.clientY)
     const edgeView = this.graph.findViewByCell(this.cell)
     if (edgeView && target && !edgeView.container.contains(target)) {
       setActiveToolEdgeId(null)
-      ;(this.cell as unknown as Edge).removeTools({ undo: false })
+      setHoverEdgeToolsVisible(this.graph, this.cell.id, false)
     }
   }
 }
