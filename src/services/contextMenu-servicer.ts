@@ -1,4 +1,4 @@
-import { pasteAndSelect } from '@/services/graph-service'
+import { pasteAndSelect } from '@/services/clipboard-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   hasSubsystemMask,
@@ -32,7 +32,7 @@ function createContextMenuService(graph: Graph | null, cell?: Cell) {
       graph?.redo()
     },
     paste() {
-      pasteAndSelect()
+      if (graph) pasteAndSelect(graph)
     },
     copy() {
       if (!graph || !cell) return

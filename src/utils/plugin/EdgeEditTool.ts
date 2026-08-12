@@ -4,12 +4,6 @@ import type { Edge, EdgeView } from '@antv/x6'
 import type { ToolItemOptions } from '@antv/x6/lib/view/tool/tool-item'
 
 const EDGE_LABEL_MARKUP = getTextBlockMarkup(true)
-const TRANSIENT_EDGE_TOOLS = new Set([
-  'ratio-anchor',
-  'source-arrowhead',
-  'target-arrowhead',
-])
-const editingEdgeIds = new Set<string>()
 
 interface EdgeEditToolOptions extends ToolItemOptions {
   labelIndex?: number
@@ -47,12 +41,10 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
       focus: 'onFocus',
       blur: 'onBlur',
       keydown: 'onKeyDown',
-      mouseleave: 'onEditorMouseLeave',
     },
   }
 
   private updateFrame: number | null = null
-  private cleanupAfterEditing = false
   private graphScale = () => this.scheduleUpdate()
   private cellDblClick = ({ e }: { e: Dom.DoubleClickEvent }) => {
     e.stopPropagation()
@@ -63,21 +55,6 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
     this.scheduleUpdate()
     requestAnimationFrame(() => (this.container as HTMLDivElement).focus())
   }
-  private cellMouseLeave = ({ e }: { e: Dom.MouseLeaveEvent }) => {
-    if (e.buttons !== 0) return
-
-    const nextTarget = e.relatedTarget
-    const movingToEditor =
-      nextTarget instanceof Node && this.container.contains(nextTarget)
-
-    if (movingToEditor || document.activeElement === this.container) {
-      this.cleanupAfterEditing = true
-      return
-    }
-
-    this.removeTransientTools()
-  }
-
   protected init() {
     const editor = this.container as HTMLDivElement
     editor.contentEditable = 'plaintext-only'
@@ -100,7 +77,6 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
 
   protected onRender() {
     this.cellView.on('cell:dblclick', this.cellDblClick)
-    this.cellView.on('cell:mouseleave', this.cellMouseLeave)
     this.graph.on('scale', this.graphScale)
     const label = this.getLabel()
     if (!label) {
@@ -187,20 +163,14 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
   }
 
   protected onFocus() {
-    editingEdgeIds.add(this.cell.id)
     this.container.style.outline = '2px solid #20cde3'
     this.focus()
   }
 
   protected onBlur() {
-    editingEdgeIds.delete(this.cell.id)
     this.container.style.outline = 'none'
     this.saveText()
     this.blur()
-    if (this.cleanupAfterEditing) {
-      this.cleanupAfterEditing = false
-      this.removeTransientTools()
-    }
   }
 
   protected onKeyDown(event: KeyboardEvent) {
@@ -210,17 +180,8 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
     ;(this.container as HTMLDivElement).blur()
   }
 
-  protected onEditorMouseLeave() {
-    if (this.cleanupAfterEditing && document.activeElement !== this.container) {
-      this.cleanupAfterEditing = false
-      this.removeTransientTools()
-    }
-  }
-
   protected onRemove() {
-    editingEdgeIds.delete(this.cell.id)
     this.cellView.off('cell:dblclick', this.cellDblClick)
-    this.cellView.off('cell:mouseleave', this.cellMouseLeave)
     this.graph.off('scale', this.graphScale)
     if (this.updateFrame != null) {
       cancelAnimationFrame(this.updateFrame)
@@ -298,20 +259,6 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
     const label = view.labelCache?.[labelIndex]
     if (label) label.style.visibility = ''
   }
-
-  private removeTransientTools() {
-    const edge = this.cell as Edge
-    const tools = edge.getTools()
-    if (!tools) return
-
-    const items = tools.items.filter((item) => {
-      const name = typeof item === 'string' ? item : item.name
-      return !TRANSIENT_EDGE_TOOLS.has(name)
-    })
-    if (items.length === tools.items.length) return
-
-    edge.setTools({ ...tools, items }, { undo: false })
-  }
 }
 
 function registerEdgeEditTool() {
@@ -323,17 +270,4 @@ function addEdgeEditTool(edge: Edge, text = '') {
   edge.addTools([{ name: 'edge-edit', args: { text } }], { undo: false })
 }
 
-function addTransientEdgeTools(
-  edge: Edge,
-  tools: Parameters<Edge['addTools']>[0],
-) {
-  if (editingEdgeIds.has(edge.id)) return
-  edge.addTools(tools, { undo: false })
-}
-
-export {
-  EdgeEditTool,
-  addEdgeEditTool,
-  addTransientEdgeTools,
-  registerEdgeEditTool,
-}
+export { EdgeEditTool, addEdgeEditTool, registerEdgeEditTool }

@@ -1,5 +1,6 @@
 import { RED, RIGHT_DRAG_COPY_THRESHOLD } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
+import { connectAvailablePorts } from '@/services/connection-service'
 import {
   clearEdgeInsertionPreview,
   commitEdgeInsertion,
@@ -12,50 +13,26 @@ import {
   setSuppressDomContextMenu,
   suppressDomContextMenu,
 } from '@/store/flags'
-import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
+import { setHoverEdgeToolsVisible } from '@/utils/plugin/edgeToolVisibility'
+import type { Cell, Edge, EdgeView, EventArgs, Graph, Node } from '@antv/x6'
 
-type RightDragEdge = {
-  edge: Edge
-  edgeView: EdgeView
-  downEvent: any
-  startX: number
-  startY: number
-  pageX: number
-  pageY: number
-  dragging: boolean
-}
+type EdgeMouseDownEvent = EventArgs['edge:mousedown']['e']
 
-/**
- * 原生 DOM 事件监听 hook
- *
- * useGraphListener 只负责 X6 的 graph.on 事件；这里集中处理 X6 之外的
- * addEventListener 事件，包括右键 edge 拉线前置状态、右键拖拽复制 cells、
- * 以及浏览器原生 contextmenu 抑制。
- */
-function useDomListener(
-  graph: Graph | null,
-  onGraphMouseMove: (e: MouseEvent) => void,
-  cancelGraphMouseMove: () => void,
-) {
-  const rightDragEdgeRef = useRef<RightDragEdge | null>(null)
-
-  function setRightEdgeDragEvent(edge: Edge, edgeView: EdgeView, e: any) {
-    const state = rightDragEdgeRef.current
-    if (!state || state.edge.id !== edge.id) return
-    state.edgeView = edgeView
-    state.downEvent = e
-  }
-
-  useEffect(() => {
-    if (!graph) return
-    const currentGraph = graph
-    const scroller = currentGraph.getPlugin('scroller') as
-      | { togglePanning: (pannable?: boolean) => void }
-      | undefined
-
-    let rightDragCells: {
-      dragId: number
-      moveCount: number
+type PointerGesture =
+  | {
+      type: 'edge-branch'
+      edge: Edge
+      edgeView: EdgeView
+      downEvent: EdgeMouseDownEvent | null
+      startX: number
+      startY: number
+      pageX: number
+      pageY: number
+      dragging: boolean
+    }
+  | {
+      type: 'cell-copy'
+      button: 0 | 2
       sourceCells: Cell[]
       startX: number
       startY: number
@@ -63,345 +40,416 @@ function useDomListener(
       cloneCells: Cell[] | null
       insertionNode: Node | null
       hideSelectionOverlay: boolean
-    } | null = null
-    let nextDragId = 0
+      connectionSourceNode: Node | null
+      targetNode: Node | null
+    }
 
-    let selectionOverlayVisibility: Array<{
-      element: HTMLElement
-      visibility: string
-    }> | null = null
-    function setSelectionOverlayVisibility(visible: boolean) {
-      if (visible) {
-        selectionOverlayVisibility?.forEach(({ element, visibility }) => {
-          element.style.visibility = visibility
-        })
-        selectionOverlayVisibility = null
-        return
-      }
+type CellCopyGesture = Extract<PointerGesture, { type: 'cell-copy' }>
 
-      if (selectionOverlayVisibility !== null) return
+type RegisteredPointerGestures = {
+  setRightEdgeDragEvent: (
+    edge: Edge,
+    edgeView: EdgeView,
+    e: EdgeMouseDownEvent,
+  ) => void
+  dispose: () => void
+}
 
-      const selection = currentGraph.container.querySelector<HTMLElement>(
-        '.x6-widget-selection',
-      )
-      if (!selection) return
+/**
+ * 注册必须先于 X6 处理的原生鼠标手势。
+ * 右键与 Ctrl/Command 共用 Cell 复制流程；Ctrl 未形成拖拽时转为模块连接。
+ */
+function registerPointerGestures(
+  graph: Graph,
+  onGraphMouseMove: (e: MouseEvent) => void,
+): RegisteredPointerGestures {
+  const scroller = graph.getPlugin('scroller') as
+    | { togglePanning: (pannable?: boolean) => void }
+    | undefined
+  let gesture: PointerGesture | null = null
 
-      const elements = [
-        selection,
-        selection.querySelector<HTMLElement>('.x6-widget-selection-inner'),
-        selection.querySelector<HTMLElement>('.x6-widget-selection-content'),
-      ].filter((element): element is HTMLElement => element !== null)
-      selectionOverlayVisibility = elements.map((element) => ({
-        element,
-        visibility: element.style.visibility,
-      }))
-      elements.forEach((element) => {
-        element.style.visibility = 'hidden'
+  let selectionOverlayVisibility: Array<{
+    element: HTMLElement
+    visibility: string
+  }> | null = null
+
+  function setSelectionOverlayVisibility(visible: boolean) {
+    if (visible) {
+      selectionOverlayVisibility?.forEach(({ element, visibility }) => {
+        element.style.visibility = visibility
       })
+      selectionOverlayVisibility = null
+      return
     }
 
-    // ── X6 guard 覆写：允许右键 mousedown 到达 edge ─────────────────────
-    const graphView = currentGraph.view
-    const originalGuard = graphView.guard.bind(graphView)
-    graphView.guard = (e, view) => {
-      if (e.type === 'mousedown' && e.button === 2 && view?.cell?.isEdge?.()) {
-        return false
-      }
-      return originalGuard(e, view)
+    if (selectionOverlayVisibility !== null) return
+
+    const selection = graph.container.querySelector<HTMLElement>(
+      '.x6-widget-selection',
+    )
+    if (!selection) return
+
+    const elements = [
+      selection,
+      selection.querySelector<HTMLElement>('.x6-widget-selection-inner'),
+      selection.querySelector<HTMLElement>('.x6-widget-selection-content'),
+    ].filter((element): element is HTMLElement => element !== null)
+    selectionOverlayVisibility = elements.map((element) => ({
+      element,
+      visibility: element.style.visibility,
+    }))
+    elements.forEach((element) => {
+      element.style.visibility = 'hidden'
+    })
+  }
+
+  const graphView = graph.view
+  const originalGuard = graphView.guard.bind(graphView)
+  graphView.guard = (e, view) => {
+    if (e.type === 'mousedown' && e.button === 2 && view?.cell?.isEdge?.()) {
+      return false
     }
+    return originalGuard(e, view)
+  }
 
-    // ── 按下：edge 拉线先关 Scroller 平移；右键进入拖拽复制候选状态 ───
-    function onMouseDown(e: MouseEvent) {
-      const view = currentGraph.findViewByElem(e.target as Element)
-      if (
-        view?.cell?.isEdge?.() &&
-        (e.button === 2 || e.ctrlKey || e.metaKey)
-      ) {
-        scroller?.togglePanning(false)
-        if (e.button === 2) {
-          const edge = view.cell as Edge
-          if (edge.getAttrs()?.line?.stroke === RED) return
-          rightDragEdgeRef.current = {
-            edge,
-            edgeView: view as EdgeView,
-            downEvent: null,
-            startX: e.clientX,
-            startY: e.clientY,
-            pageX: e.pageX,
-            pageY: e.pageY,
-            dragging: false,
-          }
-        }
-        e.preventDefault()
-        return
-      }
+  function setRightEdgeDragEvent(
+    edge: Edge,
+    edgeView: EdgeView,
+    e: EdgeMouseDownEvent,
+  ) {
+    if (gesture?.type !== 'edge-branch' || gesture.edge.id !== edge.id) return
+    gesture.edgeView = edgeView
+    gesture.downEvent = e
+  }
 
-      if (e.button !== 2) return
-      const target = e.target instanceof Element ? e.target : null
-      const isSelectionContent = !!target?.closest(
-        '.x6-widget-selection-content',
-      )
-      const isSelectionContainer =
-        !isSelectionContent && !!target?.closest('.x6-widget-selection-inner')
-      const selectedCells = currentGraph.getSelectedCells().slice()
-
-      if (view?.cell?.isNode?.()) {
-        const node = view.cell as Node
-        const isNodeSelected = selectedCells.some((cell) => cell.id === node.id)
-        const sourceCells = isNodeSelected ? selectedCells : [node]
-        if (!isNodeSelected) currentGraph.resetSelection([node])
-
-        rightDragCells = {
-          dragId: ++nextDragId,
-          moveCount: 0,
-          sourceCells,
+  function onMouseDown(e: MouseEvent) {
+    const view = graph.findViewByElem(e.target as Element)
+    if (view?.cell?.isEdge?.() && (e.button === 2 || e.ctrlKey || e.metaKey)) {
+      scroller?.togglePanning(false)
+      if (e.button === 2) {
+        const edge = view.cell as Edge
+        if (edge.getAttrs()?.line?.stroke === RED) return
+        gesture = {
+          type: 'edge-branch',
+          edge,
+          edgeView: view as EdgeView,
+          downEvent: null,
           startX: e.clientX,
           startY: e.clientY,
-          lastPoint: null,
-          cloneCells: null,
-          insertionNode: null,
-          hideSelectionOverlay:
-            sourceCells.filter((cell) => cell.isNode()).length > 1,
+          pageX: e.pageX,
+          pageY: e.pageY,
+          dragging: false,
         }
-        if (rightDragCells.hideSelectionOverlay) {
-          setSelectionOverlayVisibility(false)
-        }
-        e.stopPropagation()
-        return
       }
+      e.preventDefault()
+      return
+    }
 
-      if (!isSelectionContainer || selectedCells.length === 0) return
-      rightDragCells = {
-        dragId: ++nextDragId,
-        moveCount: 0,
-        sourceCells: selectedCells,
+    const target = e.target instanceof Element ? e.target : null
+    const isRightDrag = e.button === 2
+    const isCtrlDrag = e.button === 0 && (e.ctrlKey || e.metaKey)
+    if (!isRightDrag && !isCtrlDrag) return
+    if (target?.closest('.x6-port')) return
+
+    const isSelectionContent = !!target?.closest('.x6-widget-selection-content')
+    const isSelectionContainer =
+      !isSelectionContent && !!target?.closest('.x6-widget-selection-inner')
+    const selectedCells = graph.getSelectedCells().slice()
+
+    if (view?.cell?.isNode?.()) {
+      const node = view.cell as Node
+      const isNodeSelected = selectedCells.some((cell) => cell.id === node.id)
+      const sourceCells = isNodeSelected ? selectedCells : [node]
+      const selectedNodes = selectedCells.filter((cell) => cell.isNode())
+      if (!isNodeSelected) graph.resetSelection([node])
+
+      gesture = {
+        type: 'cell-copy',
+        button: isCtrlDrag ? 0 : 2,
+        sourceCells,
         startX: e.clientX,
         startY: e.clientY,
         lastPoint: null,
         cloneCells: null,
         insertionNode: null,
         hideSelectionOverlay:
-          selectedCells.filter((cell) => cell.isNode()).length > 1,
+          sourceCells.filter((cell) => cell.isNode()).length > 1,
+        connectionSourceNode:
+          isCtrlDrag && selectedNodes.length === 1
+            ? (selectedNodes[0] as Node)
+            : null,
+        targetNode: isCtrlDrag ? node : null,
       }
-      if (rightDragCells.hideSelectionOverlay) {
+      if (gesture.hideSelectionOverlay) {
         setSelectionOverlayVisibility(false)
       }
-      e.stopPropagation()
-    }
-
-    // ── 右键移动：阻止浏览器手势；node 超过阈值后创建复制节点 ─────────────
-    function onMouseMove(e: MouseEvent) {
-      const rightDragEdge = rightDragEdgeRef.current
-      if (rightDragEdge && e.buttons === 2) {
-        const dx = e.clientX - rightDragEdge.startX
-        const dy = e.clientY - rightDragEdge.startY
-        if (
-          rightDragEdge.dragging ||
-          Math.hypot(dx, dy) >= RIGHT_DRAG_COPY_THRESHOLD
-        ) {
-          if (!rightDragEdge.dragging) {
-            if (!rightDragEdge.downEvent) return
-
-            const key = `__${currentGraph.view.cid}__`
-            const dragData = rightDragEdge.downEvent.data?.[key]
-            if (!dragData) return
-
-            const startPos = currentGraph.pageToLocal(
-              rightDragEdge.pageX,
-              rightDragEdge.pageY,
-            )
-            const ratio =
-              rightDragEdge.edgeView.getClosestPointRatio(startPos) ?? 0.5
-            const tempEdge = currentGraph.addEdge({
-              source: {
-                cell: rightDragEdge.edge.id,
-                anchor: { name: 'ratio', args: { ratio } },
-              },
-              target: { x: startPos.x, y: startPos.y },
-              ...previewLinkAttrs,
-            })
-            const tempEdgeView = currentGraph.findViewByCell(
-              tempEdge,
-            ) as EdgeView
-            tempEdgeView.setEventData(
-              rightDragEdge.downEvent,
-              tempEdgeView.prepareArrowheadDragging('target', {
-                x: startPos.x,
-                y: startPos.y,
-                isNewEdge: true,
-                fallbackAction: 'remove',
-              }),
-            )
-            dragData.currentView = tempEdgeView
-            rightDragEdge.edge.removeTools({ undo: false })
-          }
-          rightDragEdge.dragging = true
-          setRightEdgeDragging(true)
-          setSuppressDomContextMenu(true)
-          e.preventDefault()
-        }
-      }
-
-      if (rightEdgeDragging) e.preventDefault()
-      if (!rightDragCells || e.buttons !== 2) return
-
-      rightDragCells.moveCount += 1
-      if (!rightDragCells.cloneCells) {
-        const dx = e.clientX - rightDragCells.startX
-        const dy = e.clientY - rightDragCells.startY
-        if (Math.hypot(dx, dy) < RIGHT_DRAG_COPY_THRESHOLD) return
-
-        const sourceBBox = currentGraph.getCellsBBox(rightDragCells.sourceCells)
-        if (!sourceBBox) {
-          throw new Error('Right-drag copy source cells bbox is missing')
-        }
-
-        const cloneMap = currentGraph.model.cloneSubGraph(
-          rightDragCells.sourceCells,
-        )
-        const cloneCells = Object.values(cloneMap).sort(
-          (a, b) => Number(a.isEdge()) - Number(b.isEdge()),
-        )
-        const position = currentGraph.pageToLocal(e.pageX, e.pageY)
-        const sourceCenter = sourceBBox.getCenter()
-        const offsetX = position.x - sourceCenter.x
-        const offsetY = position.y - sourceCenter.y
-        cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
-        currentGraph.model.addCells(cloneCells)
-        currentGraph.resetSelection(cloneCells)
-        if (rightDragCells.hideSelectionOverlay) {
-          setSelectionOverlayVisibility(false)
-        }
-
-        rightDragCells.cloneCells = cloneCells
-        rightDragCells.lastPoint = position
-        rightDragCells.insertionNode =
-          cloneCells.length === 1 && cloneCells[0].isNode()
-            ? cloneCells[0]
-            : null
-        currentGraph.container.style.cursor = 'copy'
-        setSuppressDomContextMenu(true)
-      }
-
-      e.preventDefault()
-      const cloneCells = rightDragCells.cloneCells
-      const lastPoint = rightDragCells.lastPoint
-      if (!cloneCells || !lastPoint) {
-        throw new Error('Right-drag copy cells are missing')
-      }
-      const position = currentGraph.pageToLocal(e.pageX, e.pageY)
-      // insertion 可能把节点吸到 Edge 上，单节点必须按鼠标位置绝对移动，
-      // 否则每次只累加小增量会一直停留在 SNAP_RADIUS 内并反复吸回。
-      if (rightDragCells.insertionNode) {
-        const size = rightDragCells.insertionNode.getSize()
-        rightDragCells.insertionNode.position(
-          position.x - size.width / 2,
-          position.y - size.height / 2,
-          { ignore: true, undo: false },
-        )
-      } else {
-        const offsetX = position.x - lastPoint.x
-        const offsetY = position.y - lastPoint.y
-        cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
-      }
-      rightDragCells.lastPoint = position
-      if (rightDragCells.insertionNode) {
-        updateEdgeInsertionPreview(currentGraph, rightDragCells.insertionNode)
-      }
-    }
-
-    // ── 右键释放：结束 edge 拉线状态；完成复制 cells 的 insertion ──────
-    function onMouseUp(e: MouseEvent) {
-      setRightEdgeDragging(false)
-      scroller?.togglePanning(true)
-      rightDragEdgeRef.current = null
-      if (e.button !== 2 || !rightDragCells) return
-
-      const state = rightDragCells
-      rightDragCells = null
-      currentGraph.container.style.cursor = ''
-      if (!state.cloneCells) {
-        if (state.hideSelectionOverlay) {
-          setSelectionOverlayVisibility(true)
-        }
-        return
-      }
-
-      e.preventDefault()
-      const position = currentGraph.pageToLocal(e.pageX, e.pageY)
-      const lastPoint = state.lastPoint
-      if (!lastPoint) {
-        throw new Error('Right-drag copy position is missing')
-      }
-      if (state.insertionNode) {
-        const size = state.insertionNode.getSize()
-        state.insertionNode.position(
-          position.x - size.width / 2,
-          position.y - size.height / 2,
-          { ignore: true, undo: false },
-        )
-      } else {
-        const offsetX = position.x - lastPoint.x
-        const offsetY = position.y - lastPoint.y
-        state.cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
-      }
-
-      if (state.insertionNode) {
-        updateEdgeInsertionPreview(currentGraph, state.insertionNode)
-        const committed = commitEdgeInsertion(currentGraph, state.insertionNode)
-        if (!committed) {
-          void routeAllEdges(currentGraph)
-        }
-      } else {
-        clearEdgeInsertionPreview(currentGraph)
-        void routeAllEdges(currentGraph)
-      }
-      if (state.hideSelectionOverlay) {
-        setSelectionOverlayVisibility(true)
-      }
-    }
-
-    // ── 右键拉线或拖拽复制后，抑制紧随其后的原生菜单 ───────────────────
-    function onContextMenu(e: MouseEvent) {
-      if (!suppressDomContextMenu) return
       e.preventDefault()
       e.stopPropagation()
-      setSuppressDomContextMenu(false)
+      return
     }
 
-    // ── 注册原生事件 ───────────────────────────────────────────────────
-    const container = currentGraph.container
-    container.addEventListener('mousemove', onGraphMouseMove)
-    container.addEventListener('mousedown', onMouseDown, true)
-    document.addEventListener('mousemove', onMouseMove, true)
-    document.addEventListener('mouseup', onMouseUp, true)
-    container.addEventListener('contextmenu', onContextMenu, true)
+    if (!isSelectionContainer || selectedCells.length === 0) return
+    gesture = {
+      type: 'cell-copy',
+      button: isCtrlDrag ? 0 : 2,
+      sourceCells: selectedCells,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastPoint: null,
+      cloneCells: null,
+      insertionNode: null,
+      hideSelectionOverlay:
+        selectedCells.filter((cell) => cell.isNode()).length > 1,
+      connectionSourceNode: null,
+      targetNode: null,
+    }
+    if (gesture.hideSelectionOverlay) {
+      setSelectionOverlayVisibility(false)
+    }
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
-    // ── 清理原生事件与临时 DOM 状态 ────────────────────────────────────
+  function startRightEdgeDrag(e: MouseEvent) {
+    const state = gesture
+    if (state?.type !== 'edge-branch' || e.buttons !== 2) return
+
+    const dx = e.clientX - state.startX
+    const dy = e.clientY - state.startY
+    if (!state.dragging && Math.hypot(dx, dy) < RIGHT_DRAG_COPY_THRESHOLD) {
+      return
+    }
+    if (!state.dragging) {
+      if (!state.downEvent) return
+
+      const key = `__${graph.view.cid}__`
+      const dragData = state.downEvent.data?.[key]
+      if (!dragData) return
+
+      const startPosition = graph.pageToLocal(state.pageX, state.pageY)
+      const ratio = state.edgeView.getClosestPointRatio(startPosition) ?? 0.5
+      const temporaryEdge = graph.addEdge({
+        source: {
+          cell: state.edge.id,
+          anchor: { name: 'ratio', args: { ratio } },
+        },
+        target: { x: startPosition.x, y: startPosition.y },
+        ...previewLinkAttrs,
+      })
+      graph.resetSelection([state.edge, temporaryEdge])
+      const temporaryEdgeView = graph.findViewByCell(temporaryEdge) as EdgeView
+      temporaryEdgeView.setEventData(
+        state.downEvent,
+        temporaryEdgeView.prepareArrowheadDragging('target', {
+          x: startPosition.x,
+          y: startPosition.y,
+          isNewEdge: true,
+          fallbackAction: 'remove',
+        }),
+      )
+      dragData.currentView = temporaryEdgeView
+      // 拉出 Branch 时只隐藏箭头和 ratio anchor，常驻 EdgeEdit/label 保持不变。
+      setHoverEdgeToolsVisible(graph, state.edge.id, false)
+    }
+
+    state.dragging = true
+    setRightEdgeDragging(true)
+    setSuppressDomContextMenu(true)
+    e.preventDefault()
+  }
+
+  function startOrMoveCellCopy(e: MouseEvent) {
+    const state = gesture
+    if (state?.type !== 'cell-copy') return
+
+    const pressedButton = state.button === 0 ? 1 : 2
+    if ((e.buttons & pressedButton) === 0) return
+
+    if (!state.cloneCells) {
+      const dx = e.clientX - state.startX
+      const dy = e.clientY - state.startY
+      if (Math.hypot(dx, dy) < RIGHT_DRAG_COPY_THRESHOLD) return
+
+      const sourceBBox = graph.getCellsBBox(state.sourceCells)
+      if (!sourceBBox) throw new Error('Drag-copy source cells bbox is missing')
+
+      const cloneMap = graph.model.cloneSubGraph(state.sourceCells)
+      const cloneCells = Object.values(cloneMap).sort(
+        (a, b) => Number(a.isEdge()) - Number(b.isEdge()),
+      )
+      const position = graph.pageToLocal(e.pageX, e.pageY)
+      const sourceCenter = sourceBBox.getCenter()
+      const offsetX = position.x - sourceCenter.x
+      const offsetY = position.y - sourceCenter.y
+      cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+      graph.model.addCells(cloneCells)
+      graph.resetSelection(cloneCells)
+      if (state.hideSelectionOverlay) setSelectionOverlayVisibility(false)
+
+      state.cloneCells = cloneCells
+      state.lastPoint = position
+      state.insertionNode =
+        cloneCells.length === 1 && cloneCells[0].isNode() ? cloneCells[0] : null
+      graph.container.style.cursor = 'copy'
+      if (state.button === 2) setSuppressDomContextMenu(true)
+    }
+
+    e.preventDefault()
+    const cloneCells = state.cloneCells
+    const lastPoint = state.lastPoint
+    if (!cloneCells || !lastPoint) {
+      throw new Error('Drag-copy cells are missing')
+    }
+    const position = graph.pageToLocal(e.pageX, e.pageY)
+    if (state.insertionNode) {
+      const size = state.insertionNode.getSize()
+      state.insertionNode.position(
+        position.x - size.width / 2,
+        position.y - size.height / 2,
+        { ignore: true, undo: false },
+      )
+    } else {
+      const offsetX = position.x - lastPoint.x
+      const offsetY = position.y - lastPoint.y
+      cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+    }
+    state.lastPoint = position
+    if (state.insertionNode) {
+      updateEdgeInsertionPreview(graph, state.insertionNode)
+    }
+  }
+
+  function onMouseMove(e: MouseEvent) {
+    startRightEdgeDrag(e)
+    if (rightEdgeDragging) e.preventDefault()
+    startOrMoveCellCopy(e)
+  }
+
+  function finishCellCopy(state: CellCopyGesture, e: MouseEvent) {
+    e.preventDefault()
+    const position = graph.pageToLocal(e.pageX, e.pageY)
+    const lastPoint = state.lastPoint
+    if (!lastPoint) throw new Error('Drag-copy position is missing')
+    const cloneCells = state.cloneCells
+    if (!cloneCells) throw new Error('Drag-copy cells are missing')
+
+    if (state.insertionNode) {
+      const size = state.insertionNode.getSize()
+      state.insertionNode.position(
+        position.x - size.width / 2,
+        position.y - size.height / 2,
+        { ignore: true, undo: false },
+      )
+    } else {
+      const offsetX = position.x - lastPoint.x
+      const offsetY = position.y - lastPoint.y
+      cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+    }
+
+    if (state.insertionNode) {
+      updateEdgeInsertionPreview(graph, state.insertionNode)
+      const committed = commitEdgeInsertion(graph, state.insertionNode)
+      if (!committed) void routeAllEdges(graph)
+    } else {
+      clearEdgeInsertionPreview(graph)
+      void routeAllEdges(graph)
+    }
+    if (state.hideSelectionOverlay) setSelectionOverlayVisibility(true)
+  }
+
+  function finishCtrlClick(state: CellCopyGesture, e: MouseEvent) {
+    if (state.hideSelectionOverlay) setSelectionOverlayVisibility(true)
+    if (!state.connectionSourceNode || !state.targetNode) return
+
+    const releasePoint = graph.clientToLocal(e.clientX, e.clientY)
+    if (!state.targetNode.getBBox().containsPoint(releasePoint)) return
+    void connectAvailablePorts(
+      graph,
+      state.connectionSourceNode,
+      state.targetNode,
+    )
+  }
+
+  function onMouseUp(e: MouseEvent) {
+    setRightEdgeDragging(false)
+    scroller?.togglePanning(true)
+    if (gesture?.type === 'edge-branch') {
+      gesture = null
+      return
+    }
+    if (gesture?.type !== 'cell-copy' || e.button !== gesture.button) return
+
+    const state = gesture
+    gesture = null
+    graph.container.style.cursor = ''
+    if (state.cloneCells) finishCellCopy(state, e)
+    else finishCtrlClick(state, e)
+  }
+
+  function onContextMenu(e: MouseEvent) {
+    if (!suppressDomContextMenu) return
+    e.preventDefault()
+    e.stopPropagation()
+    setSuppressDomContextMenu(false)
+  }
+
+  const container = graph.container
+  container.addEventListener('mousemove', onGraphMouseMove)
+  container.addEventListener('mousedown', onMouseDown, true)
+  document.addEventListener('mousemove', onMouseMove, true)
+  document.addEventListener('mouseup', onMouseUp, true)
+  container.addEventListener('contextmenu', onContextMenu, true)
+
+  function dispose() {
+    graphView.guard = originalGuard
+    container.removeEventListener('mousemove', onGraphMouseMove)
+    container.removeEventListener('mousedown', onMouseDown, true)
+    document.removeEventListener('mousemove', onMouseMove, true)
+    document.removeEventListener('mouseup', onMouseUp, true)
+    container.removeEventListener('contextmenu', onContextMenu, true)
+    clearEdgeInsertionPreview(graph)
+    if (gesture?.type === 'cell-copy' && gesture.hideSelectionOverlay) {
+      setSelectionOverlayVisibility(true)
+    }
+    if (gesture?.type === 'cell-copy' && gesture.cloneCells) {
+      graph.removeCells(gesture.cloneCells, { ignore: true, undo: false })
+    }
+    gesture = null
+    graph.container.style.cursor = ''
+    setRightEdgeDragging(false)
+    scroller?.togglePanning(true)
+    setSuppressDomContextMenu(false)
+  }
+
+  return { dispose, setRightEdgeDragEvent }
+}
+
+/** 将原生鼠标手势注册绑定到 React 生命周期。 */
+function useDomListener(
+  graph: Graph | null,
+  onGraphMouseMove: (e: MouseEvent) => void,
+  cancelGraphMouseMove: () => void,
+) {
+  const gesturesRef = useRef<RegisteredPointerGestures | null>(null)
+
+  function setRightEdgeDragEvent(
+    edge: Edge,
+    edgeView: EdgeView,
+    e: EdgeMouseDownEvent,
+  ) {
+    gesturesRef.current?.setRightEdgeDragEvent(edge, edgeView, e)
+  }
+
+  useEffect(() => {
+    if (!graph) return
+
+    const gestures = registerPointerGestures(graph, onGraphMouseMove)
+    gesturesRef.current = gestures
+
     return () => {
       cancelGraphMouseMove()
-      graphView.guard = originalGuard
-      container.removeEventListener('mousemove', onGraphMouseMove)
-      container.removeEventListener('mousedown', onMouseDown, true)
-      document.removeEventListener('mousemove', onMouseMove, true)
-      document.removeEventListener('mouseup', onMouseUp, true)
-      container.removeEventListener('contextmenu', onContextMenu, true)
-      clearEdgeInsertionPreview(currentGraph)
-      if (rightDragCells?.hideSelectionOverlay) {
-        setSelectionOverlayVisibility(true)
-      }
-      if (rightDragCells?.cloneCells) {
-        currentGraph.removeCells(rightDragCells.cloneCells, {
-          ignore: true,
-          undo: false,
-        })
-      }
-      rightDragCells = null
-      rightDragEdgeRef.current = null
-      currentGraph.container.style.cursor = ''
-      setRightEdgeDragging(false)
-      scroller?.togglePanning(true)
-      setSuppressDomContextMenu(false)
+      gestures.dispose()
+      if (gesturesRef.current === gestures) gesturesRef.current = null
     }
   }, [graph, onGraphMouseMove, cancelGraphMouseMove])
 
