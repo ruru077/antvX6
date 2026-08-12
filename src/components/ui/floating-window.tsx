@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 const WINDOW_MARGIN = 16
 let activeWindowZIndex = 50
@@ -71,6 +72,7 @@ function FloatingWindow({
   const contentBodyRef = useRef<HTMLDivElement>(null)
   const windowRectRef = useRef<FloatingWindowRect | null>(null)
   const [zIndex, setZIndex] = useState(() => ++activeWindowZIndex)
+  const [contentScrollable, setContentScrollable] = useState(!autoFitHeight)
 
   windowRectRef.current ??= getInitialWindowRect(defaultWidth, defaultHeight)
   const windowRect = windowRectRef.current
@@ -97,6 +99,8 @@ function FloatingWindow({
         maxAutoHeight,
         window.innerHeight - WINDOW_MARGIN * 2,
       )
+      const requiredHeight = rect.height + Math.max(0, overflowHeight)
+      setContentScrollable(requiredHeight > heightLimit + 1)
 
       if (overflowHeight <= 1 || rect.height >= heightLimit) return
 
@@ -167,7 +171,10 @@ function FloatingWindow({
         <Separator />
         <CardContent
           ref={contentAreaRef}
-          className="min-h-0 flex-1 overflow-auto p-3"
+          className={cn(
+            'min-h-0 flex-1 overflow-x-hidden p-3',
+            contentScrollable ? 'overflow-y-auto' : 'overflow-y-hidden',
+          )}
         >
           <div
             ref={contentBodyRef}
