@@ -306,7 +306,7 @@ function configureAvoidRouter(avoid, router) {
   )
 }
 function createAvoidShape(avoid, router, node) {
-  const bbox = node.getBBox()
+  const bbox = getRotatedNodeBBox(node)
   return new avoid.ShapeRef(
     router,
     new avoid.Rectangle(
@@ -508,20 +508,24 @@ function getPortPoint(node, portId) {
   const layout = node.getPortsPosition(port.group)[portId]
   if (!layout) return null
   const position = node.getPosition()
-  return {
+  const point = {
     x: position.x + layout.position.x,
     y: position.y + layout.position.y,
   }
+  const angle = node.getAngle()
+  if (!angle) return point
+  return rotatePoint(point, node.getBBox().getCenter(), angle)
 }
 function getPortDirection(node, portId, point) {
   const port = node.getPort(portId)
   const groupPosition = normalizePortDirection(
     getPortGroupPosition(node, port?.group),
   )
-  if (groupPosition) return groupPosition
+  if (groupPosition) return rotateDirection(groupPosition, node.getAngle())
   const semanticDirection = inferPortDirectionFromName(portId, port?.group)
-  if (semanticDirection) return semanticDirection
-  const bbox = node.getBBox()
+  if (semanticDirection)
+    return rotateDirection(semanticDirection, node.getAngle())
+  const bbox = getRotatedNodeBBox(node)
   const distances = [
     { direction: 'left', value: Math.abs(point.x - bbox.x) },
     {
@@ -560,8 +564,35 @@ function inferPortDirectionFromName(portId, groupName) {
   return null
 }
 function getPortProportion(node, point) {
-  const bbox = node.getBBox()
+  const bbox = getRotatedNodeBBox(node)
   return getBBoxPointProportion(bbox, point)
+}
+function getRotatedNodeBBox(node) {
+  return node.getBBox().bbox(node.getAngle())
+}
+function rotatePoint(point, center, angle) {
+  const radians = (angle * Math.PI) / 180
+  const cosine = Math.cos(radians)
+  const sine = Math.sin(radians)
+  const dx = point.x - center.x
+  const dy = point.y - center.y
+  return {
+    x: center.x + dx * cosine - dy * sine,
+    y: center.y + dx * sine + dy * cosine,
+  }
+}
+function rotateDirection(direction, angle) {
+  const vectors = {
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 },
+    top: { x: 0, y: -1 },
+    bottom: { x: 0, y: 1 },
+  }
+  const vector = rotatePoint(vectors[direction], { x: 0, y: 0 }, angle)
+  if (Math.abs(vector.x) >= Math.abs(vector.y)) {
+    return vector.x >= 0 ? 'right' : 'left'
+  }
+  return vector.y >= 0 ? 'bottom' : 'top'
 }
 function getBBoxPointProportion(bbox, point) {
   return {
