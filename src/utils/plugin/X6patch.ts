@@ -11,7 +11,7 @@ import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { routeAllEdges } from '@/services/routing-service'
-import type { Cell, Edge, EdgeView, Graph } from '@antv/x6'
+import type { Cell, Edge, EdgeView, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
 
 const commonService = createCommonService()
@@ -90,6 +90,76 @@ if (!selectionProto._preserveRubberbandPatched) {
   }
 
   selectionProto._preserveRubberbandPatched = true
+}
+
+interface SelectionAreaState {
+  graph: Graph
+  options: {
+    rubberEdge?: boolean
+    strict?: boolean
+  }
+}
+
+/**
+ * X6 默认使用整条 Edge 的 BBox 判断框选命中。折线路径跨度较大时，
+ * BBox 内没有线段的空白区域也会误选 Edge。
+ *
+ * Node 保留 X6 原有的 BBox 判断；Edge 改用 EdgeView 中的最终渲染路径，
+ * 以覆盖 Avoid 等只反映在 View Path 中的路由结果。
+ */
+if (!selectionProto._preciseRubberEdgePatched) {
+  const originalGetCellViewsInArea = selectionProto.getCellViewsInArea as (
+    this: SelectionAreaState,
+    rect: Rectangle,
+  ) => CellView[]
+
+  selectionProto.getCellViewsInArea = function (
+    this: SelectionAreaState,
+    rect: Rectangle,
+  ) {
+    const originalViews = originalGetCellViewsInArea.call(this, rect)
+    if (!this.options.rubberEdge) return originalViews
+
+    // Node 继续使用 X6 原有结果；丢弃其中通过 BBox 命中的 Edge。
+    const nodeViews = originalViews.filter((view) => !view.cell.isEdge())
+    const rectBoundary = [
+      rect.topLine,
+      rect.rightLine,
+      rect.bottomLine,
+      rect.leftLine,
+    ]
+
+    const edgeViews = this.graph
+      .getEdges()
+      .map((edge) => this.graph.findViewByCell(edge) as EdgeView | null)
+      .filter((view): view is EdgeView => {
+        const path = view?.getConnection()
+        if (!view || !path) return false
+
+        const polylines = path.toPolylines({
+          segmentSubdivisions: view.getConnectionSubdivisions(),
+        })
+        if (!polylines?.length) return false
+
+        if (this.options.strict) {
+          return polylines.every((polyline) =>
+            polyline.points.every((point) => rect.containsPoint(point)),
+          )
+        }
+
+        return polylines.some(
+          (polyline) =>
+            polyline.points.some((point) => rect.containsPoint(point)) ||
+            rectBoundary.some(
+              (boundary) => polyline.intersectsWithLine(boundary) !== null,
+            ),
+        )
+      })
+
+    return nodeViews.concat(edgeViews)
+  }
+
+  selectionProto._preciseRubberEdgePatched = true
 }
 
 interface SelectionTranslationState {
