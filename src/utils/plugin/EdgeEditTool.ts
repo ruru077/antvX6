@@ -171,6 +171,8 @@ class EdgeEditTool extends ToolItem<EdgeView, EdgeEditToolOptions> {
     this.container.style.outline = 'none'
     this.saveText()
     this.blur()
+    // 失焦后清除浏览器文本选区，避免 Label 保留蓝色选中高亮。
+    window.getSelection()?.removeAllRanges()
   }
 
   protected onKeyDown(event: KeyboardEvent) {
