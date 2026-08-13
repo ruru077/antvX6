@@ -6,7 +6,7 @@ import '@antv/x6/lib/plugin/export/api'
 
 const SNAPSHOT_WIDTH = 800
 const SNAPSHOT_HEIGHT = 600
-const SNAPSHOT_PADDING_RATIO = 0.1
+const SNAPSHOT_PADDING = 8
 
 type SnapshotSize = {
   width: number
@@ -16,12 +16,6 @@ type SnapshotSize = {
 type SnapshotViewBox = SnapshotSize & {
   x: number
   y: number
-}
-
-type SnapshotCell = {
-  shape?: string
-  position?: { x: number; y: number }
-  size?: { width: number; height: number }
 }
 
 function nextFrame(): Promise<void> {
@@ -43,46 +37,17 @@ function applySnapshotSimpleView(container: HTMLElement) {
     .forEach((elem) => elem.setAttribute('display', 'none'))
 }
 
-function getSnapshotViewBox(
-  nodeCells: SnapshotCell[],
-  targetSize: SnapshotSize,
-): SnapshotViewBox {
-  if (!nodeCells.length) {
-    return { x: 0, y: 0, ...targetSize }
-  }
-
-  const xs = nodeCells.map((cell) => cell.position?.x ?? 0)
-  const ys = nodeCells.map((cell) => cell.position?.y ?? 0)
-  const x2s = nodeCells.map(
-    (cell) => (cell.position?.x ?? 0) + (cell.size?.width ?? 0),
-  )
-  const y2s = nodeCells.map(
-    (cell) => (cell.position?.y ?? 0) + (cell.size?.height ?? 0),
-  )
-  const contentWidth = Math.max(1, Math.max(...x2s) - Math.min(...xs))
-  const contentHeight = Math.max(1, Math.max(...y2s) - Math.min(...ys))
-  let width = contentWidth * (1 + SNAPSHOT_PADDING_RATIO * 2)
-  let height = contentHeight * (1 + SNAPSHOT_PADDING_RATIO * 2)
-  const targetRatio = targetSize.width / targetSize.height
-
-  if (width / height > targetRatio) {
-    height = width / targetRatio
-  } else {
-    width = height * targetRatio
-  }
-
-  const centerX = (Math.min(...xs) + Math.max(...x2s)) / 2
-  const centerY = (Math.min(...ys) + Math.max(...y2s)) / 2
+function getSnapshotViewBox(contentArea: SnapshotViewBox): SnapshotViewBox {
   return {
-    x: centerX - width / 2,
-    y: centerY - height / 2,
-    width,
-    height,
+    x: contentArea.x - SNAPSHOT_PADDING,
+    y: contentArea.y - SNAPSHOT_PADDING,
+    width: Math.max(1, contentArea.width + SNAPSHOT_PADDING * 2),
+    height: Math.max(1, contentArea.height + SNAPSHOT_PADDING * 2),
   }
 }
 
-function getExportSize(targetSize: SnapshotSize): SnapshotSize {
-  const ratio = targetSize.width / targetSize.height
+function getExportSize(viewBox: SnapshotSize): SnapshotSize {
+  const ratio = viewBox.width / viewBox.height
   return ratio >= 1
     ? {
         width: SNAPSHOT_WIDTH,
@@ -111,12 +76,8 @@ function decorateSnapshot(svg: SVGSVGElement) {
  */
 export async function snapshotToDataURL(
   graphJson: GraphJSON,
-  targetSize: SnapshotSize,
+  _targetSize: SnapshotSize,
 ): Promise<string> {
-  const nodeCells = ((graphJson.cells ?? []) as SnapshotCell[]).filter(
-    (cell) => cell.shape !== 'edge',
-  )
-
   const container = document.createElement('div')
   container.style.cssText = `position:fixed;left:-10000px;top:-10000px;width:${SNAPSHOT_WIDTH}px;height:${SNAPSHOT_HEIGHT}px;pointer-events:none;z-index:-1;`
   document.body.appendChild(container)
@@ -151,8 +112,8 @@ export async function snapshotToDataURL(
     await nextFrame()
     applySnapshotSimpleView(container)
 
-    const viewBox = getSnapshotViewBox(nodeCells, targetSize)
-    const exportSize = getExportSize(targetSize)
+    const viewBox = getSnapshotViewBox(graph.getContentBBox())
+    const exportSize = getExportSize(viewBox)
 
     const options: ExportToImageOptions = {
       ...exportSize,
