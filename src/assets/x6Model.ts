@@ -8,6 +8,7 @@ import {
 } from '@/assets/constant'
 import previewArrowRaw from '@/assets/svg/preview-edge-arrow.svg?raw'
 import { createCommonService } from '@/services/common-service'
+import type { MarkupJSONMarkup } from '@antv/x6/lib/view/markup'
 
 const commonService = createCommonService()
 
@@ -17,53 +18,83 @@ const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 
 export const SUBSYSTEM_BACKGROUND_TOP = '#ffffff'
 export const SUBSYSTEM_BACKGROUND_BOTTOM = '#dadada'
+export const MASK_SELECTOR = 'mask'
+
+export function createSubsystemBackgroundFill() {
+  return {
+    type: 'linearGradient' as const,
+    stops: [
+      { offset: 0, color: SUBSYSTEM_BACKGROUND_TOP },
+      { offset: 0.3, color: SUBSYSTEM_BACKGROUND_TOP },
+      { offset: 1, color: SUBSYSTEM_BACKGROUND_BOTTOM },
+    ],
+    attrs: { x1: 0, y1: 0, x2: 0, y2: 1 },
+  }
+}
+
+/** lucide arrow-big-down */
+const ARROW_D =
+  'M9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 0 1 1h3.293a.707.707 0 0 1 .5 1.207l-7.086 7.086a1 1 0 0 1-1.414 0l-7.086-7.086a.707.707 0 0 1 .5-1.207H8a1 1 0 0 0 1-1z'
+
+/**
+ * subsystem-block 的完整 SVG/HTML 结构。
+ * mask 是可选的最上层交互结构，避免业务代码增量拼接任意 markup。
+ */
+export function buildSubsystemMarkup(withMask = false): MarkupJSONMarkup[] {
+  const markup: MarkupJSONMarkup[] = [
+    { tagName: 'rect', selector: 'body' },
+    { tagName: 'image', selector: 'thumb' },
+    {
+      tagName: 'foreignObject',
+      selector: 'foreignObject',
+      children: [
+        {
+          tagName: 'div',
+          ns: XHTML_NS,
+          selector: 'label',
+          style: {
+            width: '100%',
+            height: '100%',
+            position: 'static',
+            backgroundColor: 'transparent',
+            textAlign: 'center',
+            margin: 0,
+            padding: '0px 5px',
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+        },
+      ],
+    },
+  ]
+
+  if (withMask) {
+    markup.push({
+      tagName: 'g',
+      selector: MASK_SELECTOR,
+      children: [
+        { tagName: 'title', textContent: '查看内部封装' },
+        { tagName: 'rect', selector: 'maskBg' },
+        { tagName: 'path', selector: 'maskArrow' },
+      ],
+    })
+  }
+
+  return markup
+}
 
 Graph.registerNode(
   'subsystem-block',
   {
     inherit: 'text-block',
-    markup: [
-      { tagName: 'rect', selector: 'body' },
-      { tagName: 'image', selector: 'thumb' },
-      {
-        tagName: 'foreignObject',
-        selector: 'foreignObject',
-        children: [
-          {
-            tagName: 'div',
-            ns: XHTML_NS,
-            selector: 'label',
-            style: {
-              width: '100%',
-              height: '100%',
-              position: 'static',
-              backgroundColor: 'transparent',
-              textAlign: 'center',
-              margin: 0,
-              padding: '0px 5px',
-              boxSizing: 'border-box',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-          },
-        ],
-      },
-    ],
+    markup: buildSubsystemMarkup(),
     attrs: {
       body: {
         refWidth: '100%',
         refHeight: '100%',
-        stroke: '#333333',
-        strokeWidth: 1,
-        fill: {
-          type: 'linearGradient',
-          stops: [
-            { offset: 0, color: SUBSYSTEM_BACKGROUND_TOP },
-            { offset: 1, color: SUBSYSTEM_BACKGROUND_BOTTOM },
-          ],
-          attrs: { x1: 0, y1: 0, x2: 0, y2: 1 },
-        },
+        fill: createSubsystemBackgroundFill(),
       },
       thumb: {
         refWidth: '100%',
@@ -92,25 +123,6 @@ Graph.registerNode(
 )
 
 // ── 子系统 mask 箭头 ──────────────────────────────────────────────────────────
-
-/** lucide arrow-big-down */
-const ARROW_D =
-  'M9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 0 1 1h3.293a.707.707 0 0 1 .5 1.207l-7.086 7.086a1 1 0 0 1-1.414 0l-7.086-7.086a.707.707 0 0 1 .5-1.207H8a1 1 0 0 0 1-1z'
-
-export const MASK_SELECTOR = 'mask'
-
-/** 箭头按钮 SVG 结构（仅结构，attrs 由 node.attr 写入 model） */
-export const arrowMarkup = [
-  {
-    tagName: 'g',
-    selector: MASK_SELECTOR,
-    children: [
-      { tagName: 'title', textContent: '查看内部封装' },
-      { tagName: 'rect', selector: 'maskBg' },
-      { tagName: 'path', selector: 'maskArrow' },
-    ],
-  },
-]
 
 /** mask 箭头 attrs */
 export const maskArrowAttrs = {

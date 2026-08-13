@@ -1,6 +1,10 @@
 import { StringExt } from '@antv/x6'
 import { create } from 'zustand'
-import { arrowMarkup, maskArrowAttrs, MASK_SELECTOR } from '@/assets/x6Model'
+import {
+  buildSubsystemMarkup,
+  maskArrowAttrs,
+  MASK_SELECTOR,
+} from '@/assets/x6Model'
 import type { Node } from '@antv/x6'
 import type {
   EntryGraphModel,
@@ -26,7 +30,11 @@ interface SubGraphStore {
   // 同步当前Layer Graph数据
   syncGraph: (graphJson: GraphJSON) => void
   // 同步新增SubGraph数据
-  syncSubGraph: (subGraphNode: Node, action: 'add' | 'delete') => boolean
+  syncSubGraph: (
+    subGraphNode: Node,
+    action: 'add' | 'delete',
+    initialGraphJson?: GraphJSON,
+  ) => boolean
   // 同步子系统展示名称
   syncSubGraphName: (subGraphId: string, name: string) => void
   // 添加 mask 工具
@@ -40,6 +48,8 @@ interface CreateSubGraphItemOptions {
   name?: string
   /** 初始子系统 id 集合，默认空集 */
   childrenIds?: string[]
+  /** Node 注册为子系统时使用的初始内部图 */
+  graphJson?: GraphJSON
 }
 
 /**
@@ -69,10 +79,11 @@ function createSubGraphItem(
     id = StringExt.uuid(),
     name = 'New Subsystem',
     childrenIds = [],
+    graphJson: initialGraphJson,
   } = options
   // Node
   if ('isNode' in arg && arg.isNode()) {
-    const graphJson = cloneSubGraphJson(arg.getData()?.graphJson)
+    const graphJson = cloneSubGraphJson(initialGraphJson)
     const nestedSubGraphs = collectNestedSubGraphs(graphJson, arg.id, deep + 1)
     return {
       id: arg.id,
@@ -263,7 +274,7 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       },
     })
   },
-  syncSubGraph: (subGraphNode, action: 'add' | 'delete') => {
+  syncSubGraph: (subGraphNode, action, initialGraphJson) => {
     const { currentGraphId, subGraphs } = get()
 
     if (action === 'add') {
@@ -272,21 +283,14 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
 
       // subGraph 加入当前Layer
       const currentSubGraphItem = subGraphs[currentGraphId]
-      const subGraphItem = createSubGraphItem(subGraphNode)
+      const subGraphItem = createSubGraphItem(subGraphNode, {
+        graphJson: initialGraphJson,
+      })
       const nestedSubGraphs = collectNestedSubGraphs(
         subGraphItem.graphJson,
         subGraphItem.id,
         subGraphItem.deep + 1,
       )
-      // 子系统复制 重复 ID 处理
-      subGraphNode.setData(
-        {
-          ...subGraphNode.getData(),
-          graphJson: subGraphItem.graphJson,
-        },
-        { ignore: true, undo: false },
-      )
-
       set({
         subGraphs: {
           ...subGraphs,
@@ -338,14 +342,18 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
     })
   },
   addMaskToSubsystem: (node) => {
-    const raw = node.getMarkup()
-    // 暂不使用 XML 作为 markup
-    if (typeof raw === 'string') return
-    const markup = Array.isArray(raw) ? raw : [raw]
-    // 已有则跳过
-    if (markup.some((m) => m.selector === MASK_SELECTOR)) return
+    if (node.getData()?.blockType !== 'Subsystem') return
 
-    node.setMarkup([...markup, ...arrowMarkup])
+    const markup = node.getMarkup()
+    if (typeof markup === 'string') return
+
+    const markupItems = Array.isArray(markup) ? markup : [markup]
+    const alreadyHasMask = markupItems.some(
+      (item) => item.selector === MASK_SELECTOR,
+    )
+    if (alreadyHasMask) return
+
+    node.setMarkup(buildSubsystemMarkup(true))
     node.attr(maskArrowAttrs)
   },
 }))

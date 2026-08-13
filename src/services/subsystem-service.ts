@@ -2,6 +2,7 @@ import { Model, StringExt } from '@antv/x6'
 import { message } from 'antd'
 import { GRAPH_GRID } from '@/assets/constant'
 import {
+  buildSubsystemMarkup,
   formalLinkAttrs,
   Inport,
   MASK_SELECTOR,
@@ -20,6 +21,7 @@ import {
 } from '@/store/subGraphStore'
 import {
   _patchScrollerForceUpdate,
+  getRubberbandSelectionRect,
   mergePortMetadata,
 } from '@/utils/plugin/X6patch'
 import type { SnapshotSize } from '@/services/snapshot-service'
@@ -48,10 +50,86 @@ import type { BlockDTO, LineDTO } from '~/types/dto/graphModel'
 const commonService = createCommonService()
 const SUBSYSTEM_IO_OFFSET = 140
 const snapshotVersions = new Map<string, number>()
+const SUBSYSTEM_IMAGE_MAX_SIZE = 5 * 1024 * 1024
 
 type PortGroup = 'in' | 'out'
 type IOPortSide = 'in' | 'out'
 type IOLabels = Record<IOPortSide, string[]>
+
+// 更新父图中graphJson节点数据，并返回父级图 ID
+function updateParentSubsystemCell(
+  subGraphId: string,
+  update: (cell: NodeProperties) => NodeProperties,
+) {
+  const { subGraphs } = useSubGraphStore.getState()
+  const parentId = subGraphs[subGraphId]?.parentId
+  if (!parentId) throw new Error(`Subsystem ${subGraphId} parent is required`)
+
+  const parent = subGraphs[parentId]
+  const cells = parent.graphJson.cells.map((cell) => {
+    if (cell.shape === 'edge' || cell.id !== subGraphId) return cell
+    return update(cell as NodeProperties)
+  })
+
+  useSubGraphStore.setState({
+    subGraphs: {
+      ...subGraphs,
+      [parentId]: {
+        ...parent,
+        graphJson: { ...parent.graphJson, cells },
+      },
+    },
+  })
+
+  return parentId
+}
+
+function applySubsystemImageToLiveNode(
+  graph: Graph,
+  subGraphId: string,
+  imageMode: 'snapshot' | 'custom',
+  dataUrl: string,
+) {
+  const subsystem = graph.getCellById(subGraphId)
+  if (!subsystem?.isNode()) return
+
+  subsystem.attr(
+    {
+      thumb: {
+        xlinkHref: dataUrl,
+        preserveAspectRatio: imageMode === 'custom' ? 'none' : 'xMidYMid meet',
+      },
+    },
+    { ignore: true, undo: false },
+  )
+  subsystem.setData(
+    {
+      ...subsystem.getData(),
+      imageMode,
+    },
+    { ignore: true, undo: false },
+  )
+}
+
+/**
+ * 将指定子系统及其所有后代的层级整体下移一层。
+ * 这里只更新 deep，保留子系统树原有的 parentId 和 childrenIds 关系。
+ */
+function moveSubsystemTreeOneLevel(
+  subsystemId: string,
+  subGraphs: SubGraphMap,
+  nextSubGraphs: SubGraphMap,
+) {
+  const subsystem = subGraphs[subsystemId]
+  nextSubGraphs[subsystemId] = {
+    ...subsystem,
+    deep: subsystem.deep + 1,
+  }
+  subsystem.childrenIds.forEach((childId) =>
+    moveSubsystemTreeOneLevel(childId, subGraphs, nextSubGraphs),
+  )
+}
+
 /**
  * 获取子系统port Label
  * @param port 子系统Port
@@ -210,6 +288,10 @@ async function syncParentSubsystemSnapshot(
     throw new Error(`Subsystem ${subGraphId} size is required`)
   }
 
+  if (subsystemCell.data?.imageMode === 'custom') {
+    return
+  }
+
   const targetSize: SnapshotSize = subsystemCell.size
   const dataUrl = await snapshotToDataURL(graphJson, targetSize)
   if (snapshotVersions.get(subGraphId) !== version) return
@@ -228,11 +310,12 @@ async function syncParentSubsystemSnapshot(
         thumb: {
           ...cell.attrs?.thumb,
           xlinkHref: dataUrl,
+          preserveAspectRatio: 'xMidYMid meet',
         },
       },
       data: {
         ...cell.data,
-        graphJson,
+        imageMode: 'snapshot',
       },
     }
   })
@@ -250,15 +333,124 @@ async function syncParentSubsystemSnapshot(
   if (currentGraphId === parentId) {
     const subsystem = graph.getCellById(subGraphId)
     if (subsystem?.isNode()) {
-      subsystem.attr('thumb/xlinkHref', dataUrl, {
-        ignore: true,
-        undo: false,
-      })
-      subsystem.setData(
-        { ...subsystem.getData(), graphJson },
-        { ignore: true, undo: false },
-      )
+      applySubsystemImageToLiveNode(graph, subGraphId, 'snapshot', dataUrl)
     }
+  }
+}
+
+function selectSubsystemImageFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.hidden = true
+    document.body.appendChild(input)
+
+    const finish = (file: File | null) => {
+      input.remove()
+      resolve(file)
+    }
+
+    input.addEventListener('change', () => finish(input.files?.[0] ?? null), {
+      once: true,
+    })
+    input.addEventListener('cancel', () => finish(null), { once: true })
+    input.click()
+  })
+}
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('图片读取结果不是 data URL'))
+        return
+      }
+      resolve(reader.result)
+    })
+    reader.addEventListener('error', () => {
+      reject(reader.error ?? new Error('图片读取失败'))
+    })
+    reader.readAsDataURL(file)
+  })
+}
+
+async function addSubsystemImage(node: Node, graph: Graph) {
+  if (node.getData()?.blockType !== 'Subsystem') return
+
+  const file = await selectSubsystemImageFile()
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    message.error('请选择图片文件')
+    return
+  }
+  if (file.size > SUBSYSTEM_IMAGE_MAX_SIZE) {
+    message.error('图片不能超过 5 MB')
+    return
+  }
+
+  try {
+    const dataUrl = await readFileAsDataURL(file)
+    snapshotVersions.set(node.id, (snapshotVersions.get(node.id) ?? 0) + 1)
+    updateParentSubsystemCell(node.id, (cell) => ({
+      ...cell,
+      attrs: {
+        ...cell.attrs,
+        thumb: {
+          ...cell.attrs?.thumb,
+          xlinkHref: dataUrl,
+          preserveAspectRatio: 'none',
+        },
+      },
+      data: {
+        ...cell.data,
+        imageMode: 'custom',
+      },
+    }))
+    applySubsystemImageToLiveNode(graph, node.id, 'custom', dataUrl)
+  } catch (error) {
+    console.error(error)
+    message.error('添加图像失败')
+  }
+}
+
+async function removeSubsystemImage(node: Node, graph: Graph) {
+  if (
+    node.getData()?.blockType !== 'Subsystem' ||
+    node.getData()?.imageMode !== 'custom'
+  )
+    return
+
+  const { subGraphs } = useSubGraphStore.getState()
+  const graphJson = subGraphs[node.id]?.graphJson
+  if (!graphJson) throw new Error(`Subsystem ${node.id} graphJson is required`)
+
+  const version = (snapshotVersions.get(node.id) ?? 0) + 1
+  snapshotVersions.set(node.id, version)
+  try {
+    const dataUrl = await snapshotToDataURL(graphJson, node.getSize())
+    if (snapshotVersions.get(node.id) !== version) return
+
+    updateParentSubsystemCell(node.id, (cell) => ({
+      ...cell,
+      attrs: {
+        ...cell.attrs,
+        thumb: {
+          ...cell.attrs?.thumb,
+          xlinkHref: dataUrl,
+          preserveAspectRatio: 'xMidYMid meet',
+        },
+      },
+      data: {
+        ...cell.data,
+        imageMode: 'snapshot',
+      },
+    }))
+    applySubsystemImageToLiveNode(graph, node.id, 'snapshot', dataUrl)
+  } catch (error) {
+    console.error(error)
+    message.error('恢复子系统缩略图失败')
   }
 }
 
@@ -364,12 +556,11 @@ function createIOCells(
   usedLabels.add(label)
 
   // 创建和原端口水平对齐的内部 In/Out 节点
+  const portPoint = getPortPoint(node, portId)
   ioNode.id = StringExt.uuid()
   ioNode.position = {
-    x:
-      node.getPosition().x +
-      (isIn ? -SUBSYSTEM_IO_OFFSET : SUBSYSTEM_IO_OFFSET),
-    y: getPortPoint(node, portId)?.y - (ioNode.size?.height ?? 0) / 2,
+    x: portPoint.x + (isIn ? -SUBSYSTEM_IO_OFFSET : SUBSYSTEM_IO_OFFSET),
+    y: portPoint.y - (ioNode.size?.height ?? 0) / 2,
   }
   ioNode.attrs = {
     ...ioNode.attrs,
@@ -409,7 +600,7 @@ function createIOCells(
 function mergeToSubsystem(cells: Cell[], graph: Graph) {
   const { currentGraphId, subGraphs } = useSubGraphStore.getState()
   // 1. 获取包围盒位置，作为新子系统节点的位置
-  const bbox = graph.getCellsBBox(cells)
+  const bbox = getRubberbandSelectionRect(graph) ?? graph.getCellsBBox(cells)
   const { x, y, width, height } = bbox
 
   const nodes = cells.filter((c) => c.isNode())
@@ -481,12 +672,11 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
   })
 
   const nextSubGraphs = { ...subGraphs }
-  // 5a. 被合并的子系统：deep +1，parentId 指向新节点
+  // 5a. 被合并的子系统树整体下移一层，直接子系统改挂到新节点
   for (const subsystemId of mergedSubsystemIds) {
-    const preSubGraphItem = subGraphs[subsystemId]
+    moveSubsystemTreeOneLevel(subsystemId, subGraphs, nextSubGraphs)
     nextSubGraphs[subsystemId] = {
-      ...preSubGraphItem,
-      deep: preSubGraphItem.deep + 1,
+      ...nextSubGraphs[subsystemId],
       parentId: subGraphItem.id,
     }
   }
@@ -513,6 +703,7 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
     const subsystemNode = graph.addNode(
       {
         id: subGraphItem.id,
+        // dev测试 新版本
         shape: 'subsystem-block',
         x,
         y,
@@ -543,7 +734,6 @@ function mergeToSubsystem(cells: Cell[], graph: Graph) {
           paramLables: [],
           paramValues: [],
           level: 10,
-          graphJson,
         },
       },
       { ignore: true },
@@ -801,6 +991,39 @@ function traceSignalBlock(
 
   return null
 }
+
+/**
+ * 使用直接父级子系统的 mask 参数解析当前图层模块参数
+ */
+function solveMaskParam(subGraphs: SubGraphMap): void {
+  for (const layer of Object.values(subGraphs)) {
+    const parentSubsystem = layer.parentId
+      ? subGraphs[layer.parentId]?.graphJson.cells.find(
+          (cell) => cell.shape !== 'edge' && cell.id === layer.id,
+        )
+      : undefined
+    const maskParam = parentSubsystem?.data?.maskParam
+
+    if (maskParam && !Array.isArray(maskParam)) {
+      for (const cell of layer.graphJson.cells) {
+        if (
+          cell.shape !== 'edge' &&
+          cell.data?.paramValues &&
+          !Array.isArray(cell.data.paramValues)
+        ) {
+          const paramValues = cell.data.paramValues as Record<string, string>
+          cell.data.paramValues = Object.fromEntries(
+            Object.entries(paramValues).map(([name, value]) => [
+              name,
+              Object.hasOwn(maskParam, value) ? maskParam[value] : value,
+            ]),
+          )
+        }
+      }
+    }
+  }
+}
+
 /**
  * @description Edges remap for Graph
  * @return 平铺图的边映射结果集
@@ -812,6 +1035,7 @@ function flatGraph(
 ): LineDTO[] {
   const result: LineDTO[] = []
   const visited = new Set<string>()
+  solveMaskParam(subGraphs)
   const allCells = getAllCellsFromSubGraphs(subGraphs)
   for (const layer of Object.values(subGraphs)) {
     const edgesPro = layer.graphJson.cells.filter((c) => c.shape === 'edge')
@@ -958,11 +1182,8 @@ function flowChainToDTO(
 
 /** 移除子系统 mask（封装） */
 function removeMask(node: Node) {
-  const raw = node.getMarkup()
-  if (typeof raw === 'string') return
-  const markup = Array.isArray(raw) ? raw : [raw]
-  if (!markup.some((m) => m.selector === MASK_SELECTOR)) return
-  node.setMarkup(markup.filter((m) => m.selector !== MASK_SELECTOR))
+  if (!hasSubsystemMask(node)) return
+  node.setMarkup(buildSubsystemMarkup())
   node.attr(`${MASK_SELECTOR}`, null)
   node.attr('maskBg', null)
   node.attr('maskArrow', null)
@@ -1046,13 +1267,7 @@ function syncParentSubsystemPorts(graph: Graph): boolean {
   const nextParentCells = parentItem.graphJson.cells.map((cell) => {
     if (cell.shape === 'edge' || cell.id !== currentGraphId) return cell
     const subsystem = withSyncedSubsystemPorts(cell as NodeProperties, labels)
-    return {
-      ...subsystem,
-      data: {
-        ...subsystem.data,
-        graphJson: latestSubGraphs[currentGraphId].graphJson,
-      },
-    }
+    return subsystem
   })
 
   useSubGraphStore.setState({
@@ -1102,7 +1317,7 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
     modelId: 0, // TODO: 从模型配置中获取
     modelName: 'name', // TODO: 从模型配置中获取
     uuid: 0, // TODO: 从模型配置中获取
-    modelRealName: rootGraph.name,
+    modelRealName: 'rootGraph.name', // TODO: 从模型配置中获取
     templateName: 'BlockDiagram', // TODO: 从模型配置中获取
     config: {
       Step: 'VariableStep',
@@ -1124,7 +1339,7 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       uuid: 0,
       userId: 0,
       modelId: 0,
-      modelRealName: rootGraph.name,
+      modelRealName: 'modelRealName',
       stepTime: 0.1,
       packetSize: 10,
       targetPlatform: 1,
@@ -1145,6 +1360,8 @@ export {
   removeMask,
   syncParentSubsystemPorts,
   syncParentSubsystemSnapshot,
+  addSubsystemImage,
+  removeSubsystemImage,
   withSyncedSubsystemPorts,
   buildGraphModelDTO,
   getInnerCells,
