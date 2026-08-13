@@ -1,8 +1,10 @@
 import { Graph } from '@antv/x6'
 import { getTextBlockMarkup } from '@antv/x6/es/shape/text-block'
-import type { Edge, EdgeLabel } from '@antv/x6'
+import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 
 const _tmpl = getTextBlockMarkup(true)
+
+registerEdgeEditTool()
 
 // ── DiagramModel3 ────────────────────────────────────────────────────────────
 // node label: 固定存在，空内容保留占位（可继续编辑）
@@ -19,13 +21,6 @@ function DiagramModel() {
       container: graphContainerRef.current,
       autoResize: true,
       grid: { visible: true, size: 15 },
-      // commit
-      onEdgeLabelRendered(args) {
-        setupEdgeLabel({ edge: args.edge, args })
-        return () => {
-          console.log('Edge Label render cleanup done')
-        }
-      },
     })
 
     // ── 两个节点 + 一条边 ── //
@@ -114,10 +109,11 @@ function DiagramModel() {
       },
     })
 
-    const edge = graph.addEdge({
+    graph.addEdge({
       source: { cell: node1.id },
       target: { cell: node2.id },
       style: { stroke: '#13c2c2', strokeWidth: 2 },
+      tools: [{ name: 'edge-edit', args: { text: 'Hello' } }],
     })
 
     // ── node label setup（固定存在，空内容不删除） ── //
@@ -164,84 +160,6 @@ function DiagramModel() {
       setupNodeLabel(view1, node1, 'label_center', 'label_center/text')
       setupNodeLabel(view1, node1, 'label_bottom', 'label_bottom/text')
       setupNodeLabel(view2, node2, 'label_center', 'label_center/text')
-    })
-
-    // ── edge label: 双击追加，空内容 blur 时移除 ── //
-    function setupEdgeLabel({
-      edge,
-      args,
-    }: {
-      edge: Edge
-      args: {
-        edge: Edge
-        label: EdgeLabel
-        container: Element
-        selectors: Record<string, Element | Element[]>
-      }
-    }) {
-      const labelDiv = args.selectors.label
-      if (!(labelDiv instanceof HTMLElement)) return
-      const savedText =
-        (args.label.attrs?.label?.text as string | undefined) ?? ''
-      labelDiv.contentEditable = 'plaintext-only'
-      labelDiv.textContent = savedText
-      Object.assign(labelDiv.style, {
-        cursor: 'text',
-        userSelect: 'text',
-        whiteSpace: 'pre',
-        display: 'block',
-        width: 'fit-content',
-        height: 'auto',
-        color: '#333',
-      })
-      if (savedText === '') {
-        labelDiv.focus()
-      }
-      // labelDiv.addEventListener('blur', () => {
-      //   const text = labelDiv.textContent ?? ''
-      //   if (text === '') {
-      //     // 空内容 → 移除标签
-      //     edge.removeLabelAt(0)
-      //   } else {
-      //     // 保存文本到 label attrs
-      //     edge.setLabelAt(0, {
-      //       ...args.label,
-      //       attrs: {
-      //         ...args.label.attrs,
-      //         label: { text },
-      //       },
-      //     })
-      //   }
-      //   window.getSelection()?.removeAllRanges()
-      // })
-    }
-
-    // ── 双击边：无标签→追加，已有→聚焦 ── //
-    graph.on('edge:dblclick', ({ edge: targetEdge }) => {
-      if (targetEdge.getLabels().length === 0) {
-        targetEdge.appendLabel({
-          markup: _tmpl,
-          size: { width: 160, height: 60 },
-          position: { distance: 0.5, offset: 15 },
-          attrs: {
-            foreignObject: {
-              refWidth: '100%',
-              refHeight: 1,
-              style: { overflow: 'visible', display: 'block' },
-              x: -60,
-              y: -12,
-            },
-          },
-        })
-      } else {
-        // 已有标签 → 聚焦现有 contentEditable div
-        const view = graph.findViewByCell(targetEdge) as unknown as {
-          labelSelectors?: Record<number, Record<string, Element>>
-        }
-        const selectors = view?.labelSelectors?.[0]
-        const labelDiv = selectors?.label as HTMLElement | undefined
-        labelDiv?.focus()
-      }
     })
 
     return () => {

@@ -6,7 +6,7 @@ import { ConfigProvider, Splitter } from 'antd'
 import {
   CanvasLeftToolbar,
   CanvasToolbars,
-  ContextMenu,
+  ContextMenuAntd,
   PaperToolbar,
   StencilLayout,
   SubsystemNavBar,
@@ -90,16 +90,13 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
                 {navPanelVisible && (
                   <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
                 )}
-                <ContextMenu
-                  toolbarsVisible={toolbarsVisible}
-                  onToggleToolbars={() => setToolbarsVisible((v) => !v)}
-                >
+                <ContextMenuAntd>
                   <div className="paper-container">
                     <div ref={paperContainerRef} className="paper"></div>
                     {/* 悬浮工具栏 */}
                     <CanvasToolbars visible={toolbarsVisible} />
                   </div>
-                </ContextMenu>
+                </ContextMenuAntd>
               </div>
             </div>
           </div>
