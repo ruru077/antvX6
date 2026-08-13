@@ -15,6 +15,7 @@ import {
   PlayCircle,
   Save,
 } from 'lucide-react'
+import { startSimulation } from '@/api/simulation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,6 +34,7 @@ import {
   buildFlowChain,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
+import { useSimulationStore } from '@/store/simulationStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
@@ -93,6 +95,32 @@ function PaperToolbar(_: PaperToolbarProps) {
 
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
+  const isSimulating = useSimulationStore((state) => state.isRunning)
+  const progress = useSimulationStore((state) => state.progress)
+
+  async function handleSimulation() {
+    if (!graph || isSimulating) return
+    const simulation = useSimulationStore.getState()
+    simulation.setRunning(true)
+    simulation.setError(null)
+    syncGraph(graph.toJSON())
+    try {
+      const model = await buildGraphModelDTO(graph)
+      console.log(JSON.stringify(model, null, 2))
+      await startSimulation({
+        model,
+        onProgress: simulation.setProgress,
+        onResults: simulation.setResults,
+      })
+      message.success('仿真完成')
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      simulation.setError(text)
+      message.error(text)
+    } finally {
+      simulation.setRunning(false)
+    }
+  }
 
   function handleLoadFromJson() {
     if (!graph) return
@@ -172,12 +200,22 @@ function PaperToolbar(_: PaperToolbarProps) {
         <Divider orientation="vertical" />
 
         <Dropdown
-          menu={{ items: simulateMenuItems }}
+          menu={{
+            items: simulateMenuItems,
+            onClick: ({ key }) => {
+              if (key === 'simulate') void handleSimulation()
+            },
+          }}
           trigger={['click']}
           placement="bottomLeft"
         >
-          <AntdButton type="primary" size="small" icon={<Play size={14} />}>
-            仿真
+          <AntdButton
+            type="primary"
+            size="small"
+            icon={<Play size={14} />}
+            loading={isSimulating}
+          >
+            {isSimulating ? `${progress?.percent ?? 0}%` : '仿真'}
             <ChevronDown size={10} style={{ marginLeft: 2 }} />
           </AntdButton>
         </Dropdown>
