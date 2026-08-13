@@ -13,6 +13,7 @@ import { createCommonService } from '@/services/common-service'
 import { routeAllEdges } from '@/services/routing-service'
 import type { Cell, Edge, EdgeView, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
+import type { Selection } from '@antv/x6/lib/plugin/selection'
 
 const commonService = createCommonService()
 
@@ -33,18 +34,17 @@ CellView.prototype._getSelectors = function () {
 const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
 
 const selectionProto = SelectionImpl.prototype as unknown as Record<string, any>
+const RUBBERBAND_SELECTION_RECT_KEY = '_rubberbandSelectionRect'
 
 /**
  * X6 框选结束后默认用已选节点的包围盒重算选择外框。
  * 保留 mousedown 到 mouseup 形成的框选区域，并在整体移动时同步该区域。
  */
 if (!selectionProto._preserveRubberbandPatched) {
-  const selectionRectKey = '_rubberbandSelectionRect'
-
   for (const methodName of ['select', 'unselect', 'reset', 'clean']) {
     const original = selectionProto[methodName]
     selectionProto[methodName] = function (this: any, ...args: any[]) {
-      this[selectionRectKey] = null
+      this[RUBBERBAND_SELECTION_RECT_KEY] = null
       return original.apply(this, args)
     }
   }
@@ -57,7 +57,7 @@ if (!selectionProto._preserveRubberbandPatched) {
 
     const result = originalStopSelecting.call(this, evt)
     if (selectingRect && this.length > 0) {
-      this[selectionRectKey] = selectingRect
+      this[RUBBERBAND_SELECTION_RECT_KEY] = selectingRect
       this.updateContainer()
     }
     return result
@@ -66,7 +66,7 @@ if (!selectionProto._preserveRubberbandPatched) {
   const originalUpdateContainer = selectionProto.updateContainer
   selectionProto.updateContainer = function (this: any) {
     const result = originalUpdateContainer.call(this)
-    const rect = this[selectionRectKey]
+    const rect = this[RUBBERBAND_SELECTION_RECT_KEY]
     if (rect) {
       Dom.css(this.selectionContainer, {
         left: rect.x,
@@ -84,12 +84,23 @@ if (!selectionProto._preserveRubberbandPatched) {
     offset: { dx: number; dy: number },
   ) {
     if (this.options.following) {
-      this[selectionRectKey]?.translate(offset.dx, offset.dy)
+      this[RUBBERBAND_SELECTION_RECT_KEY]?.translate(offset.dx, offset.dy)
     }
     return originalApplyDraggingPreview.call(this, offset)
   }
 
   selectionProto._preserveRubberbandPatched = true
+}
+
+/** 获取最近一次有效框选所形成的 Graph 坐标区域。 */
+export function getRubberbandSelectionRect(graph: Graph): Rectangle | null {
+  const selection = graph.getPlugin<Selection>('selection') as unknown as
+    | { selectionImpl?: Record<string, unknown> }
+    | undefined
+  const rect = selection?.selectionImpl?.[RUBBERBAND_SELECTION_RECT_KEY] as
+    | Rectangle
+    | undefined
+  return rect?.clone() ?? null
 }
 
 interface SelectionAreaState {
