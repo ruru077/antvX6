@@ -1,6 +1,8 @@
 import {
   CopyOutlined,
   DeleteOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
   FullscreenOutlined,
   RedoOutlined,
   RotateLeftOutlined,
@@ -26,6 +28,7 @@ type ContextInfo =
       type: 'node'
       cell: Cell
       isSubsystem: boolean
+      isLabelHidden: boolean
       imageMode?: 'snapshot' | 'custom'
     }
   | { type: 'edge'; cell: Cell }
@@ -61,6 +64,7 @@ function getBlankMenuItems(service: ContextMenuService): MenuProps['items'] {
 
 function getNodeMenuItems(
   isSubsystem: boolean,
+  isLabelHidden: boolean,
   service: ContextMenuService,
 ): MenuProps['items'] {
   return [
@@ -90,6 +94,11 @@ function getNodeMenuItems(
       key: 'rotate-counterclockwise',
       icon: <RotateLeftOutlined />,
       label: '逆时针旋转',
+    },
+    {
+      key: 'toggle-label',
+      icon: isLabelHidden ? <EyeOutlined /> : <EyeInvisibleOutlined />,
+      label: isLabelHidden ? '显示标签' : '隐藏标签',
     },
     { type: 'divider' },
     {
@@ -182,6 +191,7 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
             type: 'node',
             cell,
             isSubsystem: cell.getData()?.blockType === 'Subsystem',
+            isLabelHidden: cell.attr<string>('label/style/display') === 'none',
             imageMode: cell.getData()?.imageMode,
           })
         })
@@ -209,7 +219,11 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
     contextInfo.type === 'blank'
       ? getBlankMenuItems(service)
       : contextInfo.type === 'node'
-        ? getNodeMenuItems(contextInfo.isSubsystem, service)
+        ? getNodeMenuItems(
+            contextInfo.isSubsystem,
+            contextInfo.isLabelHidden,
+            service,
+          )
         : edgeMenuItems
 
   return (
@@ -217,7 +231,17 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
       destroyOnHidden
       menu={{
         items,
-        onClick: ({ key }) => runMenuAction(key, service),
+        onClick: ({ key }) => {
+          if (key === 'toggle-label' && contextInfo.type === 'node') {
+            service.toggleLabelVisibility()
+            setContextInfo({
+              ...contextInfo,
+              isLabelHidden: !contextInfo.isLabelHidden,
+            })
+            return
+          }
+          runMenuAction(key, service)
+        },
       }}
       trigger={['contextMenu']}
     >

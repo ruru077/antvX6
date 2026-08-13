@@ -23,6 +23,7 @@ interface BlockData {
   paramLables?: Record<string, string>
   paramOptions?: Record<string, string[]>
   level: number
+  imageMode?: 'snapshot' | 'custom'
   [K: string]:
     | string
     | number
