@@ -2,6 +2,7 @@ import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { message } from 'antd'
 import { RED } from '@/assets/constant'
+import subsystemDefaultGraph from '@/assets/subsystemDefaultGraph.json'
 import {
   sourceMarkerAttrs,
   targetMarkerAttrs,
@@ -58,6 +59,7 @@ import type {
   Node,
   Scroller,
 } from '@antv/x6'
+import type { GraphJSON } from '~/types'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
@@ -144,7 +146,9 @@ function registerCellSelectionListeners(graph: Graph) {
  */
 // ── 子系统 ──────────────────────────────────────────────────────────
 function registerSubsystemListeners(graph: Graph) {
-  function dblclickHandler({ node }: EventArgs['node:dblclick']) {
+  function dblclickHandler({ node, e }: EventArgs['node:dblclick']) {
+    if ((e.target as Element).closest('foreignObject')) return
+
     if (hasSubsystemMask(node)) {
       // 已封装 → 打开子系统参数悬浮窗口
       interactiveService.openNodeParamWindow(node)
@@ -160,9 +164,12 @@ function registerSubsystemListeners(graph: Graph) {
       useSubSystemTabStore.getState().navigateWithin(node.id)
     }
   }
-  function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
+  function syncAddSubsystemHandler({ node, options }: EventArgs['node:added']) {
     const { syncSubGraph, syncGraph } = useSubGraphStore.getState()
-    if (!syncSubGraph(node, 'add')) return
+    const initialGraphJson = options.stencil
+      ? (subsystemDefaultGraph as unknown as GraphJSON)
+      : undefined
+    if (!syncSubGraph(node, 'add', initialGraphJson)) return
 
     syncGraph(graph.toJSON())
     const graphJson = useSubGraphStore.getState().subGraphs[node.id].graphJson
@@ -173,7 +180,11 @@ function registerSubsystemListeners(graph: Graph) {
       },
     )
   }
-  function syncRemoveSubsystemHandler({ node }: EventArgs['node:removed']) {
+  function syncRemoveSubsystemHandler({
+    node,
+    options,
+  }: EventArgs['node:removed']) {
+    if (options.ignore) return
     useSubGraphStore.getState().syncSubGraph(node, 'delete')
   }
   function syncSubsystemNameHandler({ node }: EventArgs['node:change:attrs']) {
