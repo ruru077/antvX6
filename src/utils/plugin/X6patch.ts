@@ -66,13 +66,14 @@ if (!selectionProto._preserveRubberbandPatched) {
   const originalUpdateContainer = selectionProto.updateContainer
   selectionProto.updateContainer = function (this: any) {
     const result = originalUpdateContainer.call(this)
-    const rect = this[RUBBERBAND_SELECTION_RECT_KEY]
-    if (rect) {
+    const localRect = this[RUBBERBAND_SELECTION_RECT_KEY]
+    if (localRect) {
+      const graphRect = this.graph.localToGraph(localRect)
       Dom.css(this.selectionContainer, {
-        left: rect.x,
-        top: rect.y,
-        width: rect.width,
-        height: rect.height,
+        left: graphRect.x,
+        top: graphRect.y,
+        width: graphRect.width,
+        height: graphRect.height,
       })
     }
     return result
@@ -92,7 +93,7 @@ if (!selectionProto._preserveRubberbandPatched) {
   selectionProto._preserveRubberbandPatched = true
 }
 
-/** 获取最近一次有效框选所形成的 Graph 坐标区域。 */
+/** 获取最近一次有效框选所形成的画布逻辑坐标区域。 */
 export function getRubberbandSelectionRect(graph: Graph): Rectangle | null {
   const selection = graph.getPlugin<Selection>('selection') as unknown as
     | { selectionImpl?: Record<string, unknown> }
