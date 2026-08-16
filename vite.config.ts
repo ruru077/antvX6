@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite-plus'
 import { createVitePlugins } from './vite'
+import { createDemoAgentPlugin } from './vite/demo-agent'
 import type { UserConfig } from 'vite-plus'
 
 const baseUrl = 'http://localhost:8080' // 后端接口
@@ -7,6 +8,7 @@ const baseUrl = 'http://localhost:8080' // 后端接口
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname)
+  const { DEEPSEEK_API_KEY } = loadEnv(mode, __dirname, 'DEEPSEEK_')
   const { VITE_APP_ENV } = env
   return {
     // 部署生产环境和开发环境下的URL。
@@ -14,7 +16,10 @@ export default defineConfig(({ mode }) => {
     // 例如 https://www.ruoyi.vip/。如果应用被部署在一个子路径上，你就需要用这个选项指定这个子路径。例如，如果你的应用被部署在 https://www.ruoyi.vip/admin/，则设置 baseUrl 为 /admin/。
     base: VITE_APP_ENV === 'production' ? '/' : '/',
     // 插件配置
-    plugins: createVitePlugins(env, mode),
+    plugins: [
+      ...createVitePlugins(env, mode),
+      createDemoAgentPlugin(DEEPSEEK_API_KEY),
+    ],
     // 开发配置
     server: {
       port: 5173,

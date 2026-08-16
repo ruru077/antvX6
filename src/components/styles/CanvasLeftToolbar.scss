@@ -22,6 +22,11 @@
     background: transparent;
     cursor: pointer;
 
+    &[data-active='true'] {
+      color: var(--color-primary);
+      background: rgba(22, 119, 255, 0.12);
+    }
+
     svg {
       width: 18px;
       height: 18px;

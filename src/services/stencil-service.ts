@@ -8,6 +8,7 @@ import {
   STENCIL_NODE_ROW_GAP,
   STENCIL_SIDE_PADDING,
 } from '@/assets/constant'
+import { createSubsystemBackgroundFill } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import {
   clearEdgeInsertionPreview,
@@ -48,12 +49,15 @@ class ManagedStencil extends Stencil {
   }
 }
 
-// ── 测试：Subsystem block 数据（来自 DiagramModel.tsx 验证通过） ──────────────
+// ── 测试：Subsystem block 数据 ────────────────────────────────────────────────
 const SUBSYSTEM_TEST_BLOCK = {
-  shape: 'text-block',
+  shape: 'subsystem-block',
   width: 100,
   height: 60,
   attrs: {
+    body: {
+      fill: '#ffffff',
+    },
     foreignObject: {
       refWidth: '100%',
       refHeight: null,
@@ -86,7 +90,12 @@ const SUBSYSTEM_TEST_BLOCK = {
         ],
         z: 1,
         attrs: {
-          portBody: { magnet: true, strokeWidth: 10, strokeOpacity: 0 },
+          portBody: {
+            magnet: true,
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
           text: { fontSize: 12, fontWeight: 'bold' },
         },
         position: { name: 'left' },
@@ -120,6 +129,16 @@ const SUBSYSTEM_TEST_BLOCK = {
         },
       },
     },
+  },
+  data: {
+    title: 'Subsystem',
+    srcBlock: 'simulink/Ports & Subsystems/Subsystem',
+    blockType: 'Subsystem',
+    portTexts: ['In1', 'Out1'],
+    description: 'Subsystem',
+    paramLables: [],
+    paramValues: [],
+    level: 10,
   },
 } as unknown as Block
 
@@ -391,6 +410,9 @@ function createStencilService() {
         if (pendingLabelText) {
           res.attr('label/text', pendingLabelText)
           pendingLabelText = ''
+        }
+        if (res.getData()?.blockType === 'Subsystem') {
+          res.attr('body/fill', createSubsystemBackgroundFill())
         }
         // label 唯一性检查与 contentEditable 设置已移至
         // useGraphListener 的 node:added / node:mouseenter 监听器统一处理

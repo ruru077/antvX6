@@ -18,13 +18,20 @@
   user-select: none;
 
   // 折叠/展开动画：仅在非拖拽状态下过渡
-  .ant-splitter-panel {
-    transition: flex 0.4s ease-out;
+  > .ant-splitter-panel:first-child {
+    // transition: flex 0.4s ease-out;
   }
 
   // 拖拽时取消过渡，保证跟手
-  &:has(.ant-splitter-bar-dragger-active) .ant-splitter-panel {
+  &:has(.ant-splitter-bar-dragger-active)
+    > .ant-splitter-panel:first-child {
     transition: none;
+  }
+
+  .panel-splitter__panel--hidden,
+  .ant-splitter-bar:has(+ .panel-splitter__panel--hidden),
+  .panel-splitter__panel--hidden + .ant-splitter-bar {
+    display: none;
   }
 
   // 右侧区域（Splitter.Panel 内容）
@@ -34,6 +41,32 @@
     height: 100%;
     overflow: hidden;
     margin-left: 8px;
+  }
+
+  .diagram-canvas-agent-splitter {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+
+  }
+
+  .canvas-panel-host {
+    min-width: 0;
+    padding-right: 8px;
+  }
+
+  .agent-panel-host {
+    min-width: 0;
+
+    > div {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--background);
+    }
   }
 
   // 折叠/展开按钮 - 浮动胶囊卡片风格（参照语雀 sidebar 折叠按钮）
@@ -81,8 +114,24 @@
   .diagram-body {
     display: flex;
     flex-direction: row;
-    flex: 1;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
+  }
+
+  // diagram-body 与 bottom-panel 共用的纵向分隔布局。
+  .diagram-vertical-splitter {
+    min-height: 0;
+    flex: 1;
+
+    // Paper 与 SplitterBar 保持间距，SplitterBar 直接贴住 BottomPanel。
+    > .ant-splitter-panel:first-child {
+      padding-bottom: 8px;
+    }
+  }
+
+  .bottom-panel-host {
+    min-height: 0;
   }
 
   // 导航横条 + paper，宽度独占剩余空间
@@ -184,6 +233,28 @@
     .x6-widget-transform {
       border: none;
     }
+
+  }
+
+  // 与 paper-container 同级的可扩展底部面板。
+  .bottom-panel {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+    background: var(--background);
+  }
+
+  .bottom-panel-tabs {
+    display: flex;
+    height: 34px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    padding-left: 8px;
   }
 }
 

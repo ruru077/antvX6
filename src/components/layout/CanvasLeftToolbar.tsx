@@ -1,7 +1,9 @@
 import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
+import { BotIcon } from 'lucide-react'
 import CanvasLeftToolbarHiddenSvg from '@/assets/svg/canvas-left-toolbar-hidden.svg?react'
 import CanvasLeftToolbarVisibleSvg from '@/assets/svg/canvas-left-toolbar-visible.svg?react'
+import { useAgentPanelStore } from '@/store/agentPanelStore'
 import '@styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
@@ -17,6 +19,9 @@ function CanvasLeftToolbar({
   toolbarsVisible,
   onToggleToolbars,
 }: CanvasLeftToolbarProps) {
+  const agentPanelVisible = useAgentPanelStore((state) => state.visible)
+  const toggleAgentPanel = useAgentPanelStore((state) => state.toggle)
+
   return (
     <div className="canvas-left-toolbar">
       <Tooltip
@@ -36,6 +41,22 @@ function CanvasLeftToolbar({
         </button>
       </Tooltip>
       <div className="canvas-left-toolbar__divider" />
+      <Tooltip
+        title={agentPanelVisible ? '关闭 Agent 面板' : '打开 Agent 面板'}
+        mouseEnterDelay={0.2}
+        placement="right"
+      >
+        <button
+          type="button"
+          data-active={agentPanelVisible}
+          className="canvas-left-toolbar__btn"
+          aria-label={agentPanelVisible ? '关闭 Agent 面板' : '打开 Agent 面板'}
+          onClick={toggleAgentPanel}
+        >
+          <BotIcon />
+        </button>
+      </Tooltip>
+
       <Tooltip
         title={toolbarsVisible ? '隐藏工具栏' : '显示工具栏'}
         mouseEnterDelay={0.2}
