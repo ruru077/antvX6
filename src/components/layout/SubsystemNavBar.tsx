@@ -31,16 +31,16 @@ function SubsystemNavBar({
     function onKeyDown(e: KeyboardEvent) {
       if ((!e.ctrlKey && !e.metaKey) || e.key.toLowerCase() !== 'f') return
       e.preventDefault()
-      useBottomPanelStore.getState().openPanel('search')
+      useBottomPanelStore.getState().togglePanel('search')
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // 打开查找器，并让输入框立即获得焦点。
-  function openSearchPanel() {
-    useBottomPanelStore.getState().openPanel('search')
+  // 切换查找器的显示状态。
+  function toggleSearchPanel() {
+    useBottomPanelStore.getState().togglePanel('search')
   }
 
   // 根据当前字体测量项目名编辑框宽度。
@@ -154,7 +154,7 @@ function SubsystemNavBar({
           size="small"
           icon={<DoubleRightOutlined rotate={90} />}
           className="mr-1 shrink-0 text-gray-400 transition-colors hover:text-[#1890ff]"
-          onClick={openSearchPanel}
+          onClick={toggleSearchPanel}
         />
       </Flex>
     </Flex>

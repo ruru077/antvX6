@@ -8,7 +8,7 @@ interface BottomPanelStore {
   openTabs: BottomPanelId[]
   activeTab: BottomPanelId | null
   visible: boolean
-  openPanel: (panelId: BottomPanelId) => void
+  togglePanel: (panelId: BottomPanelId) => void
   setActiveTab: (panelId: BottomPanelId) => void
   closePanel: () => void
 }
@@ -22,9 +22,13 @@ const useBottomPanelStore = create<BottomPanelStore>((set, get) => ({
   activeTab: null,
   visible: false,
 
-  openPanel: (panelId) => {
+  togglePanel: (panelId) => {
     if (!isBottomPanelId(panelId)) return
-    const { openTabs } = get()
+    const { activeTab, openTabs, visible } = get()
+    if (visible && activeTab === panelId) {
+      set({ visible: false })
+      return
+    }
     set({
       openTabs: openTabs.includes(panelId) ? openTabs : [...openTabs, panelId],
       activeTab: panelId,
