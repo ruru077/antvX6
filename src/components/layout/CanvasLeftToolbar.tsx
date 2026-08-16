@@ -1,6 +1,6 @@
 import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { BotIcon } from 'lucide-react'
+import { BotIcon, CircleHelpIcon } from 'lucide-react'
 import CanvasLeftToolbarHiddenSvg from '@/assets/svg/canvas-left-toolbar-hidden.svg?react'
 import CanvasLeftToolbarVisibleSvg from '@/assets/svg/canvas-left-toolbar-visible.svg?react'
 import { useAgentPanelStore } from '@/store/agentPanelStore'
@@ -68,6 +68,23 @@ function CanvasLeftToolbar({
           ) : (
             <CanvasLeftToolbarHiddenSvg />
           )}
+        </button>
+      </Tooltip>
+
+      <Tooltip title="键位指南" mouseEnterDelay={0.2} placement="right">
+        <button
+          type="button"
+          className="canvas-left-toolbar__btn"
+          aria-label="键位指南"
+          onClick={() =>
+            window.open(
+              'https://www.douyin.com/',
+              '_blank',
+              'noopener,noreferrer',
+            )
+          }
+        >
+          <CircleHelpIcon />
         </button>
       </Tooltip>
     </div>
