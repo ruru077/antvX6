@@ -3,6 +3,7 @@ import {
   DeleteOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
+  ExportOutlined,
   FullscreenOutlined,
   RedoOutlined,
   RotateLeftOutlined,
@@ -84,6 +85,15 @@ function getNodeMenuItems(
       label: '删除',
       danger: true,
     },
+    ...(isSubsystem
+      ? [
+          {
+            key: 'open-in-new-tab',
+            icon: <ExportOutlined />,
+            label: '在新选项卡打开',
+          },
+        ]
+      : []),
     { type: 'divider' },
     {
       key: 'rotate-clockwise',
@@ -155,6 +165,7 @@ function runMenuAction(key: string, service: ContextMenuService) {
     cut: service.cut,
     copy: service.copy,
     delete: service.remove,
+    'open-in-new-tab': service.openSubsystemInTab,
     'rotate-clockwise': service.rotateClockwise,
     'rotate-counterclockwise': service.rotateCounterclockwise,
     parameters: service.openNodeParameters,

@@ -29,6 +29,9 @@ interface SubSystemTabStore {
   /** 关闭选项卡 */
   closeTab: (key: string) => void
 
+  /** 关闭其他选项卡 */
+  closeOtherTabs: (key: string) => void
+
   /** 拖拽排序 */
   reorderTabs: (fromKey: string, toKey: string) => void
 
@@ -129,6 +132,15 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
     } else {
       set({ tabs: nextTabs })
     }
+  },
+
+  closeOtherTabs: (key) => {
+    const { tabs, activeKey } = get()
+    const tab = tabs.find((item) => item.key === key)
+    if (!tab || tabs.length <= 1) return
+
+    set({ tabs: [tab], activeKey: key })
+    if (key !== activeKey) loadGraph(tab.currentSubGraphId)
   },
 
   reorderTabs: (fromKey, toKey) => {

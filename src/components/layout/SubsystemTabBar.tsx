@@ -10,7 +10,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button, Tabs } from 'antd'
+import { Button, Dropdown, Tabs } from 'antd'
 import { ArrowBigLeft, ArrowBigRight, ArrowBigUp } from 'lucide-react'
 import { cloneElement, type CSSProperties, type ReactElement } from 'react'
 import { useShallow } from 'zustand/shallow'
@@ -21,10 +21,16 @@ import type { TabsProps } from 'antd'
 
 interface DraggableTabPaneProps extends React.HTMLAttributes<HTMLDivElement> {
   'data-node-key': string
+  canClose: boolean
+  onClose: (key: string) => void
+  onCloseOthers: (key: string) => void
 }
 
 function DraggableTabNode({
   className,
+  canClose,
+  onClose,
+  onCloseOthers,
   ...props
 }: Readonly<DraggableTabPaneProps>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -37,7 +43,7 @@ function DraggableTabNode({
     cursor: 'move',
   }
 
-  return cloneElement(
+  const tabNode = cloneElement(
     props.children as ReactElement,
     {
       ref: setNodeRef,
@@ -45,6 +51,28 @@ function DraggableTabNode({
       ...attributes,
       ...listeners,
     } as Record<string, unknown>,
+  )
+
+  return (
+    <Dropdown
+      trigger={['contextMenu']}
+      menu={{
+        items: [
+          { key: 'close', label: '关闭选项卡', disabled: !canClose },
+          {
+            key: 'close-others',
+            label: '关闭其他选项卡',
+            disabled: !canClose,
+          },
+        ],
+        onClick: ({ key }) => {
+          if (key === 'close') onClose(props['data-node-key'])
+          if (key === 'close-others') onCloseOthers(props['data-node-key'])
+        },
+      }}
+    >
+      {tabNode}
+    </Dropdown>
   )
 }
 
@@ -61,6 +89,7 @@ function SubsystemTabBar() {
   const goUp = useSubSystemTabStore((s) => s.goUp)
   const setActiveTab = useSubSystemTabStore((s) => s.setActiveTab)
   const closeTab = useSubSystemTabStore((s) => s.closeTab)
+  const closeOtherTabs = useSubSystemTabStore((s) => s.closeOtherTabs)
   const reorderTabs = useSubSystemTabStore((s) => s.reorderTabs)
 
   const sensor = useSensor(PointerSensor, {
@@ -141,6 +170,9 @@ function SubsystemTabBar() {
                       {...(node as React.ReactElement<DraggableTabPaneProps>)
                         .props}
                       key={node.key}
+                      canClose={tabs.length > 1}
+                      onClose={closeTab}
+                      onCloseOthers={closeOtherTabs}
                     >
                       {node}
                     </DraggableTabNode>
