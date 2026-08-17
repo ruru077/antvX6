@@ -374,12 +374,19 @@ export function _patchScrollerOnUpdate(scroller: Scroller) {
 
   const proto = Object.getPrototypeOf(impl) as Record<string, Function>
   const originalOnUpdate = proto.onUpdate as Function
+  const previousOnUpdate = impl.onUpdate as Function & { cancel?: () => void }
+  const modelEvents = ['reseted', 'cell:added', 'cell:removed', 'cell:changed']
 
-  // 构造时 startListening() 已用 debounce 版本注册事件监听，
-  // 必须先 stopListening 解绑，再用 throttled 版本重新绑定。
-  proto.stopListening.call(impl)
+  // 只替换模型更新监听。X6 的 stopListening() 无法正确解绑带冒号的
+  // before:export/after:export，重启完整监听会导致导出后重复恢复滚动位置。
+  modelEvents.forEach((eventName) => {
+    impl.model.off(eventName, previousOnUpdate, impl)
+  })
+  previousOnUpdate.cancel?.()
   impl.onUpdate = FunctionExt.throttle(originalOnUpdate.bind(impl), 60)
-  proto.startListening.call(impl)
+  modelEvents.forEach((eventName) => {
+    impl.model.on(eventName, impl.onUpdate, impl)
+  })
 }
 
 /**
