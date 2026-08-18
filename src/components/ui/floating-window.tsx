@@ -153,9 +153,11 @@ function FloatingWindow({
         aria-labelledby={titleId}
         aria-modal="false"
       >
-        <CardHeader className="floating-window-drag-handle h-8 cursor-move touch-none items-center rounded-t-lg bg-muted/40 px-3 py-0 select-none">
-          <CardTitle id={titleId}>{title}</CardTitle>
-          <CardAction data-floating-window-action>
+        <CardHeader className="floating-window-drag-handle flex h-8 cursor-move touch-none items-center justify-between rounded-t-lg bg-[rgb(238_244_249)] px-3 py-0 select-none">
+          <CardTitle id={titleId} className="text-sm font-sans leading-none">
+            {title}
+          </CardTitle>
+          <CardAction className="self-center" data-floating-window-action>
             <Button
               type="button"
               variant="ghost"
@@ -187,7 +189,7 @@ function FloatingWindow({
           <>
             <Separator />
             <CardFooter
-              className="h-8 justify-end gap-2 rounded-b-lg bg-muted/20 px-3 py-0"
+              className="h-8 items-center justify-end gap-2 rounded-b-lg bg-[rgb(240_240_240)] px-3 py-0"
               data-floating-window-action
             >
               {footer}
