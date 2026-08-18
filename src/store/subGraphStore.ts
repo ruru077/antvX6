@@ -1,11 +1,13 @@
 import { StringExt } from '@antv/x6'
+import { isEqual } from 'lodash-es'
 import { create } from 'zustand'
 import {
   buildSubsystemMarkup,
+  DROP_SHADOW_FILTER,
   maskArrowAttrs,
   MASK_SELECTOR,
 } from '@/assets/x6Model'
-import type { Node } from '@antv/x6'
+import type { Graph, Node } from '@antv/x6'
 import type {
   EntryGraphModel,
   GraphJSON,
@@ -17,6 +19,12 @@ import type {
  * @description 子系统全局数据 Store
  */
 interface SubGraphStore {
+  // 模型名称
+  modelName: string
+  // 当前模型是否与保存快照不同
+  isDirty: boolean
+  // 最近一次保存的模型快照
+  savedSnapshot: EntryGraphModel
   // 当前所在的Graph ID
   currentGraphId: string
   // 从根Graph到当前Graph的路径ID列表
@@ -27,6 +35,12 @@ interface SubGraphStore {
   subGraphs: SubGraphMap
   // 导出EntryGraphModel
   exportEntryGraphModel: () => EntryGraphModel
+  // 重命名模型
+  renameModel: (name: string) => void
+  // 根据保存快照重算修改状态
+  recomputeDirty: () => void
+  // 将当前模型标记为已保存
+  markSaved: () => void
   // 同步当前Layer Graph数据
   syncGraph: (graphJson: GraphJSON) => void
   // 同步新增SubGraph数据
@@ -222,6 +236,7 @@ function buildPaths(subGraphs: SubGraphMap, subGraphId: string) {
   return pathIds
 }
 const ROOT_ID = 'root'
+const DEFAULT_MODEL_NAME = '实验二-系统稳态误差分析'
 
 // 压缩 JSON
 function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
@@ -238,28 +253,91 @@ function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
   }
   return zip(obj) as EntryGraphModel
 }
+
+/**
+ * 将 EntryGraphModel 中的选中 outline 恢复为未选中模型样式。
+ */
+function normalizeEntryGraphModel(model: EntryGraphModel): EntryGraphModel {
+  const normalized = structuredClone(model)
+
+  Object.values(normalized.subGraphs).forEach((subGraph) => {
+    subGraph.graphJson.cells.forEach((cell) => {
+      const attrs = cell.attrs as
+        | Record<string, { filter?: { name?: string } }>
+        | undefined
+
+      Object.values(attrs ?? {}).forEach((selectorAttrs) => {
+        const filterName = selectorAttrs.filter?.name
+        if (cell.shape === 'edge') {
+          if (filterName === 'outline') delete selectorAttrs.filter
+          return
+        }
+
+        if (filterName === 'outline' || filterName === 'dropShadow') {
+          selectorAttrs.filter = structuredClone(DROP_SHADOW_FILTER)
+        }
+      })
+    })
+  })
+
+  return normalized
+}
+
+const initialSubGraphs: SubGraphMap = {
+  [ROOT_ID]: {
+    id: ROOT_ID,
+    name: 'root',
+    deep: 0,
+    parentId: null,
+    childrenIds: [],
+    graphJson: { cells: [] },
+  },
+}
+
+const initialSavedSnapshot = normalizeEntryGraphModel(
+  zipGraphModelJson({
+    modelName: DEFAULT_MODEL_NAME,
+    currentGraphId: ROOT_ID,
+    rootId: ROOT_ID,
+    subGraphs: initialSubGraphs,
+  }),
+)
 // ─── store ───────────────────────────────────────────────────────────────────
 const useSubGraphStore = create<SubGraphStore>((set, get) => ({
+  modelName: DEFAULT_MODEL_NAME,
+  isDirty: false,
+  savedSnapshot: initialSavedSnapshot,
   currentGraphId: ROOT_ID,
   currentPathIds: [ROOT_ID],
   rootId: ROOT_ID,
-  subGraphs: {
-    [ROOT_ID]: {
-      id: ROOT_ID,
-      name: 'root',
-      deep: 0,
-      parentId: null,
-      childrenIds: [],
-      graphJson: { cells: [] },
-    },
-  },
+  subGraphs: structuredClone(initialSubGraphs),
 
   exportEntryGraphModel: () => {
-    const { currentGraphId, rootId, subGraphs } = get()
-    return zipGraphModelJson({
-      currentGraphId,
-      rootId,
-      subGraphs,
+    const { modelName, currentGraphId, rootId, subGraphs } = get()
+    return normalizeEntryGraphModel(
+      zipGraphModelJson({
+        modelName,
+        currentGraphId,
+        rootId,
+        subGraphs,
+      }),
+    )
+  },
+  renameModel: (name) => {
+    const trimmed = name.trim()
+    if (!trimmed || trimmed === get().modelName) return
+
+    set({ modelName: trimmed })
+    get().recomputeDirty()
+  },
+  recomputeDirty: () => {
+    const { exportEntryGraphModel, savedSnapshot } = get()
+    set({ isDirty: !isEqual(exportEntryGraphModel(), savedSnapshot) })
+  },
+  markSaved: () => {
+    set({
+      savedSnapshot: get().exportEntryGraphModel(),
+      isDirty: false,
     })
   },
   syncGraph: (graphJson) => {
@@ -358,5 +436,21 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   },
 }))
 
+function saveEntryGraphModel(graph: Graph) {
+  const { syncGraph, exportEntryGraphModel, markSaved } =
+    useSubGraphStore.getState()
+  syncGraph(graph.toJSON())
+  const model = exportEntryGraphModel()
+  console.log(JSON.stringify(model, null, 2))
+  markSaved()
+  return model
+}
+
 export type { EntryGraphModel, SubGraphItem, GraphJSON }
-export { useSubGraphStore, createSubGraphItem, buildPaths }
+export {
+  useSubGraphStore,
+  saveEntryGraphModel,
+  createSubGraphItem,
+  buildPaths,
+  normalizeEntryGraphModel,
+}

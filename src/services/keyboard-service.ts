@@ -17,6 +17,7 @@ import {
   spaceComboUsed,
   spaceHeld,
 } from '@/store/flags'
+import { saveEntryGraphModel } from '@/store/subGraphStore'
 import type { Graph, Node } from '@antv/x6'
 
 const interactiveService = createInteractiveService()
@@ -217,6 +218,7 @@ function registerKeyboard(graph: Graph) {
   })
 
   bindKeys(graph, [
+    [['ctrl+s', 'meta+s'], () => saveEntryGraphModel(graph)],
     [['ctrl+c', 'meta+c'], () => copySelection(graph)],
     [
       ['ctrl+v', 'meta+v'],
