@@ -260,6 +260,7 @@ function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
   // 清除所有图层的历史栈快照（旧 Cell 引用已失效）
   layerHistoryStacks.clear()
   graph.cleanHistory()
+  graph.resetCells([])
 
   useSubGraphStore.setState({
     currentGraphId: model.currentGraphId,
@@ -460,7 +461,15 @@ async function removeSubsystemImage(node: Node, graph: Graph) {
  * @param graph Graph
  * @returns void
  */
-function changeGraphView(subGraphId: string, graph: Graph) {
+interface ChangeGraphViewOptions {
+  centerContent?: boolean
+}
+
+function changeGraphView(
+  subGraphId: string,
+  graph: Graph,
+  options: ChangeGraphViewOptions = {},
+) {
   const { currentGraphId, subGraphs, syncGraph } = useSubGraphStore.getState()
 
   /**
@@ -503,15 +512,16 @@ function changeGraphView(subGraphId: string, graph: Graph) {
     // 通知X6 更新撤销/重做按钮状态
     void graph.trigger('history:change', { cmds: null, options: {} })
   }
-  // 强制刷新视图，确保 centerContent 拿到正确的滚动范围。
+  // 强制刷新视图，确保后续居中或模块定位拿到正确的滚动范围。
   const scrollerPlugin = graph.getPlugin<Scroller>('scroller')
   if (scrollerPlugin) _patchScrollerForceUpdate(scrollerPlugin)
 
-  graph.centerContent()
+  if (options.centerContent !== false) graph.centerContent()
   useSubGraphStore.setState({
     currentGraphId: subGraphId,
     currentPathIds: buildPaths(subGraphs, subGraphId),
   })
+  useSubGraphStore.getState().recomputeDirty()
 }
 
 // ─── 合并为子系统 ─────────────────────────────────────────────────────────
@@ -1372,3 +1382,4 @@ export {
   buildFlowChain,
   flowChainToDTO,
 }
+export type { ChangeGraphViewOptions }

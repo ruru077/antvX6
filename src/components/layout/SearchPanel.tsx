@@ -9,10 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useGraphStore } from '@/store/graphStore'
+import { focusCellInSubGraph } from '@/services/graph-navigation-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import { useSubSystemTabStore } from '@/store/subSystemTabStore'
-import type { Scroller } from '@antv/x6'
 import type { GraphJSON, SubGraphMap } from '~/types'
 
 type SearchScope = 'root' | 'currentAndBelow' | 'current'
@@ -155,22 +153,11 @@ function SearchPanel() {
     requestAnimationFrame(() => searchInputRef.current?.focus())
   }, [])
 
-  function focusResultCell(result: SearchResult) {
-    useSubSystemTabStore.getState().navigateWithin(result.graphId)
-    window.setTimeout(() => {
-      const graph = useGraphStore.getState().graph
-      const cell = graph?.getCellById(result.cellId)
-      if (!cell) return
-      graph.resetSelection([cell])
-      graph.getPlugin<Scroller>('scroller')?.scrollToCell(cell)
-    }, 0)
-  }
-
   function openResult(index: number) {
     const result = searchResults[index]
     if (!result) return
     setActiveResultIndex(index)
-    focusResultCell(result)
+    focusCellInSubGraph(result.graphId, result.cellId)
   }
 
   function moveResult(step: number) {

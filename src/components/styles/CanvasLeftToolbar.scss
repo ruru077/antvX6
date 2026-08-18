@@ -33,6 +33,10 @@
     }
   }
 
+  &__btn--bottom {
+    margin-top: auto;
+  }
+
   // 分割线，视觉上与 subsystem-navbar 底部对齐
   &__divider {
     width: 24px;

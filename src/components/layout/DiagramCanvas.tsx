@@ -37,9 +37,7 @@ function DiagramCanvas({
             />
             <div className="diagram-canvas-right">
               {/* 子系统导航栏 */}
-              {navPanelVisible && (
-                <SubsystemNavBar modelName="实验二-系统稳态误差分析" />
-              )}
+              {navPanelVisible && <SubsystemNavBar />}
               <ContextMenuAntd>
                 <div className="paper-container">
                   <div ref={paperContainerRef} className="paper" />

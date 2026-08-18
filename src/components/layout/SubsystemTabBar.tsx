@@ -1,3 +1,4 @@
+import { EditOutlined } from '@ant-design/icons'
 import {
   closestCenter,
   DndContext,
@@ -10,7 +11,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button, Dropdown, Tabs } from 'antd'
+import { Button, Dropdown, Input, Tabs, Tag, Tooltip, Typography } from 'antd'
 import { ArrowBigLeft, ArrowBigRight, ArrowBigUp } from 'lucide-react'
 import { cloneElement, type CSSProperties, type ReactElement } from 'react'
 import { useShallow } from 'zustand/shallow'
@@ -18,6 +19,7 @@ import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { TabsProps } from 'antd'
+import '@styles/SubsystemTabBar.scss'
 
 interface DraggableTabPaneProps extends React.HTMLAttributes<HTMLDivElement> {
   'data-node-key': string
@@ -83,7 +85,15 @@ function SubsystemTabBar() {
       activeKey: s.activeKey,
     })),
   )
-  const subGraphsData = useSubGraphStore((s) => s.subGraphs)
+  const { rootId, subGraphsData, modelName, isDirty } = useSubGraphStore(
+    useShallow((s) => ({
+      rootId: s.rootId,
+      subGraphsData: s.subGraphs,
+      modelName: s.modelName,
+      isDirty: s.isDirty,
+    })),
+  )
+  const renameModel = useSubGraphStore((s) => s.renameModel)
   const goBack = useSubSystemTabStore((s) => s.goBack)
   const goForward = useSubSystemTabStore((s) => s.goForward)
   const goUp = useSubSystemTabStore((s) => s.goUp)
@@ -95,6 +105,36 @@ function SubsystemTabBar() {
   const sensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 10 },
   })
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+
+  // 根据当前字体测量项目名编辑框宽度。
+  function measureTextWidth(text: string) {
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) return 0
+
+    context.font =
+      '15px "OPPO Sans", "OPPOSans", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif'
+    return context.measureText(text || ' ').width
+  }
+
+  const editInputWidth = editing
+    ? Math.max(Math.ceil(measureTextWidth(editValue) + 20), 48)
+    : 120
+
+  // 开始编辑模型名称。
+  function startEdit() {
+    setEditValue(modelName)
+    setEditing(true)
+  }
+
+  // 提交模型名称编辑。
+  function commitEdit() {
+    const trimmed = editValue.trim()
+    if (trimmed) renameModel(trimmed)
+    setEditing(false)
+  }
 
   const activeTab = tabs.find((t) => t.key === activeKey)
   const canGoBack = !!activeTab && activeTab.historyIndex > 0
@@ -105,7 +145,10 @@ function SubsystemTabBar() {
 
   const tabItems: NonNullable<TabsProps['items']> = tabs.map((tab) => ({
     key: tab.key,
-    label: subGraphsData[tab.rootSubGraphId]?.name ?? tab.key,
+    label:
+      tab.currentSubGraphId === rootId
+        ? rootId
+        : (subGraphsData[tab.currentSubGraphId]?.name ?? tab.currentSubGraphId),
     children: null,
     closable: tabs.length > 1,
   }))
@@ -124,64 +167,101 @@ function SubsystemTabBar() {
   }
 
   return (
-    <div className="flex h-8 items-center overflow-hidden border-b border-gray-200 bg-[rgb(240,240,240)]">
-      <div className="flex shrink-0 items-center px-0.5">
-        <Button
-          type="text"
-          icon={<ArrowBigLeft fill="currentColor" size={24} strokeWidth={1} />}
-          disabled={!canGoBack}
-          onClick={goBack}
-        />
-        <Button
-          type="text"
-          icon={<ArrowBigRight fill="currentColor" size={24} strokeWidth={1} />}
-          disabled={!canGoForward}
-          onClick={goForward}
-        />
-        <Button
-          type="text"
-          icon={<ArrowBigUp fill="currentColor" size={24} strokeWidth={1} />}
-          disabled={!canGoUp}
-          onClick={goUp}
-        />
-      </div>
-      <div className="mt-2.5 flex min-w-0 flex-1 overflow-hidden">
-        <Tabs
-          type="editable-card"
-          size="small"
-          hideAdd
-          activeKey={activeKey}
-          onChange={(key) => setActiveTab(key)}
-          onEdit={onEdit}
-          items={tabItems}
-          renderTabBar={(tabBarProps, DefaultTabBar) => (
-            <DndContext
-              sensors={[sensor]}
-              onDragEnd={onDragEnd}
-              collisionDetection={closestCenter}
-            >
-              <SortableContext
-                items={tabs.map((i) => i.key)}
-                strategy={horizontalListSortingStrategy}
+    <div className="subsystem-tab-bar">
+      <div className="subsystem-tab-bar__main">
+        <div className="subsystem-tab-bar__navigation">
+          <Tooltip title="回退">
+            <Button
+              type="text"
+              icon={
+                <ArrowBigLeft fill="currentColor" size={24} strokeWidth={1} />
+              }
+              disabled={!canGoBack}
+              onClick={goBack}
+            />
+          </Tooltip>
+          <Tooltip title="前进">
+            <Button
+              type="text"
+              icon={
+                <ArrowBigRight fill="currentColor" size={24} strokeWidth={1} />
+              }
+              disabled={!canGoForward}
+              onClick={goForward}
+            />
+          </Tooltip>
+          <Tooltip title="返回上一级图层">
+            <Button
+              type="text"
+              icon={
+                <ArrowBigUp fill="currentColor" size={24} strokeWidth={1} />
+              }
+              disabled={!canGoUp}
+              onClick={goUp}
+            />
+          </Tooltip>
+        </div>
+        <div className="subsystem-tab-bar__tabs">
+          <Tabs
+            className="subsystem-tabs"
+            type="editable-card"
+            size="small"
+            hideAdd
+            activeKey={activeKey}
+            onChange={(key) => setActiveTab(key)}
+            onEdit={onEdit}
+            items={tabItems}
+            renderTabBar={(tabBarProps, DefaultTabBar) => (
+              <DndContext
+                sensors={[sensor]}
+                onDragEnd={onDragEnd}
+                collisionDetection={closestCenter}
               >
-                <DefaultTabBar {...tabBarProps}>
-                  {(node) => (
-                    <DraggableTabNode
-                      {...(node as React.ReactElement<DraggableTabPaneProps>)
-                        .props}
-                      key={node.key}
-                      canClose={tabs.length > 1}
-                      onClose={closeTab}
-                      onCloseOthers={closeOtherTabs}
-                    >
-                      {node}
-                    </DraggableTabNode>
-                  )}
-                </DefaultTabBar>
-              </SortableContext>
-            </DndContext>
-          )}
-        />
+                <SortableContext
+                  items={tabs.map((i) => i.key)}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  <DefaultTabBar {...tabBarProps}>
+                    {(node) => (
+                      <DraggableTabNode
+                        {...(node as React.ReactElement<DraggableTabPaneProps>)
+                          .props}
+                        key={node.key}
+                        canClose={tabs.length > 1}
+                        onClose={closeTab}
+                        onCloseOthers={closeOtherTabs}
+                      >
+                        {node}
+                      </DraggableTabNode>
+                    )}
+                  </DefaultTabBar>
+                </SortableContext>
+              </DndContext>
+            )}
+          />
+        </div>
+      </div>
+      {/* 项目名区域 */}
+      <div className="subsystem-tab-bar__model-name">
+        {editing ? (
+          <Input
+            size="small"
+            value={editValue}
+            autoFocus
+            style={{ width: editInputWidth }}
+            onChange={(e) => setEditValue(e.target.value)}
+            onPressEnter={commitEdit}
+            onBlur={commitEdit}
+          />
+        ) : (
+          <Tag color={isDirty ? 'orange' : 'green'} variant="outlined">
+            <Typography.Text>
+              {modelName}
+              {isDirty ? ' *' : ''}
+            </Typography.Text>
+            <EditOutlined onClick={startEdit} />
+          </Tag>
+        )}
       </div>
     </div>
   )

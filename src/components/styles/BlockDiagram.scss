@@ -15,6 +15,7 @@
   padding: 8px 8px 0 0;
   overflow: hidden;
   background-color: rgb(247, 247, 252);
+  // background-color: rgb(240, 240, 240);
   user-select: none;
 
   // 折叠/展开动画：仅在非拖拽状态下过渡
@@ -255,6 +256,10 @@
     gap: 4px;
     border-bottom: 1px solid var(--border);
     padding-left: 8px;
+
+    [data-slot='tabs-trigger']::after {
+      bottom: 4px !important;
+    }
   }
 }
 

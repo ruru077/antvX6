@@ -35,7 +35,7 @@ import {
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { useSubGraphStore } from '@/store/subGraphStore'
+import { saveEntryGraphModel, useSubGraphStore } from '@/store/subGraphStore'
 import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
@@ -90,8 +90,8 @@ const simulateMenuItems: MenuProps['items'] = [
 
 function PaperToolbar(_: PaperToolbarProps) {
   const graph = useGraphStore((s) => s.graph)
-  const exportEntryGraphModel = useSubGraphStore((s) => s.exportEntryGraphModel)
   const syncGraph = useSubGraphStore((s) => s.syncGraph)
+  const markSaved = useSubGraphStore((s) => s.markSaved)
 
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
@@ -135,6 +135,8 @@ function PaperToolbar(_: PaperToolbarProps) {
       syncGraph(graph.toJSON())
       loadEntryGraphModel(model, graph)
       changeGraphView(model.currentGraphId, graph)
+      syncGraph(graph.toJSON())
+      markSaved()
       setJsonDialogOpen(false)
       setJsonText('')
       message.success('图加载成功')
@@ -164,8 +166,7 @@ function PaperToolbar(_: PaperToolbarProps) {
             icon={<Save size={14} />}
             onClick={() => {
               if (!graph) return
-              syncGraph(graph.toJSON())
-              console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
+              saveEntryGraphModel(graph)
             }}
           >
             保存

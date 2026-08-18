@@ -2,12 +2,11 @@ import { create } from 'zustand'
 import { changeGraphView } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import type { ChangeGraphViewOptions } from '@/services/subsystem-service'
 
 interface TabItem {
-  /** 唯一标识，= rootSubGraphId */
+  /** 选项卡稳定唯一标识 */
   key: string
-  /** 选项卡入口子系统 */
-  rootSubGraphId: string
   /** 当前正在查看的子系统 */
   currentSubGraphId: string
   /** 导航历史（subGraphId 序列） */
@@ -21,7 +20,7 @@ interface SubSystemTabStore {
   activeKey: string
 
   /** 在当前选项卡内导航（双击子系统、mask 点击） */
-  navigateWithin: (subGraphId: string) => void
+  navigateWithin: (subGraphId: string, options?: ChangeGraphViewOptions) => void
 
   /** 在标签页打开或切换：若目标已有选项卡则切换，否则新建 */
   openOrSwitch: (subGraphId: string) => void
@@ -35,10 +34,10 @@ interface SubSystemTabStore {
   /** 拖拽排序 */
   reorderTabs: (fromKey: string, toKey: string) => void
 
-  /** 后退 */
+  /** 在当前选项卡的图层历史中后退 */
   goBack: () => void
 
-  /** 前进 */
+  /** 在当前选项卡的图层历史中前进 */
   goForward: () => void
 
   /** 跳转父级 */
@@ -49,32 +48,43 @@ interface SubSystemTabStore {
 }
 
 const ROOT_ID = 'root'
+let nextTabKey = 0
 
 function createTab(subGraphId: string): TabItem {
   return {
-    key: subGraphId,
-    rootSubGraphId: subGraphId,
+    key: `subsystem-tab-${nextTabKey++}`,
     currentSubGraphId: subGraphId,
     history: [subGraphId],
     historyIndex: 0,
   }
 }
 
+const initialTab = createTab(ROOT_ID)
+
 /** 调用 changeGraphView 加载目标图层 */
-function loadGraph(subGraphId: string) {
+function loadGraph(subGraphId: string, options?: ChangeGraphViewOptions) {
   const graph = useGraphStore.getState().graph
-  if (graph) changeGraphView(subGraphId, graph)
+  if (graph) changeGraphView(subGraphId, graph, options)
 }
 
 const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
-  tabs: [createTab(ROOT_ID)],
-  activeKey: ROOT_ID,
+  tabs: [initialTab],
+  activeKey: initialTab.key,
 
-  navigateWithin: (subGraphId) => {
+  navigateWithin: (subGraphId, options) => {
     const { tabs, activeKey } = get()
     const tab = tabs.find((t) => t.key === activeKey)
     if (!tab) return
     if (tab.currentSubGraphId === subGraphId) return
+
+    const existing = tabs.find(
+      (item) => item.key !== activeKey && item.currentSubGraphId === subGraphId,
+    )
+    if (existing) {
+      set({ activeKey: existing.key })
+      loadGraph(existing.currentSubGraphId, options)
+      return
+    }
 
     // truncate 历史后 push
     const truncated = tab.history.slice(0, tab.historyIndex + 1)
@@ -90,22 +100,17 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
         : t,
     )
     set({ tabs: nextTabs })
-    loadGraph(subGraphId)
+    loadGraph(subGraphId, options)
   },
 
   openOrSwitch: (subGraphId) => {
     const { tabs, activeKey } = get()
-    const existing = tabs.find((t) => t.rootSubGraphId === subGraphId)
+    const existing = tabs.find((t) => t.currentSubGraphId === subGraphId)
 
     if (existing) {
-      if (existing.key === activeKey) {
-        // 同一选项卡 → 在内部导航到 root
-        get().navigateWithin(subGraphId)
-      } else {
-        // 切换到已有选项卡
-        set({ activeKey: existing.key })
-        loadGraph(existing.currentSubGraphId)
-      }
+      if (existing.key === activeKey) return
+      set({ activeKey: existing.key })
+      loadGraph(existing.currentSubGraphId)
     } else {
       // 新建选项卡
       const newTab = createTab(subGraphId)

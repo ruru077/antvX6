@@ -4,7 +4,8 @@
   width: 100%;
   height: 100%;
   border: 1px solid var(--stencil-border);
-  background: #ffffff;
+  // background: #ffffff;
+  background: rgb(250, 250, 250);
   border-radius: var(--radius-md);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
@@ -206,10 +207,10 @@
       border-bottom: 1px solid #edf1f5;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
 
-      > .x6-graph,
-      > .x6-graph > .x6-graph-background,
-      > .x6-graph > .x6-graph-grid,
-      > .x6-graph > svg {
+      >.x6-graph,
+      >.x6-graph>.x6-graph-background,
+      >.x6-graph>.x6-graph-grid,
+      >.x6-graph>svg {
         width: 100% !important;
       }
     }
@@ -223,7 +224,7 @@
         box-shadow: 0 1px 0 rgba(226, 232, 238, 0.92);
       }
 
-      > .x6-widget-stencil-group-title {
+      >.x6-widget-stencil-group-title {
         height: 32px;
         padding-left: 26px !important;
         padding-right: 12px;
@@ -291,7 +292,7 @@
         }
       }
 
-      &.collapsed > .x6-widget-stencil-group-title {
+      &.collapsed>.x6-widget-stencil-group-title {
         &::before {
           transform: translateY(-50%) rotate(45deg);
         }

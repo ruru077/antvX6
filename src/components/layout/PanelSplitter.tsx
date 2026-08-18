@@ -1,10 +1,9 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { Splitter } from 'antd'
-import { useState, type ComponentProps, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 
-type PanelProps = ComponentProps<typeof Splitter.Panel>
 type PanelSplitterProps =
   | {
       variant: 'workspace'
@@ -18,88 +17,116 @@ type PanelSplitterProps =
       second: ReactNode
     }
 
-const WORKSPACE_PANELS: PanelProps[] = [
-  {
-    defaultSize: '20%',
-    min: '10%',
-    max: '50%',
-    collapsible: { start: true, end: true, showCollapsibleIcon: 'auto' },
-  },
-  { className: 'canvas-panel-host' },
-  {
-    className: 'agent-panel-host',
-    defaultSize: 360,
-    min: 280,
-    max: '45%',
-  },
-]
+const STENCIL_DEFAULT_SIZE = '20%'
+const AGENT_DEFAULT_SIZE = 360
+const BOTTOM_PANEL_DEFAULT_SIZE = '35%'
 
-const BOTTOM_PANELS: PanelProps[] = [
-  { defaultSize: '65%', min: '30%' },
-  {
-    className: 'bottom-panel-host',
-    defaultSize: '35%',
-    min: 180,
-    max: '70%',
-  },
-]
-
-function PanelSplitter(props: PanelSplitterProps) {
+function WorkspaceSplitter({
+  stencil,
+  canvas,
+  agent,
+}: {
+  stencil: ReactNode
+  canvas: ReactNode
+  agent: ReactNode
+}) {
   const agentVisible = useAgentPanelStore((state) => state.visible)
-  const bottomVisible = useBottomPanelStore((state) => state.visible)
-  const workspace = props.variant === 'workspace'
-  const panels = workspace ? WORKSPACE_PANELS : BOTTOM_PANELS
-  const contents = workspace
-    ? [props.stencil, props.canvas, props.agent]
-    : [props.first, props.second]
-  const trailingVisible = workspace ? agentVisible : bottomVisible
-  const hiddenIndex = panels.length - 1
-  const [sizes, setSizes] = useState<(number | string | undefined)[]>(() =>
-    panels.map((panel) => panel.defaultSize),
+  const [stencilSize, setStencilSize] = useState<number | string>(
+    STENCIL_DEFAULT_SIZE,
+  )
+  const [agentSize, setAgentSize] = useState<number | string>(
+    AGENT_DEFAULT_SIZE,
   )
 
   return (
     <Splitter
-      className={workspace ? 'diagram-wrapper' : 'diagram-vertical-splitter'}
-      orientation={workspace ? 'horizontal' : 'vertical'}
+      className="diagram-wrapper"
+      orientation="horizontal"
       classNames={{ dragger: 'diagram-splitter-dragger' }}
-      collapsible={
-        workspace
-          ? { icon: { start: <LeftOutlined />, end: <RightOutlined /> } }
-          : undefined
-      }
-      onResize={(next) => {
-        if (trailingVisible) setSizes(next)
+      collapsible={{
+        icon: { start: <LeftOutlined />, end: <RightOutlined /> },
+      }}
+      onResize={(sizes) => {
+        setStencilSize(sizes[0])
+        if (agentVisible) setAgentSize(sizes[2])
       }}
     >
-      {panels.map((panel, index) => {
-        const hidden = index === hiddenIndex && !trailingVisible
-        const fillsTrailingSpace = index === hiddenIndex - 1 && !trailingVisible
-        return (
-          <Splitter.Panel
-            {...panel}
-            key={index}
-            className={
-              hidden ? 'panel-splitter__panel--hidden' : panel.className
-            }
-            size={
-              hidden
-                ? 0
-                : fillsTrailingSpace && !workspace
-                  ? '100%'
-                  : fillsTrailingSpace
-                    ? undefined
-                    : sizes[index]
-            }
-            min={hidden ? 0 : panel.min}
-            resizable={!hidden}
-          >
-            {contents[index]}
-          </Splitter.Panel>
-        )
-      })}
+      <Splitter.Panel
+        size={stencilSize}
+        min="10%"
+        max="50%"
+        collapsible={{ start: true, end: true, showCollapsibleIcon: 'auto' }}
+      >
+        {stencil}
+      </Splitter.Panel>
+
+      <Splitter.Panel className="canvas-panel-host">{canvas}</Splitter.Panel>
+
+      <Splitter.Panel
+        className={
+          agentVisible ? 'agent-panel-host' : 'panel-splitter__panel--hidden'
+        }
+        size={agentVisible ? agentSize : 0}
+        min={agentVisible ? 280 : 0}
+        max="45%"
+        resizable={agentVisible}
+      >
+        {agent}
+      </Splitter.Panel>
     </Splitter>
   )
+}
+
+function CanvasBottomSplitter({
+  first,
+  second,
+}: {
+  first: ReactNode
+  second: ReactNode
+}) {
+  const bottomVisible = useBottomPanelStore((state) => state.visible)
+  const [bottomSize, setBottomSize] = useState<number | string>(
+    BOTTOM_PANEL_DEFAULT_SIZE,
+  )
+
+  return (
+    <Splitter
+      className="diagram-vertical-splitter"
+      orientation="vertical"
+      classNames={{ dragger: 'diagram-splitter-dragger' }}
+      onResize={(sizes) => {
+        if (bottomVisible) setBottomSize(sizes[1])
+      }}
+    >
+      <Splitter.Panel min="30%">{first}</Splitter.Panel>
+
+      <Splitter.Panel
+        className={
+          bottomVisible ? 'bottom-panel-host' : 'panel-splitter__panel--hidden'
+        }
+        size={bottomVisible ? bottomSize : 0}
+        min={bottomVisible ? 180 : 0}
+        max="70%"
+        resizable={bottomVisible}
+      >
+        {second}
+      </Splitter.Panel>
+    </Splitter>
+  )
+}
+
+function PanelSplitter(props: PanelSplitterProps) {
+  if (props.variant === 'workspace') {
+    return (
+      <WorkspaceSplitter
+        stencil={props.stencil}
+        canvas={props.canvas}
+        agent={props.agent}
+      />
+    )
+  }
+
+  return <CanvasBottomSplitter first={props.first} second={props.second} />
 }
 
 export { PanelSplitter }
