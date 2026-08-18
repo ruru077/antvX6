@@ -39,6 +39,7 @@ type PointerGesture =
       lastPoint: { x: number; y: number } | null
       cloneCells: Cell[] | null
       insertionNode: Node | null
+      batchStarted: boolean
       hideSelectionOverlay: boolean
       connectionSourceNode: Node | null
       targetNode: Node | null
@@ -172,6 +173,7 @@ function registerPointerGestures(
         lastPoint: null,
         cloneCells: null,
         insertionNode: null,
+        batchStarted: false,
         hideSelectionOverlay:
           sourceCells.filter((cell) => cell.isNode()).length > 1,
         connectionSourceNode:
@@ -198,6 +200,7 @@ function registerPointerGestures(
       lastPoint: null,
       cloneCells: null,
       insertionNode: null,
+      batchStarted: false,
       hideSelectionOverlay:
         selectedCells.filter((cell) => cell.isNode()).length > 1,
       connectionSourceNode: null,
@@ -282,6 +285,8 @@ function registerPointerGestures(
       const offsetX = position.x - sourceCenter.x
       const offsetY = position.y - sourceCenter.y
       cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+      graph.startBatch('copy-cell')
+      state.batchStarted = true
       graph.model.addCells(cloneCells)
       graph.resetSelection(cloneCells)
       if (state.hideSelectionOverlay) setSelectionOverlayVisibility(false)
@@ -325,36 +330,43 @@ function registerPointerGestures(
     startOrMoveCellCopy(e)
   }
 
-  function finishCellCopy(state: CellCopyGesture, e: MouseEvent) {
-    e.preventDefault()
-    const position = graph.pageToLocal(e.pageX, e.pageY)
-    const lastPoint = state.lastPoint
-    if (!lastPoint) throw new Error('Drag-copy position is missing')
-    const cloneCells = state.cloneCells
-    if (!cloneCells) throw new Error('Drag-copy cells are missing')
+  async function finishCellCopy(state: CellCopyGesture, e: MouseEvent) {
+    try {
+      e.preventDefault()
+      const position = graph.pageToLocal(e.pageX, e.pageY)
+      const lastPoint = state.lastPoint
+      if (!lastPoint) throw new Error('Drag-copy position is missing')
+      const cloneCells = state.cloneCells
+      if (!cloneCells) throw new Error('Drag-copy cells are missing')
 
-    if (state.insertionNode) {
-      const size = state.insertionNode.getSize()
-      state.insertionNode.position(
-        position.x - size.width / 2,
-        position.y - size.height / 2,
-        { ignore: true, undo: false },
-      )
-    } else {
-      const offsetX = position.x - lastPoint.x
-      const offsetY = position.y - lastPoint.y
-      cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
-    }
+      if (state.insertionNode) {
+        const size = state.insertionNode.getSize()
+        state.insertionNode.position(
+          position.x - size.width / 2,
+          position.y - size.height / 2,
+          { ignore: true, undo: false },
+        )
+      } else {
+        const offsetX = position.x - lastPoint.x
+        const offsetY = position.y - lastPoint.y
+        cloneCells.forEach((cell) => cell.translate(offsetX, offsetY))
+      }
 
-    if (state.insertionNode) {
-      updateEdgeInsertionPreview(graph, state.insertionNode)
-      const committed = commitEdgeInsertion(graph, state.insertionNode)
-      if (!committed) void routeAllEdges(graph)
-    } else {
-      clearEdgeInsertionPreview(graph)
-      void routeAllEdges(graph)
+      if (state.insertionNode) {
+        updateEdgeInsertionPreview(graph, state.insertionNode)
+        const committed = await commitEdgeInsertion(graph, state.insertionNode)
+        if (!committed) await routeAllEdges(graph)
+      } else {
+        clearEdgeInsertionPreview(graph)
+        await routeAllEdges(graph)
+      }
+    } finally {
+      if (state.hideSelectionOverlay) setSelectionOverlayVisibility(true)
+      if (state.batchStarted) {
+        state.batchStarted = false
+        graph.stopBatch('copy-cell')
+      }
     }
-    if (state.hideSelectionOverlay) setSelectionOverlayVisibility(true)
   }
 
   function finishCtrlClick(state: CellCopyGesture, e: MouseEvent) {
@@ -382,7 +394,7 @@ function registerPointerGestures(
     const state = gesture
     gesture = null
     graph.container.style.cursor = ''
-    if (state.cloneCells) finishCellCopy(state, e)
+    if (state.cloneCells) void finishCellCopy(state, e)
     else finishCtrlClick(state, e)
   }
 
@@ -413,6 +425,10 @@ function registerPointerGestures(
     }
     if (gesture?.type === 'cell-copy' && gesture.cloneCells) {
       graph.removeCells(gesture.cloneCells, { ignore: true, undo: false })
+    }
+    if (gesture?.type === 'cell-copy' && gesture.batchStarted) {
+      gesture.batchStarted = false
+      graph.stopBatch('copy-cell')
     }
     gesture = null
     graph.container.style.cursor = ''

@@ -386,7 +386,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
   return true
 }
 
-function commitEdgeInsertion(graph: Graph, node: Node) {
+async function commitEdgeInsertion(graph: Graph, node: Node) {
   const state = previewStates.get(graph)
   if (!state) return false
   if (state.nodeId !== node.id && state.ownerWasInGraph) return false
@@ -421,10 +421,10 @@ function commitEdgeInsertion(graph: Graph, node: Node) {
     state.targetEdge.setSource({ cell: node.id, port: ports.outputPortId })
     upstream = graph.addEdge({ source, ...previewLinkAttrs })
     upstream.setTarget({ cell: node.id, port: ports.inputPortId })
+    await routeAllEdges(graph)
   } finally {
     graph.stopBatch('insert-node-on-edge')
   }
-  void routeAllEdges(graph)
   return true
 }
 

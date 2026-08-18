@@ -6,6 +6,7 @@ import {
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
+import { DROP_SHADOW_FILTER } from '@/assets/x6Model'
 import { AddBlockCommand } from '@/components/AddBlockCommand'
 import {
   BlockParamWindow,
@@ -118,20 +119,7 @@ function createInteractiveService() {
    */
   function removeOutline(cell: Cell) {
     if (cell.isNode())
-      cell.attr(
-        'body/filter',
-        {
-          name: 'dropShadow',
-          args: {
-            dx: 2.5,
-            dy: 2.5,
-            blur: 1.25,
-            color: 'black',
-            opacity: 0.55,
-          },
-        },
-        { undo: false },
-      )
+      cell.attr('body/filter', DROP_SHADOW_FILTER, { undo: false })
     else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
   }
 

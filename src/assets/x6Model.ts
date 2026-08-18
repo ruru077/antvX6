@@ -19,6 +19,16 @@ const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 export const SUBSYSTEM_BACKGROUND_TOP = '#ffffff'
 export const SUBSYSTEM_BACKGROUND_BOTTOM = '#dadada'
 export const MASK_SELECTOR = 'mask'
+export const DROP_SHADOW_FILTER = {
+  name: 'dropShadow',
+  args: {
+    dx: 2.5,
+    dy: 2.5,
+    blur: 1.25,
+    color: 'black',
+    opacity: 0.55,
+  },
+}
 
 export function createSubsystemBackgroundFill() {
   return {
@@ -347,16 +357,7 @@ export const Inport = {
       strokeWidth: 2,
       rx: 13,
       ry: 13,
-      filter: {
-        name: 'dropShadow',
-        args: {
-          dx: 2.5,
-          dy: 2.5,
-          blur: 1.25,
-          color: 'black',
-          opacity: 0.55,
-        },
-      },
+      filter: DROP_SHADOW_FILTER,
     },
     label: {
       refX: '50%',
@@ -402,16 +403,7 @@ export const Outport = {
       strokeWidth: 2,
       rx: 13,
       ry: 13,
-      filter: {
-        name: 'dropShadow',
-        args: {
-          dx: 2.5,
-          dy: 2.5,
-          blur: 1.25,
-          color: 'black',
-          opacity: 0.55,
-        },
-      },
+      filter: DROP_SHADOW_FILTER,
     },
     label: {
       refX: '50%',

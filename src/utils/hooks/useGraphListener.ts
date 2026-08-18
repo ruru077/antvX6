@@ -407,17 +407,32 @@ function registerEdgeToolListeners(graph: Graph) {
 
 // ── 拖放模块到 Edge：预览并拆分连接 ────────────────────────────────────────
 function registerEdgeInsertionListeners(graph: Graph) {
+  let insertionBatchNodeId: string | null = null
+
   function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    if (!insertionBatchNodeId && canInsertNodeOnEdge(graph, node)) {
+      insertionBatchNodeId = node.id
+      graph.startBatch('insert-node-on-edge')
+    }
     updateEdgeInsertionPreview(graph, node)
   }
 
-  function nodeMovedHandler({ node }: EventArgs['node:moved']) {
-    if (!commitEdgeInsertion(graph, node)) void routeAllEdges(graph)
+  async function nodeMovedHandler({ node }: EventArgs['node:moved']) {
+    try {
+      const committed = await commitEdgeInsertion(graph, node)
+      if (!committed) await routeAllEdges(graph)
+    } finally {
+      if (insertionBatchNodeId === node.id) {
+        insertionBatchNodeId = null
+        graph.stopBatch('insert-node-on-edge')
+      }
+    }
   }
 
-  function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
+  async function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
     if (!options.stencil) return
-    if (!commitEdgeInsertion(graph, node)) void routeAllEdges(graph)
+    const committed = await commitEdgeInsertion(graph, node)
+    if (!committed) await routeAllEdges(graph)
   }
 
   const unregister = registerListeners(graph, [
@@ -428,6 +443,10 @@ function registerEdgeInsertionListeners(graph: Graph) {
   return () => {
     unregister()
     clearEdgeInsertionPreview(graph)
+    if (insertionBatchNodeId) {
+      insertionBatchNodeId = null
+      graph.stopBatch('insert-node-on-edge')
+    }
   }
 }
 
@@ -563,6 +582,28 @@ function registerNodeEditListeners(graph: Graph) {
 
 // ── 历史 ──────────────────────────────────────────────────────────────────
 function registerHistoryListeners(graph: Graph) {
+  function historyChangeHandler({
+    cmds,
+    options,
+  }: EventArgs['history:change']) {
+    if (!cmds?.length) return
+
+    console.log('[undo] history:change', {
+      commands: cmds.map((cmd) => ({
+        event: cmd.event,
+        id: cmd.data.id,
+        key: 'key' in cmd.data ? cmd.data.key : undefined,
+        batch: cmd.batch,
+      })),
+      options,
+      undoStackSize: graph.getUndoStackSize(),
+    })
+
+    const { syncGraph, recomputeDirty } = useSubGraphStore.getState()
+    syncGraph(graph.toJSON())
+    recomputeDirty()
+  }
+
   function historyUndoHandler({ cmds }: EventArgs['history:undo']) {
     const cellsById = new Map<string, Cell>()
     cmds.forEach((cmd) => {
@@ -575,7 +616,10 @@ function registerHistoryListeners(graph: Graph) {
 
     if (undoCells.length > 0) graph.resetSelection(undoCells)
   }
-  return registerListeners(graph, [['history:undo', historyUndoHandler]])
+  return registerListeners(graph, [
+    ['history:change', historyChangeHandler],
+    ['history:undo', historyUndoHandler],
+  ])
 }
 
 // ── Scroller 区域同步 ──────────────────────────────────────────────────────
