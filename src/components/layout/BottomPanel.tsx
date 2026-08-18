@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/shallow'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
+import { HierarchyPanel } from './HierarchyPanel'
 import { SearchPanel } from './SearchPanel'
 import type { BottomPanelId } from '@/store/bottomPanelStore'
 import type { ReactNode } from 'react'
@@ -12,6 +13,7 @@ const PANEL_REGISTRY: Record<
   { label: string; content: ReactNode }
 > = {
   search: { label: '搜索', content: <SearchPanel /> },
+  hierarchy: { label: '系统层级', content: <HierarchyPanel /> },
 }
 
 function BottomPanel() {
@@ -43,7 +45,7 @@ function BottomPanel() {
             <TabsTrigger
               key={panelId}
               value={panelId}
-              className="h-full flex-none rounded-none px-2 text-xs uppercase after:bottom-0"
+              className="h-full flex-none rounded-none px-2 text-xs uppercase"
             >
               {PANEL_REGISTRY[panelId].label}
             </TabsTrigger>

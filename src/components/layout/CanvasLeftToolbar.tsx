@@ -1,9 +1,10 @@
 import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { BotIcon, CircleHelpIcon } from 'lucide-react'
+import { BotIcon, CircleHelpIcon, ListTreeIcon } from 'lucide-react'
 import CanvasLeftToolbarHiddenSvg from '@/assets/svg/canvas-left-toolbar-hidden.svg?react'
 import CanvasLeftToolbarVisibleSvg from '@/assets/svg/canvas-left-toolbar-visible.svg?react'
 import { useAgentPanelStore } from '@/store/agentPanelStore'
+import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import '@styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
@@ -21,6 +22,9 @@ function CanvasLeftToolbar({
 }: CanvasLeftToolbarProps) {
   const agentPanelVisible = useAgentPanelStore((state) => state.visible)
   const toggleAgentPanel = useAgentPanelStore((state) => state.toggle)
+  const hierarchyPanelOpen = useBottomPanelStore(
+    (state) => state.visible && state.activeTab === 'hierarchy',
+  )
 
   return (
     <div className="canvas-left-toolbar">
@@ -85,6 +89,20 @@ function CanvasLeftToolbar({
           }
         >
           <CircleHelpIcon />
+        </button>
+      </Tooltip>
+
+      <Tooltip title="系统层级预览" mouseEnterDelay={0.2} placement="right">
+        <button
+          type="button"
+          data-active={hierarchyPanelOpen}
+          className="canvas-left-toolbar__btn canvas-left-toolbar__btn--bottom"
+          aria-label="系统层级预览"
+          onClick={() =>
+            useBottomPanelStore.getState().togglePanel('hierarchy')
+          }
+        >
+          <ListTreeIcon />
         </button>
       </Tooltip>
     </div>
