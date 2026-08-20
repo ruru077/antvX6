@@ -25,6 +25,9 @@ const AVOID_CONN_DIR_RIGHT = 8
 const AVOID_CONN_DIR_ALL = 15
 const INSERT_PREVIEW = 'edgeInsertionPreview'
 const INSERT_PREVIEW_TERMINALS = 'edgeInsertionPreviewTerminals'
+function isRoutingNode(node) {
+  return node.getPorts().length > 0
+}
 async function routeAllEdges(graph) {
   pendingRouteGraph = graph
   if (activeRoutePromise) return activeRoutePromise
@@ -130,7 +133,7 @@ function getTerminalInfo(graph, edge, terminal) {
       direction: getBranchDirection(graph, cell, edge, terminal, point),
     }
   }
-  if (!cell.isNode() || !portId) return null
+  if (!cell.isNode() || !isRoutingNode(cell) || !portId) return null
   const point = getPortPoint(cell, portId)
   if (!point) return null
   return {
@@ -152,29 +155,32 @@ async function routeWithAvoid(graph, routableEdges) {
     configureAvoidRouter(avoid, router)
     const shapes = new Map()
     const pins = new Map()
-    graph.getNodes().forEach((node) => {
-      const shapeRef = createAvoidShape(avoid, router, node)
-      shapes.set(node.id, shapeRef)
-      node.getPorts().forEach((port, index) => {
-        if (!port.id) return
-        const point = getPortPoint(node, port.id)
-        if (!point) return
-        const pinClass = index + 2
-        const proportion = getPortProportion(node, point)
-        const direction = getPortDirection(node, port.id, point)
-        const pin = new avoid.ShapeConnectionPin(
-          shapeRef,
-          pinClass,
-          proportion.x,
-          proportion.y,
-          true,
-          0,
-          toAvoidDirection(direction),
-        )
-        pin.setExclusive(false)
-        pins.set(`${node.id}:${port.id}`, pinClass)
+    graph
+      .getNodes()
+      .filter(isRoutingNode)
+      .forEach((node) => {
+        const shapeRef = createAvoidShape(avoid, router, node)
+        shapes.set(node.id, shapeRef)
+        node.getPorts().forEach((port, index) => {
+          if (!port.id) return
+          const point = getPortPoint(node, port.id)
+          if (!point) return
+          const pinClass = index + 2
+          const proportion = getPortProportion(node, point)
+          const direction = getPortDirection(node, port.id, point)
+          const pin = new avoid.ShapeConnectionPin(
+            shapeRef,
+            pinClass,
+            proportion.x,
+            proportion.y,
+            true,
+            0,
+            toAvoidDirection(direction),
+          )
+          pin.setExclusive(false)
+          pins.set(`${node.id}:${port.id}`, pinClass)
+        })
       })
-    })
     const virtualPinClasses = new Map()
     routableEdges.forEach(({ source, target }) => {
       for (const terminal of [source, target]) {
@@ -412,6 +418,8 @@ function applyRoutes(routes) {
   })
 }
 function fallbackEdgeToManhattan(edge, sourceDirection, targetDirection) {
+  sourceDirection ??= getAttachedPortDirection(edge, 'source')
+  targetDirection ??= getAttachedPortDirection(edge, 'target')
   const args = {
     step: GRAPH_GRID,
   }
@@ -421,6 +429,15 @@ function fallbackEdgeToManhattan(edge, sourceDirection, targetDirection) {
   edge.setRouter('manhattan', args, { ui: true, ignore: true })
   edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
   setJumpoverConnector(edge)
+}
+function getAttachedPortDirection(edge, terminal) {
+  const cell =
+    terminal === 'source' ? edge.getSourceCell() : edge.getTargetCell()
+  const portId =
+    terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
+  if (!cell?.isNode() || !portId) return null
+  const point = getPortPoint(cell, portId)
+  return point ? getPortDirection(cell, portId, point) : null
 }
 function setJumpoverConnector(edge) {
   edge.setConnector(
@@ -644,4 +661,9 @@ function isCompleteNodeEdge(edge) {
     !!edge.getTargetPortId()
   )
 }
-export { fallbackEdgeToManhattan, isCompleteNodeEdge, routeAllEdges }
+export {
+  fallbackEdgeToManhattan,
+  isCompleteNodeEdge,
+  isRoutingNode,
+  routeAllEdges,
+}
