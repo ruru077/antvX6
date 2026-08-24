@@ -19,6 +19,7 @@ const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 export const SUBSYSTEM_BACKGROUND_TOP = '#ffffff'
 export const SUBSYSTEM_BACKGROUND_BOTTOM = '#dadada'
 export const MASK_SELECTOR = 'mask'
+export const OUTLINE_COLOR = 'rgb(102, 194, 255)'
 export const DROP_SHADOW_FILTER = {
   name: 'dropShadow',
   args: {
@@ -382,7 +383,7 @@ export const Inport = {
       No: 'No.',
     },
     paramValues: {
-      No: 1,
+      No: '1',
     },
     level: 10,
   },
@@ -428,7 +429,7 @@ export const Outport = {
       No: 'No.',
     },
     paramValues: {
-      No: 1,
+      No: '1',
     },
     level: 10,
   },
