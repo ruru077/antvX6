@@ -1,6 +1,7 @@
 import { Keyboard, Scroller, Selection } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { GRAPH_GRID } from '@/assets/constant'
+import { removeCellsWithSubGraphHistory } from '@/services/cell-removal-service'
 import {
   copySelection,
   cutSelection,
@@ -234,7 +235,7 @@ function registerKeyboard(graph: Graph) {
       () => {
         const cells = graph.getSelectedCells()
         if (!cells.length) return
-        graph.removeCells(cells)
+        removeCellsWithSubGraphHistory(graph, cells)
         graph.resetSelection([])
       },
     ],

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 export type SiteLocale = 'zh' | 'en'
 
 type SiteLanguageContextValue = {

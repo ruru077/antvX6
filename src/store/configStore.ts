@@ -4,6 +4,7 @@ import { persist, subscribeWithSelector } from 'zustand/middleware'
 // type ----------------------------------------------------
 type Theme = 'light' | 'dark' | 'system'
 type Locale = 'zh-CN' | 'en-US'
+type StencilArrangeMode = 'default' | 'view-priority' | 'module-priority'
 
 interface ConfigValues {
   // 外观
@@ -14,8 +15,13 @@ interface ConfigValues {
   locale: Locale
   timezone: string
   dateFormat: string
+  // 实验功能
+  metaContextMenuEnabled: boolean
+  betaGroupEnabled: boolean
   // Stencil
   stencilDefaultExpand: boolean
+  stencilPreviewEnabled: boolean
+  stencilArrangeMode: StencilArrangeMode
   // 过滤/隐藏的分组列表（空 = 全部显示）
   hiddenStencilGroups: string[]
 }
@@ -27,7 +33,11 @@ interface ConfigStore extends ConfigValues {
   setLocale: (locale: Locale) => void
   setTimezone: (tz: string) => void
   setDateFormat: (fmt: string) => void
+  setMetaContextMenuEnabled: (enabled: boolean) => void
+  setBetaGroupEnabled: (enabled: boolean) => void
   setStencilDefaultExpand: (enabled: boolean) => void
+  setStencilPreviewEnabled: (enabled: boolean) => void
+  setStencilArrangeMode: (mode: StencilArrangeMode) => void
   setHiddenStencilGroups: (groups: string[]) => void
 }
 
@@ -39,7 +49,11 @@ const DEFAULT_VALUES: ConfigValues = {
   locale: 'zh-CN',
   timezone: 'Asia/Shanghai',
   dateFormat: 'YYYY-MM-DD',
+  metaContextMenuEnabled: false,
+  betaGroupEnabled: false,
   stencilDefaultExpand: false,
+  stencilPreviewEnabled: true,
+  stencilArrangeMode: 'default',
   hiddenStencilGroups: [],
 }
 
@@ -69,8 +83,15 @@ const useConfigStore = create<ConfigStore>()(
         setLocale: (locale) => set({ locale }),
         setTimezone: (timezone) => set({ timezone }),
         setDateFormat: (dateFormat) => set({ dateFormat }),
+        setMetaContextMenuEnabled: (metaContextMenuEnabled) =>
+          set({ metaContextMenuEnabled }),
+        setBetaGroupEnabled: (betaGroupEnabled) => set({ betaGroupEnabled }),
         setStencilDefaultExpand: (stencilDefaultExpand) =>
           set({ stencilDefaultExpand }),
+        setStencilPreviewEnabled: (stencilPreviewEnabled) =>
+          set({ stencilPreviewEnabled }),
+        setStencilArrangeMode: (stencilArrangeMode) =>
+          set({ stencilArrangeMode }),
         setHiddenStencilGroups: (hiddenStencilGroups) =>
           set({ hiddenStencilGroups }),
       }),
@@ -89,4 +110,4 @@ useConfigStore.subscribe(
 )
 
 export { useConfigStore }
-export type { ConfigValues, ConfigStore, Locale, Theme }
+export type { ConfigValues, ConfigStore, Locale, StencilArrangeMode, Theme }

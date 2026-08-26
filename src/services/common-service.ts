@@ -2,7 +2,7 @@ import { EDGE_WRAPPER_WIDTH } from '@/assets/constant'
 import { electricalPortGroups, signalPortGroups } from '@/assets/x6Model'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import type { Edge, Node } from '@antv/x6'
+import type { CellView, Edge, Node } from '@antv/x6'
 import type { TextMatchOptions } from '~/types/common/text'
 
 type UnconnectedPortInfo = {
@@ -60,6 +60,10 @@ function createCommonService() {
     return options.caseSensitive
       ? text.includes(keyword)
       : text.toLowerCase().includes(keyword.toLowerCase())
+  }
+
+  function isDblClickOnLabel(view: CellView, target: Element): boolean {
+    return !!view._getSelectors()['label']?.contains(target)
   }
 
   /**
@@ -299,6 +303,7 @@ function createCommonService() {
   return {
     resize,
     isTextMatched,
+    isDblClickOnLabel,
     getUnconnectedPorts,
     isMouseOutCell,
     getNodeAtPoint,

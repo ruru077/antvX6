@@ -1,6 +1,7 @@
 import { PASTE_OFFSET } from '@/assets/constant'
+import { removeCellsWithSubGraphHistory } from '@/services/cell-removal-service'
 import { pasteTarget, setPasteTarget } from '@/store/flags'
-import type { Graph } from '@antv/x6'
+import type { Cell, Graph } from '@antv/x6'
 
 // 剪贴板行为只依赖显式传入的 Graph，供快捷键和右键菜单共同复用。
 
@@ -13,9 +14,19 @@ function copySelection(graph: Graph) {
 /** 剪切当前 Selection，并清空画布选中状态。 */
 function cutSelection(graph: Graph) {
   const cells = graph.getSelectedCells()
+  cutCells(graph, cells)
+}
+
+function cutCells(graph: Graph, cells: Cell[]) {
   if (!cells.length) return
 
-  graph.cut(cells)
+  graph.copy(cells)
+  graph.startBatch('cut')
+  try {
+    removeCellsWithSubGraphHistory(graph, cells)
+  } finally {
+    graph.stopBatch('cut')
+  }
   graph.resetSelection([])
 }
 
@@ -46,4 +57,4 @@ function pasteAndSelect(graph: Graph) {
   return true
 }
 
-export { copySelection, cutSelection, pasteAndSelect }
+export { copySelection, cutCells, cutSelection, pasteAndSelect }

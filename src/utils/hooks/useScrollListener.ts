@@ -1,3 +1,4 @@
+import { useGraphStore } from '@/store/graphStore'
 import type { RefObject } from 'react'
 
 /**
@@ -5,8 +6,10 @@ import type { RefObject } from 'react'
  * @param containerRef - paper 容器的 ref
  */
 function useScrollListener(containerRef: RefObject<HTMLElement | null>) {
+  const graph = useGraphStore((state) => state.graph)
+
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!graph || !containerRef.current) return
     const paperContainer =
       containerRef.current.closest<HTMLElement>('.paper-container')
     const scrollerEl =
@@ -107,7 +110,7 @@ function useScrollListener(containerRef: RefObject<HTMLElement | null>) {
       activeResizeObserver.disconnect()
       scrollerEl.removeEventListener('scroll', onScroll)
     }
-  }, [containerRef])
+  }, [containerRef, graph])
 }
 
 export { useScrollListener }

@@ -1,8 +1,6 @@
-import { useContextMenu } from '@hooks/useContextMenu'
 import { useGraphListener } from '@hooks/useGraphListener'
 import { useScrollListener } from '@hooks/useScrollListener'
-import { ConfigProvider } from 'antd'
-import { useEffect, useRef } from 'react'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import {
   AgentPanel,
   DiagramCanvas,
@@ -10,14 +8,13 @@ import {
   ScopeWindow,
   StencilLayout,
 } from '@/components'
+import { bindAntdMessage } from '@/services/antd-message-service'
 import { useGraphStore } from '@/store/graphStore'
 import '@styles/BlockDiagram.scss'
 
 const SPLITTER_THEME = {
   token: {
     colorPrimary: '#1890ff',
-    fontFamily:
-      "'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif",
   },
   components: {
     Splitter: {
@@ -32,11 +29,12 @@ const SPLITTER_THEME = {
  * @description 图编辑入口
  * @returns
  */
-function BlockDiagram({ modelName }: { modelName?: string }) {
+function DiagramWorkspace() {
+  const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
 
+  bindAntdMessage(message)
   useGraphListener()
-  useContextMenu()
   useScrollListener(paperContainerRef)
 
   useEffect(() => {
@@ -47,19 +45,27 @@ function BlockDiagram({ modelName }: { modelName?: string }) {
   }, [])
 
   return (
+    <PanelSplitter
+      variant="workspace"
+      stencil={<StencilLayout />}
+      canvas={
+        <>
+          {/* 画布区域 */}
+          <DiagramCanvas paperContainerRef={paperContainerRef} />
+          <ScopeWindow />
+        </>
+      }
+      agent={<AgentPanel />}
+    />
+  )
+}
+
+function BlockDiagram({ modelName }: { modelName?: string }) {
+  return (
     <ConfigProvider theme={SPLITTER_THEME}>
-      <PanelSplitter
-        variant="workspace"
-        stencil={<StencilLayout />}
-        canvas={
-          <>
-            {/* 画布区域 */}
-            <DiagramCanvas paperContainerRef={paperContainerRef} />
-            <ScopeWindow />
-          </>
-        }
-        agent={<AgentPanel />}
-      />
+      <AntdApp component={false}>
+        <DiagramWorkspace />
+      </AntdApp>
     </ConfigProvider>
   )
 }

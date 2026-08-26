@@ -6,15 +6,25 @@ import {
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
-import { DROP_SHADOW_FILTER } from '@/assets/x6Model'
+import { DROP_SHADOW_FILTER, OUTLINE_COLOR } from '@/assets/x6Model'
 import { AddBlockCommand } from '@/components/AddBlockCommand'
 import {
   BlockParamWindow,
   SubsystemParamWindow,
 } from '@/components/NodeParamWindow'
 import { hasSubsystemMask } from '@/services/subsystem-service'
+import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
-import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
+import { useSubGraphStore } from '@/store/subGraphStore'
+import type { NodeParamWindowTarget } from '@/components/NodeParamWindow'
+import type {
+  Cell,
+  Edge,
+  EdgeView,
+  Graph,
+  Node,
+  NodeProperties,
+} from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
 
@@ -78,13 +88,26 @@ function createInteractiveService() {
 
   function addOutline(cell: Cell) {
     if (cell.isNode()) {
+      if (cell.getData()?.blockType === 'Annotation') {
+        cell.attr(
+          {
+            body: {
+              fill: OUTLINE_COLOR,
+              fillOpacity: 1,
+              filter: null,
+            },
+          },
+          { undo: false },
+        )
+        return
+      }
       cell.attr('body/filter', null, { undo: false })
       cell.attr(
         'body/filter',
         {
           name: 'outline',
           args: {
-            color: 'rgb(102,194,255)',
+            color: OUTLINE_COLOR,
             width: Math.min(getFilterWidth(4), 4),
             margin: 0,
           },
@@ -97,7 +120,7 @@ function createInteractiveService() {
         {
           name: 'outline',
           args: {
-            color: 'rgb(102,194,255)',
+            color: OUTLINE_COLOR,
             width: Math.min(getFilterWidth(3), 3),
             margin: 0,
           },
@@ -118,7 +141,18 @@ function createInteractiveService() {
    * @param cell 处理的 Cell
    */
   function removeOutline(cell: Cell) {
-    if (cell.isNode())
+    if (cell.isNode() && cell.getData()?.blockType === 'Annotation') {
+      cell.attr(
+        {
+          body: {
+            fill: '#ffffff',
+            fillOpacity: 0,
+            filter: null,
+          },
+        },
+        { undo: false },
+      )
+    } else if (cell.isNode())
       cell.attr('body/filter', DROP_SHADOW_FILTER, { undo: false })
     else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
   }
@@ -228,6 +262,14 @@ function createInteractiveService() {
    * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
   function openNodeParamWindow(node: Node) {
+    const windowId = `node-param:${node.id}`
+    if (focusOrRestoreFloatingWindow(windowId)) return
+    const target: NodeParamWindowTarget = {
+      graphId: useSubGraphStore.getState().currentGraphId,
+      nodeId: node.id,
+      snapshot: node.toJSON() as NodeProperties,
+    }
+
     const ParamWindow = hasSubsystemMask(node)
       ? SubsystemParamWindow
       : BlockParamWindow
@@ -243,7 +285,9 @@ function createInteractiveService() {
       })
     }
 
-    root.render(<ParamWindow node={node} onDestroy={destroy} />)
+    root.render(
+      <ParamWindow windowId={windowId} target={target} onDestroy={destroy} />,
+    )
   }
 
   /**
