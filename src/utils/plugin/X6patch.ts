@@ -10,7 +10,7 @@ import {
 import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { routeAllEdges } from '@/services/routing-service'
+import { isRoutingNode, routeAllEdges } from '@/services/routing-service'
 import type { Cell, Edge, EdgeView, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
 import type { Selection } from '@antv/x6/lib/plugin/selection'
@@ -67,15 +67,18 @@ if (!selectionProto._preserveRubberbandPatched) {
   selectionProto.updateContainer = function (this: any) {
     const result = originalUpdateContainer.call(this)
     const localRect = this[RUBBERBAND_SELECTION_RECT_KEY]
-    if (localRect) {
-      const graphRect = this.graph.localToGraph(localRect)
-      Dom.css(this.selectionContainer, {
-        left: graphRect.x,
-        top: graphRect.y,
-        width: graphRect.width,
-        height: graphRect.height,
-      })
+    if (!localRect) {
+      Dom.css(this.selectionContainer, { display: 'none' })
+      return result
     }
+    const graphRect = this.graph.localToGraph(localRect)
+    Dom.css(this.selectionContainer, {
+      display: 'block',
+      left: graphRect.x,
+      top: graphRect.y,
+      width: graphRect.width,
+      height: graphRect.height,
+    })
     return result
   }
 
@@ -292,8 +295,8 @@ if (!selectionProto._routeSingleNodeSelectionPatched) {
   ) {
     const result = originalApplyDraggingPreview.call(this, offset)
     const selectedCells = this.collection.toArray()
-    const selectedNodeCount = selectedCells.filter((cell) =>
-      cell.isNode(),
+    const selectedNodeCount = selectedCells.filter(
+      (cell) => cell.isNode() && isRoutingNode(cell),
     ).length
 
     if (selectedCells.length > 1 && selectedNodeCount === 1) {
