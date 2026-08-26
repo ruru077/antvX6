@@ -107,7 +107,7 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
     },
     {
       key: 'stencilPreviewEnabled',
-      label: '默认使用模块预览',
+      label: '启用模块预览',
       desc: '开启后悬浮库函数模块时显示模块预览与参数。',
       type: 'toggle',
     },

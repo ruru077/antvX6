@@ -52,7 +52,7 @@ const DEFAULT_VALUES: ConfigValues = {
   metaContextMenuEnabled: false,
   betaGroupEnabled: false,
   stencilDefaultExpand: false,
-  stencilPreviewEnabled: true,
+  stencilPreviewEnabled: false,
   stencilArrangeMode: 'default',
   hiddenStencilGroups: [],
 }
