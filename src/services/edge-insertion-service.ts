@@ -1,9 +1,10 @@
-import { EDGE_TARGET_CP_OFFSET, RED, SNAP_RADIUS } from '@/assets/constant'
+import { RED, SNAP_RADIUS } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { isConnectionValid } from '@/services/connection-service'
 import {
   fallbackEdgeToManhattan,
+  getPortRouteGeometry,
   isCompleteNodeEdge,
   routeAllEdges,
 } from '@/services/routing-service'
@@ -105,63 +106,15 @@ function isInsertTargetValid(
   )
 }
 
-function getPortPoint(node: Node, portId: string) {
-  const port = node.getPort(portId)
-  if (!port?.group) throw new Error(`Port group is missing: ${portId}`)
-  const layout = node.getPortsPosition(port.group)[portId]
-  const position = node.getPosition()
-  return {
-    x: position.x + layout.position.x,
-    y: position.y + layout.position.y,
-  }
-}
-
-function getPortDirection(node: Node, portId: string) {
-  const port = node.getPort(portId)
-  const position = port?.group
-    ? node.ports.groups?.[port.group]?.position
-    : null
-  const name =
-    typeof position === 'string'
-      ? position
-      : position && 'name' in position
-        ? position.name
-        : null
-  if (
-    name === 'left' ||
-    name === 'right' ||
-    name === 'top' ||
-    name === 'bottom'
-  ) {
-    return name
-  }
-
-  const point = getPortPoint(node, portId)
-  const bbox = node.getBBox()
-  const distances: Array<{
-    direction: 'left' | 'right' | 'top' | 'bottom'
-    distance: number
-  }> = [
-    { direction: 'left', distance: Math.abs(point.x - bbox.x) },
-    {
-      direction: 'right',
-      distance: Math.abs(point.x - (bbox.x + bbox.width)),
-    },
-    { direction: 'top', distance: Math.abs(point.y - bbox.y) },
-    {
-      direction: 'bottom',
-      distance: Math.abs(point.y - (bbox.y + bbox.height)),
-    },
-  ]
-  return distances.sort((a, b) => a.distance - b.distance)[0].direction
-}
-
 function getPreviewTerminal(node: Node, portId: string) {
-  const bbox = node.getBBox()
+  const geometry = getPortRouteGeometry(node, portId)
+  if (!geometry) throw new Error(`Port geometry is missing: ${portId}`)
+  const bbox = node.getBBox().bbox(node.getAngle())
   return {
     nodeId: node.id,
     portId,
-    direction: getPortDirection(node, portId),
+    normal: geometry.normal,
+    direction: geometry.direction,
     bbox: {
       x: bbox.x,
       y: bbox.y,
@@ -171,19 +124,10 @@ function getPreviewTerminal(node: Node, portId: string) {
   }
 }
 
-function getPreviewTargetPoint(node: Node, portId: string) {
-  const point = getPortPoint(node, portId)
-  const distance = -EDGE_TARGET_CP_OFFSET
-  switch (getPortDirection(node, portId)) {
-    case 'left':
-      return { x: point.x - distance, y: point.y }
-    case 'right':
-      return { x: point.x + distance, y: point.y }
-    case 'top':
-      return { x: point.x, y: point.y - distance }
-    case 'bottom':
-      return { x: point.x, y: point.y + distance }
-  }
+function getPreviewPortPoint(node: Node, portId: string) {
+  const geometry = getPortRouteGeometry(node, portId)
+  if (!geometry) throw new Error(`Port geometry is missing: ${portId}`)
+  return geometry.point
 }
 
 function snapNode(node: Node, point: Point) {
@@ -218,10 +162,10 @@ function createPreview(
   const nodeInGraph = graph.getCellById(node.id) === node
   const inputTerminal = nodeInGraph
     ? { cell: node.id, port: inputPortId }
-    : getPreviewTargetPoint(node, inputPortId)
+    : getPreviewPortPoint(node, inputPortId)
   const outputTerminal = nodeInGraph
     ? { cell: node.id, port: outputPortId }
-    : getPortPoint(node, outputPortId)
+    : getPreviewPortPoint(node, outputPortId)
 
   targetEdge.attr('line/visibility', 'hidden', {
     ignore: true,
@@ -325,7 +269,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
     snapNode(node, candidate.closest)
     if (graph.getCellById(node.id) !== node) {
       current.previewEdges[0].setTarget(
-        getPreviewTargetPoint(node, ports.inputPortId),
+        getPreviewPortPoint(node, ports.inputPortId),
         {
           ignore: true,
           undo: false,
@@ -341,7 +285,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
         { ignore: true, undo: false },
       )
       current.previewEdges[1].setSource(
-        getPortPoint(node, ports.outputPortId),
+        getPreviewPortPoint(node, ports.outputPortId),
         {
           ignore: true,
           undo: false,
