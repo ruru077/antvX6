@@ -1,13 +1,7 @@
-import { Stencil } from '@antv/x6'
+import { Graph, Stencil } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
-import {
-  MIN_RESIZABLE_WIDTH,
-  STENCIL_GROUP_PADDING,
-  STENCIL_NODE_COLUMN_GAP,
-  STENCIL_NODE_ROW_GAP,
-  STENCIL_SIDE_PADDING,
-} from '@/assets/constant'
+import { MIN_RESIZABLE_WIDTH, STENCIL_GROUP_PADDING } from '@/assets/constant'
 import { createSubsystemBackgroundFill } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import {
@@ -16,11 +10,16 @@ import {
 } from '@/services/edge-insertion-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { createPermissionService } from '@/services/permission-service'
+import { addSearchHistory } from '@/services/search-history-service'
+import {
+  createStencilLayoutService,
+  type StencilContentArea,
+} from '@/services/stencil-layout-service'
 import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
-import type { Graph, Model, Node } from '@antv/x6'
+import type { Node } from '@antv/x6'
 import type { TextMatchOptions } from '~/types/common/text'
-import type { Block } from '~/types/vo/block'
+import type { Block, BlockData } from '~/types/vo/block'
 
 // 模块常量 ----------------------------------------------------
 const permissionService = createPermissionService()
@@ -46,6 +45,123 @@ class ManagedStencil extends Stencil {
   /** 触发关键词过滤 */
   public setKeyword(keyword: string): void {
     this.filter(keyword, this.options.search)
+  }
+}
+
+function createStencilTooltip(stencil: ManagedStencil, groupNames: string[]) {
+  const tooltip = document.createElement('aside')
+  tooltip.className = 'stencil-node-preview'
+  tooltip.hidden = true
+
+  const previewCanvas = document.createElement('div')
+  previewCanvas.className = 'stencil-node-preview-canvas'
+  const title = document.createElement('h2')
+  const size = document.createElement('p')
+  const params = document.createElement('table')
+  params.className = 'stencil-node-preview-params'
+  const paramsHead = params.createTHead()
+  const headerRow = paramsHead.insertRow()
+  const paramHeader = document.createElement('th')
+  const valueHeader = document.createElement('th')
+  paramHeader.textContent = '参数'
+  valueHeader.textContent = '默认值'
+  headerRow.append(paramHeader, valueHeader)
+  const paramsBody = params.createTBody()
+  tooltip.append(previewCanvas, title, size, params)
+  document.body.appendChild(tooltip)
+
+  const previewGraph = new Graph({
+    container: previewCanvas,
+    width: 260,
+    height: 160,
+    interacting: false,
+    panning: false,
+    mousewheel: false,
+    background: { color: 'transparent' },
+  })
+
+  function hide() {
+    tooltip.hidden = true
+  }
+
+  function show(node: Node, anchor: Element) {
+    if (!useConfigStore.getState().stencilPreviewEnabled) return
+
+    const data = node.getData<BlockData>()
+    const previewNode = node.clone()
+    const { width, height } = previewNode.getSize()
+    previewNode.attr('label/text', '')
+    previewNode.attr('label/textWrap', null)
+    previewNode.position(0, 0)
+    previewGraph.resetCells([previewNode])
+    previewGraph.zoomToFit({
+      padding: 0,
+      minScale: 1.5,
+      maxScale: 2,
+      preserveAspectRatio: true,
+    })
+
+    title.textContent =
+      node.attr<string>('label/text')?.trim() || data?.title || data?.blockType
+    size.textContent = `Size: ${width} x ${height}`
+    paramsBody.replaceChildren()
+
+    const paramValues = data?.paramValues ?? {}
+    const paramLabels = data?.paramLables ?? {}
+    const entries = Object.entries(paramValues)
+    if (entries.length) {
+      for (const [key, value] of entries) {
+        const row = paramsBody.insertRow()
+        const paramCell = row.insertCell()
+        const valueCell = row.insertCell()
+        paramCell.textContent = paramLabels[key] || key
+        valueCell.textContent = String(value)
+      }
+    } else {
+      const row = paramsBody.insertRow()
+      const cell = row.insertCell()
+      cell.colSpan = 2
+      cell.textContent = '暂无参数'
+    }
+
+    tooltip.hidden = false
+    tooltip.style.visibility = 'hidden'
+    const anchorRect = anchor.getBoundingClientRect()
+    const stencilRect = stencil.container.getBoundingClientRect()
+    const tooltipRect = tooltip.getBoundingClientRect()
+    tooltip.style.left = `${stencilRect.right + 10}px`
+    tooltip.style.top = `${Math.min(
+      Math.max(
+        8,
+        anchorRect.top + anchorRect.height / 2 - tooltipRect.height / 2,
+      ),
+      window.innerHeight - tooltipRect.height - 8,
+    )}px`
+    tooltip.style.visibility = 'visible'
+  }
+
+  const graphs = groupNames.map((name) => stencil.getManagedGroupGraph(name))
+  for (const graph of graphs) {
+    if (!graph) continue
+    graph.on('node:mouseenter', ({ node, view }) => show(node, view.container))
+    graph.on('node:mouseleave', hide)
+    graph.on('node:mousedown', hide)
+  }
+  window.addEventListener('resize', hide)
+  stencil.container.addEventListener('scroll', hide, true)
+  const unsubPreview = useConfigStore.subscribe(
+    (state) => state.stencilPreviewEnabled,
+    (enabled) => {
+      if (!enabled) hide()
+    },
+  )
+
+  return () => {
+    unsubPreview()
+    window.removeEventListener('resize', hide)
+    stencil.container.removeEventListener('scroll', hide, true)
+    previewGraph.dispose()
+    tooltip.remove()
   }
 }
 
@@ -100,7 +216,7 @@ const SUBSYSTEM_TEST_BLOCK = {
         },
         position: { name: 'left' },
         label: {
-          markup: { tagName: 'text', selector: 'text', textContent: 'In1' },
+          markup: { tagName: 'text', selector: 'text', textContent: 'In' },
           position: { name: 'right', args: { x: 2 } },
         },
       },
@@ -124,7 +240,7 @@ const SUBSYSTEM_TEST_BLOCK = {
         },
         position: { name: 'right' },
         label: {
-          markup: { tagName: 'text', selector: 'text', textContent: 'Out1' },
+          markup: { tagName: 'text', selector: 'text', textContent: 'Out' },
           position: { name: 'left', args: { x: -2 } },
         },
       },
@@ -134,10 +250,349 @@ const SUBSYSTEM_TEST_BLOCK = {
     title: 'Subsystem',
     srcBlock: 'simulink/Ports & Subsystems/Subsystem',
     blockType: 'Subsystem',
-    portTexts: ['In1', 'Out1'],
+    portTexts: ['In', 'Out'],
     description: 'Subsystem',
     paramLables: [],
     paramValues: [],
+    level: 10,
+  },
+} as unknown as Block
+
+// ── 测试：Add block 数据 ─────────────────────────────────────────────────────
+const ADD_TEST_BLOCK = {
+  shape: 'rect',
+  width: 60,
+  height: 60,
+  markup: [
+    { tagName: 'rect', selector: 'body' },
+    { tagName: 'text', selector: 'label' },
+  ],
+  attrs: {
+    body: {
+      fill: '#FFFFFF',
+      stroke: '#000000',
+      refWidth: '100%',
+      refHeight: '100%',
+      strokeWidth: 2,
+    },
+    label: {
+      fill: '#000000',
+      refX: '50%',
+      refY: '120%',
+      fontSize: 14,
+      textAnchor: 'middle',
+      textVerticalAnchor: 'middle',
+      text: 'Add',
+    },
+  },
+  ports: {
+    items: [
+      {
+        id: 'i1',
+        group: 'in',
+        attrs: { portLabel: { text: '+' } },
+      },
+      {
+        id: 'i2',
+        group: 'in',
+        attrs: { portLabel: { text: '+' } },
+      },
+      { id: 'o1', group: 'out' },
+    ],
+    groups: {
+      in: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z' },
+          },
+        ],
+        z: 1,
+        attrs: {
+          text: {},
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+          portLabel: {
+            fill: '#000000',
+            fontSize: 18,
+            fontWeight: 'bold',
+            text: '+',
+          },
+        },
+        position: { name: 'left' },
+        label: {
+          markup: [{ tagName: 'text', selector: 'portLabel' }],
+          position: { name: 'right', args: { x: 2, y: 0 } },
+        },
+      },
+      out: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z' },
+          },
+        ],
+        z: -1,
+        attrs: {
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+        },
+        position: { name: 'right' },
+        label: { position: { name: 'right' } },
+      },
+    },
+  },
+  data: {
+    title: 'Add',
+    srcBlock: 'simulink/Math Operations/Add',
+    blockType: 'Add',
+    portTexts: ['+', '+'],
+    description: 'Add or substract inputs.',
+    paramLables: { Inputs: 'List of signs' },
+    paramValues: { Inputs: '++' },
+    level: 10,
+  },
+} as unknown as Block
+
+// ── 测试：Product block 数据 ─────────────────────────────────────────────────
+const PRODUCT_TEST_BLOCK = {
+  shape: 'rect',
+  width: 60,
+  height: 60,
+  markup: [
+    { tagName: 'rect', selector: 'body' },
+    { tagName: 'text', selector: 'label' },
+  ],
+  attrs: {
+    body: {
+      fill: '#FFFFFF',
+      stroke: '#000000',
+      refWidth: '100%',
+      refHeight: '100%',
+      strokeWidth: 2,
+    },
+    label: {
+      fill: '#000000',
+      refX: '50%',
+      refY: '120%',
+      fontSize: 14,
+      textAnchor: 'middle',
+      textVerticalAnchor: 'middle',
+      text: 'Product',
+    },
+  },
+  ports: {
+    items: [
+      {
+        id: 'i1',
+        group: 'in',
+        attrs: { portLabel: { text: '×' } },
+      },
+      {
+        id: 'i2',
+        group: 'in',
+        attrs: { portLabel: { text: '×' } },
+      },
+      { id: 'o1', group: 'out' },
+    ],
+    groups: {
+      in: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z' },
+          },
+        ],
+        z: 1,
+        attrs: {
+          text: {},
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+          portLabel: {
+            fill: '#000000',
+            fontSize: 18,
+            fontWeight: 'bold',
+            text: '×',
+          },
+        },
+        position: { name: 'left' },
+        label: {
+          markup: [{ tagName: 'text', selector: 'portLabel' }],
+          position: { name: 'right', args: { x: 2, y: 0 } },
+        },
+      },
+      out: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z' },
+          },
+        ],
+        z: -1,
+        attrs: {
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+        },
+        position: { name: 'right' },
+        label: { position: { name: 'right' } },
+      },
+    },
+  },
+  data: {
+    title: 'Product',
+    srcBlock: 'simulink/Math Operations/Product',
+    blockType: 'Product',
+    portTexts: ['×', '×'],
+    description: 'Multiply or divide inputs.',
+    paramLables: {
+      Inputs: 'List of signs',
+      Multiplication: 'Multiplication',
+    },
+    paramValues: {
+      Inputs: '**',
+      Multiplication: 'Element-wise(.*)',
+    },
+    paramOptions: {
+      Multiplication: ['Element-wise(.*)', 'Matrix(*)'],
+    },
+    level: 10,
+  },
+} as unknown as Block
+
+// ── 测试：Sum block 数据 ─────────────────────────────────────────────────────
+const SUM_TEST_BLOCK = {
+  shape: 'rect',
+  width: 60,
+  height: 60,
+  markup: [
+    { tagName: 'ellipse', selector: 'body' },
+    { tagName: 'text', selector: 'label' },
+  ],
+  attrs: {
+    body: {
+      fill: '#ffffff',
+      refCx: '50%',
+      refCy: '50%',
+      refRx: '50%',
+      refRy: '50%',
+      stroke: '#000000',
+      strokeWidth: 2,
+    },
+    label: {
+      fill: '#000000',
+      refX: '50%',
+      refY: '120%',
+      fontSize: 14,
+      textAnchor: 'middle',
+      textVerticalAnchor: 'middle',
+      text: 'Sum',
+    },
+  },
+  ports: {
+    items: [
+      {
+        id: 'i1',
+        group: 'in',
+        attrs: { portLabel: { text: '+' } },
+        label: { position: { args: { offset: -15 } } },
+      },
+      {
+        id: 'i2',
+        group: 'in',
+        attrs: { portLabel: { text: '-' } },
+        label: { position: { args: { offset: -15 } } },
+      },
+      { id: 'o1', group: 'out' },
+    ],
+    groups: {
+      in: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z' },
+          },
+        ],
+        z: 1,
+        attrs: {
+          text: {},
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+            transform: 'rotate(90)',
+          },
+          portLabel: {
+            fill: '#000000',
+            fontSize: 18,
+            fontWeight: 'bold',
+          },
+        },
+        position: {
+          name: 'ellipse',
+          args: { start: 225, step: -90, compensateRotate: true },
+        },
+        label: {
+          markup: [{ tagName: 'text', selector: 'portLabel' }],
+          position: { name: 'radial' },
+        },
+      },
+      out: {
+        markup: [
+          {
+            tagName: 'path',
+            selector: 'portBody',
+            attrs: { d: 'M 9 0 0 -5 0 -3 6 0 0 3 0 5 z' },
+          },
+        ],
+        z: -1,
+        attrs: {
+          portBody: {
+            magnet: true,
+            fill: '#000000',
+            stroke: '#000000',
+            strokeWidth: 10,
+            strokeOpacity: 0,
+          },
+        },
+        position: { name: 'right' },
+      },
+    },
+  },
+  data: {
+    title: 'Sum',
+    srcBlock: 'simulink/Math Operations/Sum',
+    blockType: 'Sum',
+    portTexts: ['+', '-'],
+    description: 'Add or substract inputs.',
+    paramLables: { Inputs: 'List of signs' },
+    paramValues: { Inputs: '+-' },
     level: 10,
   },
 } as unknown as Block
@@ -147,6 +602,8 @@ const TEST_GROUP_NAME = 'beta'
 
 // ── StencilService ───────────────────────────────────────────────────────────
 function createStencilService() {
+  const layoutService = createStencilLayoutService()
+
   /**
    * 模块级session 管理 components 内存
    * session 存在 ↔ stencil 已挂载；所有 per-session 状态和卸载统一处理
@@ -164,9 +621,12 @@ function createStencilService() {
     content: HTMLElement
     // 上一帧滚动条是否存在，变化时触发 resize
     lastHasVerticalScrollbar: boolean
+    // 各分组包含 Label 的视觉占位，供 fitToContent 计算完整高度
+    contentAreas: Map<string, StencilContentArea>
     dispose(): void
   } | null = null
   let currentKeyword = ''
+  let currentSearchValue = ''
   let stopEdgeInsertionPreview: (() => void) | null = null
   // 拖拽中间变量：暂存 label，拖拽时清空避免 foreignObject 裁剪，drop 时恢复
   let pendingLabelText = ''
@@ -250,66 +710,23 @@ function createStencilService() {
     }
   }
 
-  /**
-   * @description 删去边距和滚动条占位后剩余的宽度，作为 greedy layout 的可用宽度
-   * @param width 当前的 stencilWidth
-   * @returns reLayout 可用宽度
-   */
-  function getLayoutAreaWidth(content: HTMLElement, width: number): number {
-    const scrollbarWidth =
-      content.scrollHeight > content.clientHeight
-        ? Math.max(0, content.offsetWidth - content.clientWidth)
-        : 0
-    return Math.max(0, width - scrollbarWidth - 2 * STENCIL_SIDE_PADDING)
-  }
-  /**
-   * @description 贪心布局算法：从上到下逐行放置节点，当前行放不下时换行；每行节点水平居中分布
-   * @param model 当前 Lib 的所有节点
-   * @param areaWidth 可用宽度
-   */
-  function applyGreedyLayout(model: Model, areaWidth: number): void {
-    const rows: Node[][] = []
-    let currentRow: Node[] = []
-    let currentWidth = 0
+  function fitGroupsToLayout(): void {
+    if (!session) return
 
-    for (const node of model.getNodes()) {
-      const { width } = node.getSize()
-      const nextWidth = currentRow.length
-        ? currentWidth + STENCIL_NODE_ROW_GAP + width
-        : width
+    const { stencil, libraryWithBlock, contentAreas } = session
+    for (const libraryName of libraryWithBlock.keys()) {
+      const groupGraph = stencil.getManagedGroupGraph(libraryName)
+      const contentArea = contentAreas.get(libraryName)
+      if (!groupGraph || !contentArea) continue
 
-      if (nextWidth <= areaWidth) {
-        currentRow.push(node)
-        currentWidth = nextWidth
-        continue
-      }
-
-      if (currentRow.length) rows.push(currentRow)
-      currentRow = [node]
-      currentWidth = width
-
-      if (width > areaWidth) {
-        console.error('[联系管理员兼容]Exist node exceeds min row width:', node)
-      }
-    }
-
-    if (currentRow.length) rows.push(currentRow)
-
-    let y = STENCIL_NODE_ROW_GAP / 2
-    for (const row of rows) {
-      const sizes = row.map((node) => node.getSize())
-      const rowHeight = Math.max(...sizes.map((size) => size.height))
-      const nodesWidth = sizes.reduce((sum, size) => sum + size.width, 0)
-      const gap =
-        (areaWidth - nodesWidth) / (row.length > 1 ? row.length + 1 : 2)
-      let x = gap
-
-      row.forEach((node, index) => {
-        const { width, height } = sizes[index]
-        node.position(x, y + (rowHeight - height) / 2)
-        x += width + gap
+      groupGraph.fitToContent({
+        minWidth: session.stencilWidth,
+        maxWidth: session.stencilWidth,
+        gridWidth: 1,
+        gridHeight: 1,
+        padding: { bottom: stencil.options.stencilGraphPadding },
+        contentArea,
       })
-      y += rowHeight + STENCIL_NODE_COLUMN_GAP
     }
   }
 
@@ -317,7 +734,7 @@ function createStencilService() {
   async function create(container: HTMLElement): Promise<boolean> {
     const graph = useGraphStore.getState().graph
     if (!graph) return false
-    const { hiddenStencilGroups, stencilDefaultExpand } =
+    const { betaGroupEnabled, hiddenStencilGroups, stencilDefaultExpand } =
       useConfigStore.getState()
     const [blocks, libraries] = await Promise.all([
       fetchBlocks(),
@@ -336,23 +753,31 @@ function createStencilService() {
     )
 
     // ── 测试：push 测试组（独立分组，不干扰后端数据） ──
-    libraryWithBlock.set(TEST_GROUP_NAME, [SUBSYSTEM_TEST_BLOCK])
+    libraryWithBlock.set(TEST_GROUP_NAME, [
+      SUBSYSTEM_TEST_BLOCK,
+      ADD_TEST_BLOCK,
+      PRODUCT_TEST_BLOCK,
+      SUM_TEST_BLOCK,
+    ])
 
     // 缓存库名和 Block 列表供外部读取
     loadedLibraryNames = Array.from(libraryWithBlock.keys())
     loadedLibraryWithBlocks = libraryWithBlock
 
     const stencilWidth = container.clientWidth
+    const contentAreas = new Map<string, StencilContentArea>()
     const stencil = new ManagedStencil({
       target: graph,
       stencilGraphWidth: stencilWidth,
       stencilGraphHeight: 0,
-      layout(model) {
+      layout(model, group) {
         // setKeyword → X6 内部 filter → layout 回调
-        const areaWidth = session
-          ? getLayoutAreaWidth(session.content, session.stencilWidth)
-          : Math.max(0, stencilWidth - 2 * STENCIL_SIDE_PADDING)
-        applyGreedyLayout(model, areaWidth)
+        const areaWidth = layoutService.getLayoutAreaWidth(
+          session?.content,
+          session?.stencilWidth ?? stencilWidth,
+        )
+        const contentArea = layoutService.applyGridLayout(model, areaWidth)
+        if (group) contentAreas.set(group.name, contentArea)
       },
       groups: Array.from(libraryWithBlock, ([name]) => ({
         name,
@@ -368,7 +793,10 @@ function createStencilService() {
       notFoundText: 'NOT FOUND',
       // 拖拽预处理：增加节点阴影，调整宽高
       getDragNode(node, { draggingGraph, targetGraph }) {
+        addSearchHistory(currentSearchValue)
+        pendingLabelText = ''
         const res = node.clone()
+        layoutService.restoreLabelPresentation(res, node)
         const hasLeftPort = res
           .getPorts()
           .some((port) => port.group?.toLowerCase().startsWith('in'))
@@ -407,13 +835,11 @@ function createStencilService() {
       getDropNode(draggingNode) {
         const res = draggingNode.clone()
         // 恢复拖拽时清空的 label
-        if (pendingLabelText) {
-          res.attr('label/text', pendingLabelText)
-          pendingLabelText = ''
-        }
         if (res.getData()?.blockType === 'Subsystem') {
+          if (pendingLabelText) res.attr('label/text', pendingLabelText)
           res.attr('body/fill', createSubsystemBackgroundFill())
         }
+        pendingLabelText = ''
         // label 唯一性检查与 contentEditable 设置已移至
         // useGraphListener 的 node:added / node:mouseenter 监听器统一处理
         return res
@@ -428,9 +854,18 @@ function createStencilService() {
       )
     }
     container.appendChild(stencil.container)
+    const disposeTooltip = createStencilTooltip(
+      stencil,
+      Array.from(libraryWithBlock.keys()),
+    )
 
-    // 初始隐藏已配置的分组
-    for (const libraryName of hiddenStencilGroups) {
+    // 初始隐藏已配置的分组以及默认关闭的 Beta 分组
+    for (const libraryName of libraryWithBlock.keys()) {
+      const isHidden =
+        libraryName === TEST_GROUP_NAME
+          ? !betaGroupEnabled
+          : hiddenStencilGroups.includes(libraryName)
+      if (!isHidden) continue
       const groupElem = container.querySelector<HTMLElement>(
         `[data-name="${libraryName}"]`,
       )
@@ -480,7 +915,9 @@ function createStencilService() {
       stencilWidth,
       content,
       lastHasVerticalScrollbar,
+      contentAreas,
       dispose() {
+        disposeTooltip()
         stopEdgeInsertionPreview?.()
         syncContainerWidth.cancel()
         contentMutationObserver.disconnect()
@@ -500,11 +937,21 @@ function createStencilService() {
       (state) => state.hiddenStencilGroups,
       () => syncHiddenGroups(),
     )
+    const unsubBetaGroup = useConfigStore.subscribe(
+      (state) => state.betaGroupEnabled,
+      () => syncHiddenGroups(),
+    )
+    const unsubArrange = useConfigStore.subscribe(
+      (state) => state.stencilArrangeMode,
+      () => resize(container.clientWidth),
+    )
     // session dispose 时取消订阅
     const origDispose = session.dispose
     session.dispose = () => {
       unsubExpand()
       unsubHidden()
+      unsubBetaGroup()
+      unsubArrange()
       origDispose()
     }
 
@@ -524,8 +971,11 @@ function createStencilService() {
     const leavingSearch = prevViewMode === 'results' && viewMode === 'library'
     prevViewMode = viewMode
 
+    currentSearchValue = keyword.trim()
     currentKeyword =
-      viewMode === 'results' ? keyword.trim() || '空串默认全搜确保返回404' : ''
+      viewMode === 'results'
+        ? currentSearchValue || '空串默认全搜确保返回404'
+        : ''
 
     if (session) {
       if (enteringSearch) {
@@ -551,6 +1001,7 @@ function createStencilService() {
     }
 
     session?.stencil.setKeyword(currentKeyword)
+    fitGroupsToLayout()
   }
   /**
    * @description Stencil 宽度更新 重排 group
@@ -560,12 +1011,16 @@ function createStencilService() {
     if (!session || !session.libraryWithBlock.size) return
     // 更新宽度
     session.stencilWidth = newWidth
-    const areaWidth = getLayoutAreaWidth(session.content, newWidth)
+    const areaWidth = layoutService.getLayoutAreaWidth(
+      session.content,
+      newWidth,
+    )
     const { stencil, libraryWithBlock } = session
 
     // 有搜索词时：layout 由 setKeyword → X6 filter → layout 回调完成
     if (currentKeyword) {
       stencil.setKeyword(currentKeyword)
+      fitGroupsToLayout()
       return
     }
 
@@ -574,13 +1029,13 @@ function createStencilService() {
       const groupGraph = stencil.getManagedGroupGraph(libraryName)
       if (!groupGraph) continue
 
-      applyGreedyLayout(groupGraph.model, areaWidth)
-      groupGraph.fitToContent({
-        minWidth: groupGraph.options.width,
-        gridHeight: 1,
-        padding: stencil.options.stencilGraphPadding,
-      })
+      const contentArea = layoutService.applyGridLayout(
+        groupGraph.model,
+        areaWidth,
+      )
+      session.contentAreas.set(libraryName, contentArea)
     }
+    fitGroupsToLayout()
   }
 
   function collapseAll(): void {
@@ -603,7 +1058,7 @@ function createStencilService() {
   }
 
   function getLibraryNames(): string[] {
-    return loadedLibraryNames
+    return loadedLibraryNames.filter((name) => name !== TEST_GROUP_NAME)
   }
 
   function syncStencilDefaultExpand(): void {
@@ -627,10 +1082,13 @@ function createStencilService() {
   function syncHiddenGroups(): void {
     if (!session) return
 
-    const { hiddenStencilGroups } = useConfigStore.getState()
+    const { betaGroupEnabled, hiddenStencilGroups } = useConfigStore.getState()
 
     for (const libraryName of session.libraryWithBlock.keys()) {
-      const isHidden = hiddenStencilGroups.includes(libraryName)
+      const isHidden =
+        libraryName === TEST_GROUP_NAME
+          ? !betaGroupEnabled
+          : hiddenStencilGroups.includes(libraryName)
       const groupElem = session.container.querySelector<HTMLElement>(
         `[data-name="${libraryName}"]`,
       )
@@ -655,7 +1113,17 @@ function createStencilService() {
   }
 }
 
-const getLibraryNames = () => loadedLibraryNames
-const getLibraryWithBlocks = () => loadedLibraryWithBlocks
+const getLibraryNames = () =>
+  loadedLibraryNames.filter((name) => name !== TEST_GROUP_NAME)
+const getLibraryWithBlocks = () => {
+  if (useConfigStore.getState().betaGroupEnabled) {
+    return loadedLibraryWithBlocks
+  }
+  return new Map(
+    Array.from(loadedLibraryWithBlocks).filter(
+      ([name]) => name !== TEST_GROUP_NAME,
+    ),
+  )
+}
 
 export { createStencilService, getLibraryNames, getLibraryWithBlocks }
