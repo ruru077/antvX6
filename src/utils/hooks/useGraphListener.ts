@@ -1,6 +1,5 @@
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
-import { message } from 'antd'
 import { RED } from '@/assets/constant'
 import subsystemDefaultGraph from '@/assets/subsystemDefaultGraph.json'
 import {
@@ -9,6 +8,9 @@ import {
   formalLinkAttrs,
   previewLinkAttrs,
 } from '@/assets/x6Model'
+import { editAnnotationNode } from '@/services/annotation-service'
+import { getAntdMessage } from '@/services/antd-message-service'
+import { UPDATE_BLOCK_PARAMS } from '@/services/block-param-service'
 import { createCommonService } from '@/services/common-service'
 import { createDomService } from '@/services/dom-service'
 import {
@@ -17,14 +19,17 @@ import {
   commitEdgeInsertion,
   updateEdgeInsertionPreview,
 } from '@/services/edge-insertion-service'
+import { selectImageForNode } from '@/services/image-node-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   fallbackEdgeToManhattan,
   isCompleteNodeEdge,
+  isRoutingNode,
   routeAllEdges,
 } from '@/services/routing-service'
 import {
   hasSubsystemMask,
+  invalidateSubsystemSnapshot,
   isIONode,
   syncParentSubsystemPorts,
   syncParentSubsystemSnapshot,
@@ -39,9 +44,18 @@ import {
   setIsSelectionByKey,
   setPasteTarget,
 } from '@/store/flags'
+import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
+import {
+  type HistoryParamBlock,
+  useHistoryParamNoticeStore,
+} from '@/store/historyParamNoticeStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { useSubGraphStore } from '@/store/subGraphStore'
+import {
+  getSubGraphHistory,
+  restoreSubGraphHistory,
+  useSubGraphStore,
+} from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import { useDomListener } from '@/utils/hooks/useDomListener'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
@@ -121,9 +135,15 @@ function useGraphListener() {
 }
 
 function registerScopeListeners(graph: Graph) {
-  function nodeDblClickHandler({ node }: EventArgs['node:dblclick']) {
+  function nodeDblClickHandler({ node, view, e }: EventArgs['node:dblclick']) {
+    // 过滤 非 Scope 双击
     const blockType = String(node.getData()?.blockType ?? '').toLowerCase()
     if (blockType !== 'scope') return
+    // Scope 双击文本 → 不打开仿真窗口
+    // body 内文字仍属于模块本体，只有 selector 为 label 的底部名称走文本分支
+    const target = e.target as Element
+    if (commonService.isDblClickOnLabel(view, target)) return
+    if (focusOrRestoreFloatingWindow(`scope:${node.id}`)) return
     useSimulationStore.getState().openScope(node.id)
   }
 
@@ -135,6 +155,8 @@ function registerCellSelectionListeners(graph: Graph) {
   function cellMouseDownHandler({ cell, e }: EventArgs['cell:mousedown']) {
     // 点击 Port 时不选中 cell
     if (e.target.closest('.x6-port')) return
+    if (cell.getData()?.blockType === 'Annotation')
+      interactiveService.addOutline(cell)
     graph.resetSelection([cell])
   }
 
@@ -166,6 +188,12 @@ function registerSubsystemListeners(graph: Graph) {
   }
   function syncAddSubsystemHandler({ node, options }: EventArgs['node:added']) {
     const { syncSubGraph, syncGraph } = useSubGraphStore.getState()
+    const subGraphHistory = getSubGraphHistory(options)
+    if (subGraphHistory?.items[node.id]) {
+      restoreSubGraphHistory(subGraphHistory)
+      syncGraph(graph.toJSON())
+      return
+    }
     const initialGraphJson = options.stencil
       ? (subsystemDefaultGraph as unknown as GraphJSON)
       : undefined
@@ -176,7 +204,7 @@ function registerSubsystemListeners(graph: Graph) {
     void syncParentSubsystemSnapshot(node.id, graphJson, graph).catch(
       (error: unknown) => {
         console.error(error)
-        message.error('子系统缩略图生成失败')
+        getAntdMessage().error('子系统缩略图生成失败')
       },
     )
   }
@@ -185,7 +213,18 @@ function registerSubsystemListeners(graph: Graph) {
     options,
   }: EventArgs['node:removed']) {
     if (options.ignore) return
-    useSubGraphStore.getState().syncSubGraph(node, 'delete')
+    const { subGraphs, syncSubGraph } = useSubGraphStore.getState()
+    const removedIds: string[] = []
+    function collectRemovedIds(subGraphId: string) {
+      const subGraph = subGraphs[subGraphId]
+      if (!subGraph) return
+      removedIds.push(subGraphId)
+      subGraph.childrenIds.forEach(collectRemovedIds)
+    }
+    collectRemovedIds(node.id)
+    removedIds.forEach(invalidateSubsystemSnapshot)
+    if (!syncSubGraph(node, 'delete')) return
+    useSubSystemTabStore.getState().removeHistory(removedIds)
   }
   function syncSubsystemNameHandler({ node }: EventArgs['node:change:attrs']) {
     useSubGraphStore
@@ -407,30 +446,32 @@ function registerEdgeToolListeners(graph: Graph) {
 
 // ── 拖放模块到 Edge：预览并拆分连接 ────────────────────────────────────────
 function registerEdgeInsertionListeners(graph: Graph) {
-  let insertionBatchNodeId: string | null = null
+  let movingRoutingNodeId: string | null = null
 
   function nodeMovingHandler({ node }: EventArgs['node:moving']) {
-    if (!insertionBatchNodeId && canInsertNodeOnEdge(graph, node)) {
-      insertionBatchNodeId = node.id
-      graph.startBatch('insert-node-on-edge')
+    if (!isRoutingNode(node)) return
+    if (!movingRoutingNodeId) {
+      movingRoutingNodeId = node.id
+      graph.startBatch('move-routing-node')
     }
     updateEdgeInsertionPreview(graph, node)
   }
 
   async function nodeMovedHandler({ node }: EventArgs['node:moved']) {
+    if (!isRoutingNode(node)) return
     try {
       const committed = await commitEdgeInsertion(graph, node)
       if (!committed) await routeAllEdges(graph)
     } finally {
-      if (insertionBatchNodeId === node.id) {
-        insertionBatchNodeId = null
-        graph.stopBatch('insert-node-on-edge')
+      if (movingRoutingNodeId === node.id) {
+        movingRoutingNodeId = null
+        graph.stopBatch('move-routing-node')
       }
     }
   }
 
   async function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
-    if (!options.stencil) return
+    if (!options.stencil || !isRoutingNode(node)) return
     const committed = await commitEdgeInsertion(graph, node)
     if (!committed) await routeAllEdges(graph)
   }
@@ -443,9 +484,9 @@ function registerEdgeInsertionListeners(graph: Graph) {
   return () => {
     unregister()
     clearEdgeInsertionPreview(graph)
-    if (insertionBatchNodeId) {
-      insertionBatchNodeId = null
-      graph.stopBatch('insert-node-on-edge')
+    if (movingRoutingNodeId) {
+      movingRoutingNodeId = null
+      graph.stopBatch('move-routing-node')
     }
   }
 }
@@ -453,6 +494,7 @@ function registerEdgeInsertionListeners(graph: Graph) {
 // ── Node 移动时重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
   function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    if (!isRoutingNode(node)) return
     // 未连接的单输入单输出模块可能要插入 Edge。拖动期间必须保持正式
     // Edge 原路线不动，否则全局避障会先把 Edge 绕开，永远无法进入吸附范围。
     // 命中后仅由 insertion service 触发预览 Edge 的 Avoid 路由。
@@ -460,11 +502,13 @@ function registerNodeRouteListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  function nodeResizedHandler(_args: EventArgs['node:resized']) {
+  function nodeResizedHandler({ node }: EventArgs['node:resized']) {
+    if (!isRoutingNode(node)) return
     void routeAllEdges(graph)
   }
 
-  function nodeAngleChangedHandler(_args: EventArgs['node:change:angle']) {
+  function nodeAngleChangedHandler({ node }: EventArgs['node:change:angle']) {
+    if (!isRoutingNode(node)) return
     void routeAllEdges(graph)
   }
 
@@ -558,21 +602,32 @@ function registerOutlineListeners(graph: Graph) {
 
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
 function registerNodeEditListeners(graph: Graph) {
-  function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
+  async function nodeDblClickHandler({
+    node,
+    view,
+    e,
+  }: EventArgs['node:dblclick']) {
+    if (node.getData()?.blockType === 'Annotation') {
+      editAnnotationNode(node, graph, e.clientX, e.clientY)
+      return
+    }
+    if (node.getData()?.blockType === 'ImageNode') {
+      await selectImageForNode(node, graph)
+      return
+    }
     // 特殊 GUARD_BLOCK_TYPES 跳过
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
-    if (String(node.getData()?.blockType ?? '').toLowerCase() === 'scope')
-      return
 
     const target = e.target as Element
     // 判断双击目标是否为文本元素（兼容 SVG text / foreignObject）
-    const textEl = target.closest('text') ?? target.closest('foreignObject')
-
-    if (textEl) {
+    // 仅匹配 markup 中 selector 为 label 的底部名称，排除模块 body 内的文字图标
+    if (commonService.isDblClickOnLabel(view, target)) {
       // 文本双击 → 就地编辑 label
-      interactiveService.openLabelEditor(node, textEl)
+      interactiveService.openLabelEditor(node, view._getSelectors()['label'])
       return
     }
+    if (String(node.getData()?.blockType ?? '').toLowerCase() === 'scope')
+      return
     // 默认：打开参数设置悬浮窗口
     interactiveService.openNodeParamWindow(node)
   }
@@ -582,6 +637,62 @@ function registerNodeEditListeners(graph: Graph) {
 
 // ── 历史 ──────────────────────────────────────────────────────────────────
 function registerHistoryListeners(graph: Graph) {
+  function getParamValues(data: unknown): Record<string, string> | null {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    const paramValues = (data as { paramValues?: unknown }).paramValues
+    if (
+      !paramValues ||
+      typeof paramValues !== 'object' ||
+      Array.isArray(paramValues)
+    ) {
+      return null
+    }
+    return paramValues as Record<string, string>
+  }
+
+  function showParamNotice(
+    cmds: EventArgs['history:undo']['cmds'],
+    action: 'undo' | 'redo',
+  ) {
+    const blocks: HistoryParamBlock[] = []
+    for (const cmd of cmds) {
+      if (cmd.options?.historyAction !== UPDATE_BLOCK_PARAMS) continue
+      if (!('key' in cmd.data) || cmd.data.key !== 'data') continue
+
+      const previousParams = getParamValues(cmd.data.prev.data)
+      const nextParams = getParamValues(cmd.data.next.data)
+      if (!previousParams || !nextParams || !cmd.data.id) continue
+
+      const node = graph.getCellById(cmd.data.id)
+      if (!node?.isNode()) continue
+      const currentParams = getParamValues(node.getData())
+      if (!currentParams) continue
+
+      const changedNames = new Set([
+        ...Object.keys(previousParams),
+        ...Object.keys(nextParams),
+      ])
+      const params = [...changedNames]
+        .filter((name) => previousParams[name] !== nextParams[name])
+        .map((name) => {
+          const value = currentParams[name]
+          if (typeof value !== 'string') {
+            throw new Error(`Parameter ${name} must be a string`)
+          }
+          return { name, value }
+        })
+      if (params.length === 0) continue
+
+      const label = node.attr<string>('label/text')
+      if (!label) throw new Error(`Node ${node.id} label is required`)
+      blocks.push({ label, params })
+    }
+
+    if (blocks.length > 0) {
+      useHistoryParamNoticeStore.getState().showNotice(action, blocks)
+    }
+  }
+
   function historyChangeHandler({
     cmds,
     options,
@@ -615,10 +726,16 @@ function registerHistoryListeners(graph: Graph) {
     const undoCells = [...cellsById.values()]
 
     if (undoCells.length > 0) graph.resetSelection(undoCells)
+    showParamNotice(cmds, 'undo')
+  }
+
+  function historyRedoHandler({ cmds }: EventArgs['history:redo']) {
+    showParamNotice(cmds, 'redo')
   }
   return registerListeners(graph, [
     ['history:change', historyChangeHandler],
     ['history:undo', historyUndoHandler],
+    ['history:redo', historyRedoHandler],
   ])
 }
 
@@ -650,11 +767,32 @@ function registerScrollerSyncListener(graph: Graph) {
 
 // ── Label 唯一性（node:added 自动递增，IO 改名重复时恢复）───────────────
 function registerLabelUniqueListeners(graph: Graph) {
+  function getCurrentIOLabels(): string[] {
+    return graph
+      .getNodes()
+      .filter((node) => isIONode(node))
+      .map((node) => node.attr<string>('label/text'))
+      .filter((label): label is string => typeof label === 'string')
+  }
+
   function nodeAddedHandler({ node }: EventArgs['node:added']) {
+    if (!graph.isHistoryEnabled()) return
+    if (node.getData()?.blockType === 'Annotation') return
     const rawLabel = node.attr<string>('label/text') ?? ''
-    if (!rawLabel) return
+    const ioNode = isIONode(node)
+    if (!rawLabel && !ioNode) return
 
     const { currentGraphId, syncGraph } = useSubGraphStore.getState()
+    if (ioNode) {
+      const label = rawLabel.trim() ? rawLabel : node.getData().blockType
+      node.attr(
+        'label/text',
+        commonService.getUniqueLabel(label, getCurrentIOLabels(), true),
+      )
+      syncGraph(graph.toJSON())
+      return
+    }
+
     syncGraph(graph.toJSON())
     node.attr(
       'label/text',
@@ -668,16 +806,25 @@ function registerLabelUniqueListeners(graph: Graph) {
     previous,
   }: EventArgs['node:change:attrs']) {
     const rawLabel = node.attr<string>('label/text') ?? ''
-    if (!rawLabel) return
     if (!isIONode(node)) return
 
-    const { currentGraphId, syncGraph } = useSubGraphStore.getState()
-    syncGraph(graph.toJSON())
-    if (commonService.isLabelUnique(rawLabel, currentGraphId)) return
-
     const previousLabel = previous?.label?.text
-    message.error(`IO节点不允许重名：${rawLabel}`)
+    const invalidMessage = !rawLabel.trim()
+      ? 'In/Out 节点 label 不能为空'
+      : getCurrentIOLabels().filter((label) => label === rawLabel).length > 1
+        ? `IO节点不允许重名：${rawLabel}`
+        : null
+    if (!invalidMessage) {
+      useSubGraphStore.getState().syncGraph(graph.toJSON())
+      return
+    }
+    if (typeof previousLabel !== 'string' || !previousLabel.trim()) {
+      throw new Error(`IO node ${node.id} previous label is required`)
+    }
+
+    getAntdMessage().error(invalidMessage)
     node.attr('label/text', previousLabel, { ignore: true })
+    const { syncGraph } = useSubGraphStore.getState()
     syncGraph(graph.toJSON())
   }
 
@@ -771,6 +918,7 @@ function registerEdgeBranchListeners(
     const startPos = graph.pageToLocal(e.pageX, e.pageY)
     const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
 
+    graph.startBatch('add-edge')
     const tempEdge = graph.addEdge({
       source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
       target: { x: startPos.x, y: startPos.y },
@@ -785,7 +933,23 @@ function registerEdgeBranchListeners(
         x: startPos.x,
         y: startPos.y,
         isNewEdge: true,
+        fallbackAction: 'remove',
       }),
+    )
+    document.addEventListener(
+      'mouseup',
+      () => {
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              if (graph.hasCell(tempEdge)) await routeAllEdges(graph)
+            } finally {
+              graph.stopBatch('add-edge')
+            }
+          })()
+        }, 0)
+      },
+      { once: true, capture: true },
     )
     setTimeout(() => {
       const key = `__${graph.view.cid}__`
