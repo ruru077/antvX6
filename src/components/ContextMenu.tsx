@@ -26,6 +26,7 @@ import {
   Type,
   Undo2,
 } from 'lucide-react'
+import { flushSync } from 'react-dom'
 import {
   ContextMenu as ContextMenu_,
   ContextMenuContent,
@@ -51,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import {
   createContextMenuService,
@@ -71,13 +73,16 @@ type ContextInfo =
  *
  * useContextMenu hook 负责桥接 X6 右键事件到 paper-container（trigger），
  * 本组件根据右键目标类型分发不同的菜单内容。
+ * 当前桥接逻辑已内聚到本组件，确保菜单上下文先于 Radix 打开事件更新。
  */
 function ContextMenu({
   children,
+  enabled = true,
   toolbarsVisible,
   onToggleToolbars,
 }: {
   children: React.ReactNode
+  enabled?: boolean
   toolbarsVisible?: boolean
   onToggleToolbars?: () => void
 }) {
@@ -108,38 +113,61 @@ function ContextMenu({
     }
   }, [open])
 
-  // ── X6 事件 → 更新菜单上下文 ─────────────────────────────────────────
+  // ── X6 事件 → 更新菜单上下文并触发 Radix 菜单 ─────────────────────────
   useEffect(() => {
-    if (!graph) return
+    if (!graph || !enabled) return
+    const paper = graph.container.closest<HTMLElement>('.paper-container')
+    if (!paper) return
 
-    function onBlank() {
-      ctxRef.current = { type: 'blank' }
-      forceUpdate()
+    function openMenu(
+      context: ContextInfo,
+      event: { clientX: number; clientY: number },
+    ) {
+      flushSync(() => {
+        ctxRef.current = context
+        forceUpdate()
+      })
+      paper?.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        }),
+      )
     }
-    function onCell(args: EventArgs['cell:contextmenu']) {
-      const isNode = args.cell.isNode()
-      if (isNode) selectContextNode(graph, args.cell)
-      ctxRef.current = {
-        type: isNode ? 'node' : 'edge',
-        cell: args.cell,
-      }
-      forceUpdate()
+
+    function onBlank(args: EventArgs['blank:contextmenu']) {
+      openMenu({ type: 'blank' }, args.e)
+    }
+
+    function onNode(args: EventArgs['node:contextmenu']) {
+      selectContextNode(graph, args.node)
+      openMenu({ type: 'node', cell: args.node }, args.e)
+    }
+
+    function onEdge(args: EventArgs['edge:contextmenu']) {
+      openMenu({ type: 'edge', cell: args.edge }, args.e)
     }
 
     graph.on('blank:contextmenu', onBlank)
-    graph.on('cell:contextmenu', onCell)
+    graph.on('node:contextmenu', onNode)
+    graph.on('edge:contextmenu', onEdge)
     return () => {
       graph.off('blank:contextmenu', onBlank)
-      graph.off('cell:contextmenu', onCell)
+      graph.off('node:contextmenu', onNode)
+      graph.off('edge:contextmenu', onEdge)
     }
-  }, [graph])
+  }, [enabled, graph])
 
   // ── 捕获阶段检测工具栏右键 ──────────────────────────────────────────
   useEffect(() => {
     function onContextMenu(e: MouseEvent) {
       if ((e.target as HTMLElement)?.closest?.('.canvas-float-toolbar')) {
-        ctxRef.current = { type: 'toolbar' }
-        forceUpdate()
+        flushSync(() => {
+          ctxRef.current = { type: 'toolbar' }
+          forceUpdate()
+        })
       }
     }
     document.addEventListener('contextmenu', onContextMenu, true)
@@ -158,7 +186,9 @@ function ContextMenu({
         setOpen(o)
       }}
     >
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuTrigger disabled={!enabled} className="flex min-h-0 flex-1">
+        {children}
+      </ContextMenuTrigger>
       <ContextMenuContent
         className={
           usesSplitMenu
@@ -185,84 +215,194 @@ function ContextMenu({
 
 // ── 空白区域 ─────────────────────────────────────────────────────────────
 
-function FloatingToolbar({ context }: { context: ContextInfo['type'] }) {
+function FloatingToolbar({
+  context,
+  service,
+}: {
+  context: ContextInfo['type']
+  service: ContextMenuService
+}) {
   const operationMenu = {
     label: '操作',
     topActions: [
-      { icon: BrushCleaning, label: '格式化' },
-      { icon: LayoutGrid, label: '自动排列' },
-      { icon: Component, label: '模块图标' },
+      {
+        icon: BrushCleaning,
+        label: '格式化',
+        onSelect: service.formatDiagram,
+      },
+      {
+        icon: LayoutGrid,
+        label: '自动排列',
+        onSelect: service.autoArrange,
+      },
+      {
+        icon: Component,
+        label: '模块图标',
+        onSelect: service.addSubsystemImage,
+        disabled: !service.canSetModuleIcon,
+      },
     ],
     bottomActions:
       context === 'blank'
         ? [
-            { icon: Undo2, label: '撤销' },
-            { icon: Redo2, label: '重做' },
-            { icon: ClipboardPaste, label: '粘贴' },
-            { icon: ClipboardCopy, label: '粘贴输入端口副本' },
+            {
+              icon: Undo2,
+              label: '撤销',
+              onSelect: service.undo,
+              disabled: !service.canUndo,
+            },
+            {
+              icon: Redo2,
+              label: '重做',
+              onSelect: service.redo,
+              disabled: !service.canRedo,
+            },
+            {
+              icon: ClipboardPaste,
+              label: '粘贴',
+              onSelect: service.paste,
+              disabled: !service.canPaste,
+            },
+            {
+              icon: ClipboardCopy,
+              label: '粘贴输入端口副本',
+              disabled: true,
+            },
           ]
         : context === 'node'
           ? [
-              { icon: Scissors, label: '剪切' },
-              { icon: Copy, label: '复制' },
-              { icon: ClipboardPaste, label: '粘贴' },
-              { icon: Route, label: '复制路径' },
+              { icon: Scissors, label: '剪切', onSelect: service.cut },
+              { icon: Copy, label: '复制', onSelect: service.copy },
+              {
+                icon: ClipboardPaste,
+                label: '粘贴',
+                onSelect: service.paste,
+                disabled: !service.canPaste,
+              },
+              {
+                icon: Route,
+                label: '复制路径',
+                onSelect: service.copyBlockPath,
+                disabled: !service.canCopyBlockPath,
+              },
             ]
           : [
-              { icon: Scissors, label: '剪切' },
-              { icon: Copy, label: '复制' },
-              { icon: ClipboardPaste, label: '粘贴' },
+              { icon: Scissors, label: '剪切', onSelect: service.cut },
+              { icon: Copy, label: '复制', onSelect: service.copy },
+              {
+                icon: ClipboardPaste,
+                label: '粘贴',
+                onSelect: service.paste,
+                disabled: !service.canPaste,
+              },
             ],
   } satisfies ToolbarGroupData
 
-  const propertyMenu =
+  const propertyMenu: ToolbarGroupData =
     context === 'blank'
       ? {
           label: '属性',
-          topActions: [{ icon: Palette, label: '背景颜色' }],
-          bottomActions: [{ icon: Type, label: '画布字体' }],
+          topActions: [
+            {
+              icon: Palette,
+              label: '背景颜色',
+              onColorSelect: service.setCanvasBackgroundColor,
+            },
+          ],
+          bottomActions: [
+            {
+              icon: Type,
+              label: '画布字体',
+              control: (
+                <CanvasFontSelect
+                  value={service.canvasFontFamily}
+                  onValueChange={service.setCanvasFontFamily}
+                />
+              ),
+            },
+          ],
         }
       : context === 'node'
         ? {
             label: '属性',
             topActions: [
-              { icon: Palette, label: '背景颜色' },
-              { icon: Type, label: '字体大小' },
-              { icon: AArrowUp, label: '放大字体' },
-              { icon: AArrowDown, label: '缩小字体' },
+              {
+                icon: Palette,
+                label: '背景颜色',
+                onColorSelect: service.setNodeBackgroundColor,
+              },
+              {
+                icon: Type,
+                label: '字体大小',
+                control: (
+                  <FontSizeSelect
+                    value={String(service.labelFontSize)}
+                    onValueChange={(value) =>
+                      service.setLabelFontSize(Number(value))
+                    }
+                  />
+                ),
+              },
+              {
+                icon: AArrowUp,
+                label: '放大字体',
+                onSelect: service.increaseLabelFontSize,
+              },
+              {
+                icon: AArrowDown,
+                label: '缩小字体',
+                onSelect: service.decreaseLabelFontSize,
+              },
             ],
             bottomActions: [
-              { icon: Paintbrush, label: '前景颜色' },
-              { icon: Eye, label: '显示/隐藏模块名称' },
-              { icon: PanelTop, label: '内容预览' },
-              { icon: SlidersHorizontal, label: '字体属性' },
+              {
+                icon: Paintbrush,
+                label: '前景颜色',
+                onColorSelect: service.setLabelColor,
+              },
+              {
+                icon: Eye,
+                label: '显示/隐藏模块名称',
+                visible: !service.isLabelHidden,
+                onVisibleChange: service.setLabelVisible,
+              },
+              { icon: PanelTop, label: '内容预览', disabled: true },
+              { icon: SlidersHorizontal, label: '字体属性', disabled: true },
             ],
           }
         : {
             label: '属性',
             topActions: [
-              { icon: Type, label: '字体大小' },
-              { icon: AArrowUp, label: '放大字体' },
-              { icon: AArrowDown, label: '缩小字体' },
+              { icon: Type, label: '字体大小', disabled: true },
+              { icon: AArrowUp, label: '放大字体', disabled: true },
+              { icon: AArrowDown, label: '缩小字体', disabled: true },
             ],
             bottomActions: [
-              { icon: Eye, label: '显示/隐藏模块名称' },
-              { icon: PanelTop, label: '内容预览' },
-              { icon: SlidersHorizontal, label: '字体属性' },
+              { icon: Eye, label: '显示/隐藏模块名称', disabled: true },
+              { icon: PanelTop, label: '内容预览', disabled: true },
+              { icon: SlidersHorizontal, label: '字体属性', disabled: true },
             ],
           }
 
-  const groups = [operationMenu, propertyMenu]
+  const groups: ToolbarGroupData[] = [operationMenu, propertyMenu]
   if (context === 'node') {
     groups.push({
       label: '旋转',
       topActions: [
-        { icon: RotateCw, label: '顺时针旋转' },
-        { icon: RotateCcw, label: '逆时针旋转' },
+        {
+          icon: RotateCw,
+          label: '顺时针旋转',
+          onSelect: service.rotateClockwise,
+        },
+        {
+          icon: RotateCcw,
+          label: '逆时针旋转',
+          onSelect: service.rotateCounterclockwise,
+        },
       ],
       bottomActions: [
-        { icon: FlipHorizontal, label: '左右翻转' },
-        { icon: FlipVertical, label: '上下翻转' },
+        { icon: FlipHorizontal, label: '左右翻转', disabled: true },
+        { icon: FlipVertical, label: '上下翻转', disabled: true },
       ],
     })
   }
@@ -276,7 +416,16 @@ function FloatingToolbar({ context }: { context: ContextInfo['type'] }) {
   )
 }
 
-type ToolbarAction = { icon: typeof BrushCleaning; label: string }
+type ToolbarAction = {
+  icon: typeof BrushCleaning
+  label: string
+  onSelect?: () => void
+  disabled?: boolean
+  control?: React.ReactNode
+  onColorSelect?: (color: string) => void
+  visible?: boolean
+  onVisibleChange?: (visible: boolean) => void
+}
 type ToolbarGroupData = {
   label: string
   topActions: ToolbarAction[]
@@ -319,23 +468,32 @@ function ToolbarGroup({
       className={cn('grid grid-rows-2 gap-0.5 px-1', separated && 'border-l')}
       style={{ gridTemplateColumns: `repeat(${columns}, max-content)` }}
     >
-      {group.topActions.map(({ icon: Icon, label }) => (
-        <ToolbarActionItem key={label} icon={Icon} label={label} />
+      {group.topActions.map((action) => (
+        <ToolbarActionItem key={action.label} {...action} />
       ))}
       {Array.from({ length: columns - group.topActions.length }).map(
         (_, index) => (
           <span key={index} aria-hidden />
         ),
       )}
-      {group.bottomActions.map(({ icon: Icon, label }) => (
-        <ToolbarActionItem key={label} icon={Icon} label={label} />
+      {group.bottomActions.map((action) => (
+        <ToolbarActionItem key={action.label} {...action} />
       ))}
     </ContextMenuGroup>
   )
 }
 
-function ToolbarActionItem({ icon: Icon, label }: ToolbarAction) {
-  if (label === '字体大小') return <FontSizeSelect />
+function ToolbarActionItem({
+  icon: Icon,
+  label,
+  onSelect,
+  disabled,
+  control,
+  onColorSelect,
+  visible,
+  onVisibleChange,
+}: ToolbarAction) {
+  if (control) return control
 
   const hasDropdownIndicator =
     label === '背景颜色' ||
@@ -350,10 +508,12 @@ function ToolbarActionItem({ icon: Icon, label }: ToolbarAction) {
       )}
       aria-label={label}
       title={label}
+      disabled={disabled}
       onSelect={(event) => {
         if (hasDropdownIndicator) {
           event.preventDefault()
         }
+        onSelect?.()
       }}
     >
       <Icon />
@@ -361,7 +521,9 @@ function ToolbarActionItem({ icon: Icon, label }: ToolbarAction) {
     </ContextMenuItem>
   )
 
-  if (label === '显示/隐藏模块名称') {
+  if (disabled) return item
+
+  if (onVisibleChange) {
     return (
       <Popover>
         <PopoverTrigger asChild>{item}</PopoverTrigger>
@@ -371,27 +533,40 @@ function ToolbarActionItem({ icon: Icon, label }: ToolbarAction) {
           sideOffset={8}
           className="w-48 p-0"
         >
-          <VisibilityPanel />
+          <VisibilityPanel
+            visible={visible ?? true}
+            onVisibleChange={onVisibleChange}
+          />
         </PopoverContent>
       </Popover>
     )
   }
 
-  if (label !== '背景颜色' && label !== '前景颜色') return item
+  if (!onColorSelect) return item
 
   return (
     <Popover>
       <PopoverTrigger asChild>{item}</PopoverTrigger>
       <PopoverContent align="start" side="bottom" sideOffset={8}>
-        <BackgroundColorPalette />
+        <BackgroundColorPalette onColorSelect={onColorSelect} />
       </PopoverContent>
     </Popover>
   )
 }
 
-function FontSizeSelect() {
+function FontSizeSelect({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
+  const options = FONT_SIZE_OPTIONS.includes(value)
+    ? FONT_SIZE_OPTIONS
+    : [...FONT_SIZE_OPTIONS, value].sort((a, b) => Number(a) - Number(b))
+
   return (
-    <Select defaultValue="10">
+    <Select defaultValue={value} onValueChange={onValueChange}>
       <SelectTrigger
         aria-label="字体大小"
         title="字体大小"
@@ -408,7 +583,7 @@ function FontSizeSelect() {
         className="min-w-12 rounded-sm p-0 [&_svg]:hidden"
       >
         <SelectGroup className="p-0.5">
-          {FONT_SIZE_OPTIONS.map((size) => (
+          {options.map((size) => (
             <SelectItem
               key={size}
               value={size}
@@ -423,39 +598,68 @@ function FontSizeSelect() {
   )
 }
 
-function VisibilityPanel() {
+const CANVAS_FONT_OPTIONS = [
+  { label: '继承界面字体', value: 'inherit' },
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Times New Roman', value: 'Times New Roman' },
+  { label: '等宽字体', value: 'monospace' },
+]
+
+function CanvasFontSelect({
+  value,
+  onValueChange,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+}) {
   return (
-    <div className="text-xs">
-      <div className="grid grid-cols-[56px_1fr] items-center border-b bg-muted/50 px-2 py-1.5">
-        <span className="font-medium">可见性</span>
-        <VisibilityRadio label="自动名称" />
-      </div>
-      <div className="grid grid-cols-[56px_1fr] px-2 py-1.5">
-        <span aria-hidden />
-        <div className="flex flex-col gap-1.5">
-          <VisibilityRadio label="名称打开" />
-          <VisibilityRadio label="名称关闭" />
-        </div>
-      </div>
-      <div className="border-t bg-muted/50 px-2 py-1 font-medium">模型设置</div>
-      <label className="flex cursor-default items-center justify-between gap-3 px-2 py-1.5">
-        <span>隐藏自动模块名称</span>
-        <input
-          type="checkbox"
-          defaultChecked
-          className="size-3.5 accent-primary"
-        />
-      </label>
-    </div>
+    <Select defaultValue={value} onValueChange={onValueChange}>
+      <SelectTrigger
+        aria-label="画布字体"
+        title="画布字体"
+        size="sm"
+        className="h-6 w-18 gap-0.5 rounded-sm border-border bg-background px-1 py-0 shadow-none data-[size=sm]:h-6 *:data-[slot=select-value]:truncate *:data-[slot=select-value]:text-[10px] [&_svg]:!size-3"
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start" sideOffset={4} className="min-w-36">
+        <SelectGroup>
+          {CANVAS_FONT_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }
 
-function VisibilityRadio({ label }: { label: string }) {
+function VisibilityPanel({
+  visible: initialVisible,
+  onVisibleChange,
+}: {
+  visible: boolean
+  onVisibleChange: (visible: boolean) => void
+}) {
+  const [visible, setVisible] = useState(initialVisible)
+
   return (
-    <label className="flex cursor-default items-center gap-1.5 whitespace-nowrap">
-      <input type="radio" name="module-name-visibility" className="size-3.5" />
-      <span>{label}</span>
-    </label>
+    <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+      <label htmlFor="context-menu-label-visible" className="font-medium">
+        显示模块名称
+      </label>
+      <Switch
+        id="context-menu-label-visible"
+        checked={visible}
+        onCheckedChange={(checked) => {
+          setVisible(checked)
+          onVisibleChange(checked)
+        }}
+      />
+    </div>
   )
 }
 
@@ -487,15 +691,23 @@ const RECENT_COLORS = [
   '#2563eb',
 ]
 
-function BackgroundColorPalette() {
+function BackgroundColorPalette({
+  onColorSelect,
+}: {
+  onColorSelect: (color: string) => void
+}) {
   return (
     <div className="flex flex-col gap-3">
-      <ColorSwatchGroup label="标准颜色" colors={STANDARD_COLORS} />
-      <ColorSwatchGroup label="最近使用的颜色" colors={RECENT_COLORS} />
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium">预览</span>
-        <div className="h-8 rounded-sm border bg-background" />
-      </div>
+      <ColorSwatchGroup
+        label="标准颜色"
+        colors={STANDARD_COLORS}
+        onColorSelect={onColorSelect}
+      />
+      <ColorSwatchGroup
+        label="最近使用的颜色"
+        colors={RECENT_COLORS}
+        onColorSelect={onColorSelect}
+      />
     </div>
   )
 }
@@ -503,9 +715,11 @@ function BackgroundColorPalette() {
 function ColorSwatchGroup({
   label,
   colors,
+  onColorSelect,
 }: {
   label: string
   colors: string[]
+  onColorSelect: (color: string) => void
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -519,6 +733,7 @@ function ColorSwatchGroup({
             style={{ backgroundColor: color }}
             aria-label={color}
             title={color}
+            onClick={() => onColorSelect(color)}
           />
         ))}
       </div>
@@ -540,6 +755,18 @@ function BlankCanvasMenu({ service }: { service: ContextMenuService }) {
         <ContextMenuItem disabled>
           <Sparkles />
           使用 Copilot 解释 (feat)
+        </ContextMenuItem>
+      </ContextMenuGroup>
+      <ContextMenuSeparator />
+      <ContextMenuGroup>
+        <ContextMenuItem disabled={!service.canPaste} onClick={service.paste}>
+          粘贴
+        </ContextMenuItem>
+        <ContextMenuItem disabled={!service.canUndo} onClick={service.undo}>
+          撤销
+        </ContextMenuItem>
+        <ContextMenuItem disabled={!service.canRedo} onClick={service.redo}>
+          重做
         </ContextMenuItem>
       </ContextMenuGroup>
       <ContextMenuSeparator />
@@ -580,7 +807,7 @@ function BlankCanvasMenu({ service }: { service: ContextMenuService }) {
 function BlankMenu({ service }: { service: ContextMenuService }) {
   return (
     <>
-      <FloatingToolbar context="blank" />
+      <FloatingToolbar context="blank" service={service} />
       <BlankCanvasMenu service={service} />
     </>
   )
@@ -625,7 +852,7 @@ function NodeMenu({
       node.attr<string>('label/text') || node.getData()?.title || '模块'
     return (
       <>
-        <FloatingToolbar context="node" />
+        <FloatingToolbar context="node" service={service} />
         <div className="rounded-3xl bg-popover p-1.5 shadow-lg ring-1 ring-foreground/5">
           <ContextMenuLabel className="font-semibold text-foreground">
             {title}
@@ -633,6 +860,11 @@ function NodeMenu({
           <ContextMenuGroup>
             <ContextMenuItem onClick={service.openNodeParameters}>
               打开
+            </ContextMenuItem>
+            <ContextMenuItem onClick={service.cut}>剪切</ContextMenuItem>
+            <ContextMenuItem onClick={service.copy}>复制</ContextMenuItem>
+            <ContextMenuItem variant="destructive" onClick={service.remove}>
+              删除
             </ContextMenuItem>
             <ContextMenuItem disabled>
               <Search />
@@ -647,6 +879,9 @@ function NodeMenu({
           <ContextMenuGroup>
             <ContextMenuItem onClick={service.openNodeParameters}>
               参数
+            </ContextMenuItem>
+            <ContextMenuItem onClick={service.toggleLabelVisibility}>
+              {service.isLabelHidden ? '显示标签' : '隐藏标签'}
             </ContextMenuItem>
             <ContextMenuItem disabled>为原子 (feat)</ContextMenuItem>
           </ContextMenuGroup>
@@ -711,7 +946,7 @@ function NodeMenu({
 function SubsystemMenu({ service }: { service: ContextMenuService }) {
   return (
     <>
-      <FloatingToolbar context="node" />
+      <FloatingToolbar context="node" service={service} />
       <div className="rounded-3xl bg-popover p-1.5 shadow-lg ring-1 ring-foreground/5">
         <ContextMenuLabel className="font-semibold text-foreground">
           Subsystem
@@ -719,6 +954,14 @@ function SubsystemMenu({ service }: { service: ContextMenuService }) {
         <ContextMenuGroup>
           <ContextMenuItem onClick={service.openSubsystem}>
             打开
+          </ContextMenuItem>
+          <ContextMenuItem onClick={service.openSubsystemInTab}>
+            在新选项卡打开
+          </ContextMenuItem>
+          <ContextMenuItem onClick={service.cut}>剪切</ContextMenuItem>
+          <ContextMenuItem onClick={service.copy}>复制</ContextMenuItem>
+          <ContextMenuItem variant="destructive" onClick={service.remove}>
+            删除
           </ContextMenuItem>
           <ContextMenuItem disabled>
             <Search />
@@ -733,6 +976,9 @@ function SubsystemMenu({ service }: { service: ContextMenuService }) {
         <ContextMenuGroup>
           <ContextMenuItem onClick={service.openNodeParameters}>
             参数
+          </ContextMenuItem>
+          <ContextMenuItem onClick={service.toggleLabelVisibility}>
+            {service.isLabelHidden ? '显示标签' : '隐藏标签'}
           </ContextMenuItem>
           <ContextMenuItem disabled>为原子 (feat)</ContextMenuItem>
         </ContextMenuGroup>
@@ -786,8 +1032,15 @@ function SubsystemMenu({ service }: { service: ContextMenuService }) {
               <ContextMenuItem onClick={service.openNodeParameters}>
                 封装参数
               </ContextMenuItem>
-              <ContextMenuItem disabled>添加图像 (feat)</ContextMenuItem>
-              <ContextMenuItem disabled>删除图像 (feat)</ContextMenuItem>
+              <ContextMenuItem onClick={service.addSubsystemImage}>
+                添加图像
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={!service.canRemoveSubsystemImage}
+                onClick={service.removeSubsystemImage}
+              >
+                删除图像
+              </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuItem disabled>调试 (feat)</ContextMenuItem>
@@ -802,11 +1055,19 @@ function SubsystemMenu({ service }: { service: ContextMenuService }) {
 function EdgeMenu({ service }: { service: ContextMenuService }) {
   return (
     <>
-      <FloatingToolbar context="edge" />
+      <FloatingToolbar context="edge" service={service} />
       <div className="rounded-3xl bg-popover p-1.5 shadow-lg ring-1 ring-foreground/5">
         <ContextMenuLabel className="font-semibold text-foreground">
           信号
         </ContextMenuLabel>
+        <ContextMenuGroup>
+          <ContextMenuItem onClick={service.cut}>剪切</ContextMenuItem>
+          <ContextMenuItem onClick={service.copy}>复制</ContextMenuItem>
+          <ContextMenuItem variant="destructive" onClick={service.remove}>
+            删除
+          </ContextMenuItem>
+        </ContextMenuGroup>
+        <ContextMenuSeparator />
         <ContextMenuGroup>
           <ContextMenuItem disabled>跟踪信号 (feat)</ContextMenuItem>
           <ContextMenuItem disabled>总线与信号层次结构 (feat)</ContextMenuItem>

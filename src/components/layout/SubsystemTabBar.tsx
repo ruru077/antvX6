@@ -114,8 +114,7 @@ function SubsystemTabBar() {
     const context = canvas.getContext('2d')
     if (!context) return 0
 
-    context.font =
-      '15px "OPPO Sans", "OPPOSans", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif'
+    context.font = `15px ${getComputedStyle(document.body).fontFamily}`
     return context.measureText(text || ' ').width
   }
 

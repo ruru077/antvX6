@@ -16,7 +16,6 @@ import {
   LoaderIcon,
   XCircleIcon,
 } from 'lucide-react'
-import { memo, useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -572,17 +571,16 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   )
 }
 
-const ToolFallback = memo(
-  ToolFallbackImpl,
-) as unknown as ToolCallMessagePartComponent & {
-  Root: typeof ToolFallbackRoot
-  Trigger: typeof ToolFallbackTrigger
-  Content: typeof ToolFallbackContent
-  Args: typeof ToolFallbackArgs
-  Result: typeof ToolFallbackResult
-  Error: typeof ToolFallbackError
-  Approval: typeof ToolFallbackApproval
-}
+const ToolFallback =
+  ToolFallbackImpl as unknown as ToolCallMessagePartComponent & {
+    Root: typeof ToolFallbackRoot
+    Trigger: typeof ToolFallbackTrigger
+    Content: typeof ToolFallbackContent
+    Args: typeof ToolFallbackArgs
+    Result: typeof ToolFallbackResult
+    Error: typeof ToolFallbackError
+    Approval: typeof ToolFallbackApproval
+  }
 
 ToolFallback.displayName = 'ToolFallback'
 ToolFallback.Root = ToolFallbackRoot

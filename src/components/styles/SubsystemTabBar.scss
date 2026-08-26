@@ -5,8 +5,20 @@
   align-items: stretch;
   justify-content: space-between;
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
+  position: relative;
   background: rgb(240, 240, 240);
+
+  &::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 0;
+    height: 1px;
+    background: rgb(160, 160, 160);
+    content: '';
+    pointer-events: none;
+  }
 
   &__main {
     display: flex;
@@ -31,9 +43,11 @@
   }
 
   &__tabs {
+    position: relative;
     min-width: 0;
     flex: 1;
     overflow: hidden;
+    z-index: 1;
   }
 
   &__model-name {
@@ -71,7 +85,7 @@
     margin: 0;
 
     &::before {
-      border-bottom-color: var(--border) !important;
+      border-bottom-color: transparent !important;
     }
   }
 
@@ -83,11 +97,13 @@
   .ant-tabs-tab {
     height: 32px;
     margin-top: 4px !important;
+    padding: 5px 8px !important;
     border-color: var(--border) !important;
   }
 
   .ant-tabs-tab-active {
-    z-index: 1;
+    position: relative;
+    z-index: 2;
     border-bottom-color: var(--background) !important;
     background: var(--background) !important;
 

@@ -10,9 +10,9 @@ import {
   BracesIcon,
   DownloadIcon,
 } from 'lucide-react'
-import { memo, type FC } from 'react'
 import { cn } from '@/lib/utils'
 import type { FileMessagePartComponent } from '@assistant-ui/react'
+import type { FC } from 'react'
 
 const fileVariants = cva(
   'aui-file-root inline-flex items-center gap-3 rounded-lg transition-colors',
@@ -235,7 +235,7 @@ const FileImpl: FileMessagePartComponent = ({
   )
 }
 
-const File = memo(FileImpl) as unknown as FileMessagePartComponent & {
+const File = FileImpl as unknown as FileMessagePartComponent & {
   Root: typeof FileRoot
   Icon: typeof FileIconDisplay
   Name: typeof FileName

@@ -6,7 +6,6 @@ import {
 } from '@assistant-ui/react'
 import { useAgUiRuntime } from '@assistant-ui/react-ag-ui'
 import { BotIcon, XIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
 import {
   ModelSelector,
   type ModelOption,

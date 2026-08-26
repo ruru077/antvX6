@@ -1,11 +1,4 @@
-import {
-  Button as AntdButton,
-  Divider,
-  Dropdown,
-  Space,
-  Tooltip,
-  message,
-} from 'antd'
+import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
 import {
   ArrowLeft,
   ChevronDown,
@@ -26,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { getAntdMessage } from '@/services/antd-message-service'
 import {
   loadEntryGraphModel,
   changeGraphView,
@@ -89,6 +83,7 @@ const simulateMenuItems: MenuProps['items'] = [
 ]
 
 function PaperToolbar(_: PaperToolbarProps) {
+  const message = getAntdMessage()
   const graph = useGraphStore((s) => s.graph)
   const syncGraph = useSubGraphStore((s) => s.syncGraph)
   const markSaved = useSubGraphStore((s) => s.markSaved)

@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react'
-import { type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 interface BentoGridProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode

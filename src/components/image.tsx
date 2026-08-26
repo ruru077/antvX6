@@ -10,19 +10,13 @@ import {
   RefreshCwIcon,
   ShieldAlertIcon,
 } from 'lucide-react'
-import {
-  memo,
-  useState,
-  useEffect,
-  useRef,
-  type PropsWithChildren,
-} from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import type {
   ImageMessagePart,
   ImageMessagePartComponent,
 } from '@assistant-ui/react'
+import type { PropsWithChildren } from 'react'
 
 const extensionForMimeType = (mimeType?: string): string => {
   switch (mimeType) {
@@ -451,7 +445,7 @@ const ImageImpl: ImageMessagePartComponent = (props) => {
   )
 }
 
-const Image = memo(ImageImpl) as unknown as ImageMessagePartComponent & {
+const Image = ImageImpl as unknown as ImageMessagePartComponent & {
   Root: typeof ImageRoot
   Preview: typeof ImagePreview
   Filename: typeof ImageFilename

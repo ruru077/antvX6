@@ -7,7 +7,6 @@ import {
   useTransform,
   type HTMLMotionProps,
 } from 'motion/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_COLORS = ['#c679c4', '#fa3d1d', '#ffb005', '#e1e1fe', '#0358f7']

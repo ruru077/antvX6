@@ -19,7 +19,7 @@ const SNAP_RADIUS = 20
 // 粘贴时节点偏移量
 const PASTE_OFFSET = 32
 // STENCIL节点行内间距
-const STENCIL_NODE_ROW_GAP = 60
+const STENCIL_NODE_ROW_GAP = 12
 // STENCIL分组底部间距
 const STENCIL_GROUP_PADDING = 40
 // STENCIL左右内边距
@@ -27,7 +27,7 @@ const STENCIL_SIDE_PADDING = 10
 // STENCIL最小重排宽度
 const MIN_RESIZABLE_WIDTH = 10
 // STENCIL节点垂直间距
-const STENCIL_NODE_COLUMN_GAP = 45
+const STENCIL_NODE_COLUMN_GAP = 12
 // 键盘事件节流时间
 const KEY_THROTTLE_TIME = 800
 // target connectionPoint 相对 anchor 的偏移量（负值 = 线段终点提前于 port）

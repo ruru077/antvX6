@@ -1,11 +1,10 @@
 import { Button, Divider, Dropdown, Tooltip } from 'antd'
 import LiquidGlass from 'liquid-glass-react'
-import CanvasToolbarCommentSvg from '@/assets/svg/canvas-toolbar-comment.svg?react'
+import { Redo2, Undo2 } from 'lucide-react'
 import CanvasToolbarEnterFullscreenSvg from '@/assets/svg/canvas-toolbar-enter-fullscreen.svg?react'
 import CanvasToolbarExitFullscreenSvg from '@/assets/svg/canvas-toolbar-exit-fullscreen.svg?react'
 import CanvasToolbarExportSvg from '@/assets/svg/canvas-toolbar-export.svg?react'
 import CanvasToolbarFitSvg from '@/assets/svg/canvas-toolbar-fit.svg?react'
-import CanvasToolbarMinimapSvg from '@/assets/svg/canvas-toolbar-minimap.svg?react'
 import CanvasToolbarZoomInSvg from '@/assets/svg/canvas-toolbar-zoom-in.svg?react'
 import CanvasToolbarZoomOutSvg from '@/assets/svg/canvas-toolbar-zoom-out.svg?react'
 import { createInteractiveService } from '@/services/interactive-service'
@@ -15,11 +14,22 @@ import '@styles/CanvasToolbars.scss'
 
 type CanvasToolbarsProps = {
   visible: boolean
+  minimapVisible: boolean
 }
 
-function CanvasToolbars({ visible }: CanvasToolbarsProps) {
+const toolbarDividerStyle = {
+  height: 16,
+  margin: '0 4px',
+  borderInlineStart: '1px solid rgb(172, 172, 172)',
+}
+
+function CanvasToolbars({ visible, minimapVisible }: CanvasToolbarsProps) {
   const graph = useGraphStore((s) => s.graph)
   const zoom = useGraphStore((s) => s.zoom)
+  const [historyState, setHistoryState] = useState({
+    canUndo: false,
+    canRedo: false,
+  })
   const getExportViewBox = () => {
     const bbox = graph.getContentBBox()
     const padding = 30
@@ -47,7 +57,6 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
 
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [minimapVisible, setMinimapVisible] = useState(false)
   const minimapContainerRef = useRef<HTMLDivElement>(null)
   const minimapServiceRef = useRef<ReturnType<
     typeof createMinimapService
@@ -64,7 +73,22 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
     }
   }, [graph])
 
-  const handleToggleMinimap = () => setMinimapVisible((v) => !v)
+  useEffect(() => {
+    if (!graph) return
+
+    const syncHistoryState = () =>
+      setHistoryState({
+        canUndo: graph.canUndo(),
+        canRedo: graph.canRedo(),
+      })
+
+    syncHistoryState()
+    graph.on('history:change', syncHistoryState)
+
+    return () => {
+      graph.off('history:change', syncHistoryState)
+    }
+  }, [graph])
 
   useEffect(() => {
     const onFullscreenChange = () =>
@@ -162,6 +186,43 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
         }}
       >
         <div className="canvas-float-toolbar">
+          <Tooltip title="撤销" mouseEnterDelay={0.2} placement="top">
+            <Button
+              type="text"
+              className="toolbar-btn"
+              disabled={
+                !historyState.canUndo || graph?.getUndoStackSize() === 0
+              }
+              onClick={() => graph?.undo()}
+            >
+              <Undo2 />
+            </Button>
+          </Tooltip>
+          <Tooltip title="重做" mouseEnterDelay={0.2} placement="top">
+            <Button
+              type="text"
+              className="toolbar-btn"
+              disabled={
+                !historyState.canRedo || graph?.getRedoStackSize() === 0
+              }
+              onClick={() => graph?.redo()}
+            >
+              <Redo2 />
+            </Button>
+          </Tooltip>
+          <Divider orientation="vertical" style={toolbarDividerStyle} />
+          <Tooltip title="缩小" mouseEnterDelay={0.2} placement="top">
+            <Button type="text" className="toolbar-btn" onClick={handleZoomOut}>
+              <CanvasToolbarZoomOutSvg />
+            </Button>
+          </Tooltip>
+          <span className="toolbar-zoom-label">{zoom}%</span>
+          <Tooltip title="放大" mouseEnterDelay={0.2} placement="top">
+            <Button type="text" className="toolbar-btn" onClick={handleZoomIn}>
+              <CanvasToolbarZoomInSvg />
+            </Button>
+          </Tooltip>
+          <Divider orientation="vertical" style={toolbarDividerStyle} />
           <Tooltip
             title={isFullscreen ? '退出全屏' : '全屏'}
             mouseEnterDelay={0.2}
@@ -184,25 +245,6 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
               <CanvasToolbarFitSvg />
             </Button>
           </Tooltip>
-          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
-          <Tooltip title="缩小" mouseEnterDelay={0.2} placement="top">
-            <Button type="text" className="toolbar-btn" onClick={handleZoomOut}>
-              <CanvasToolbarZoomOutSvg />
-            </Button>
-          </Tooltip>
-          <span className="toolbar-zoom-label">{zoom}%</span>
-          <Tooltip title="放大" mouseEnterDelay={0.2} placement="top">
-            <Button type="text" className="toolbar-btn" onClick={handleZoomIn}>
-              <CanvasToolbarZoomInSvg />
-            </Button>
-          </Tooltip>
-          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
-          <Tooltip title="注解" mouseEnterDelay={0.2} placement="top">
-            <Button type="text" className="toolbar-btn">
-              <CanvasToolbarCommentSvg />
-            </Button>
-          </Tooltip>
-          <Divider orientation="vertical" style={{ margin: '0 4px' }} />
           <Dropdown
             menu={{ items: exportMenuItems }}
             placement="top"
@@ -220,19 +262,6 @@ function CanvasToolbars({ visible }: CanvasToolbarsProps) {
               </Button>
             </Tooltip>
           </Dropdown>
-          <Tooltip
-            title={minimapVisible ? '隐藏小地图' : '小地图'}
-            mouseEnterDelay={0.2}
-            placement="top"
-          >
-            <Button
-              type="text"
-              className={`toolbar-btn${minimapVisible ? ' is-active' : ''}`}
-              onClick={handleToggleMinimap}
-            >
-              <CanvasToolbarMinimapSvg />
-            </Button>
-          </Tooltip>
         </div>
       </LiquidGlass>
 

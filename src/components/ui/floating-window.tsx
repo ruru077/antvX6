@@ -1,5 +1,5 @@
-import { XIcon } from 'lucide-react'
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { MinusIcon, XIcon } from 'lucide-react'
+import { animate, useReducedMotion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Rnd } from 'react-rnd'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,17 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import {
+  FLOATING_WINDOW_Z_INDEX_BASE,
+  getFloatingWindowTaskbarAnchor,
+  setFloatingWindowSurface,
+  useFloatingWindowStore,
+} from '@/store/floatingWindowStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
+import type { LucideIcon } from 'lucide-react'
 
 const WINDOW_MARGIN = 16
-let activeWindowZIndex = 50
+let nextFloatingWindowId = 0
 
 interface FloatingWindowRect {
   x: number
@@ -25,7 +33,10 @@ interface FloatingWindowRect {
 }
 
 interface FloatingWindowProps {
+  windowId?: string
+  graphId?: string
   title: string
+  taskbarIcon: LucideIcon
   children: React.ReactNode
   footer?: React.ReactNode
   defaultWidth: number
@@ -55,7 +66,10 @@ function getInitialWindowRect(
 }
 
 function FloatingWindow({
+  windowId: providedWindowId,
+  graphId: providedGraphId,
   title,
+  taskbarIcon,
   children,
   footer,
   defaultWidth,
@@ -67,12 +81,40 @@ function FloatingWindow({
   onClose,
 }: FloatingWindowProps) {
   const titleId = useId()
+  const [windowId] = useState(
+    () => providedWindowId ?? `floating-window-${++nextFloatingWindowId}`,
+  )
+  const [graphId] = useState(
+    () => providedGraphId ?? useSubGraphStore.getState().currentGraphId,
+  )
+  const currentGraphId = useSubGraphStore((state) => state.currentGraphId)
   const rndRef = useRef<Rnd>(null)
+  const windowSurfaceRef = useRef<HTMLDivElement>(null)
   const contentAreaRef = useRef<HTMLDivElement>(null)
   const contentBodyRef = useRef<HTMLDivElement>(null)
   const windowRectRef = useRef<FloatingWindowRect | null>(null)
-  const [zIndex, setZIndex] = useState(() => ++activeWindowZIndex)
+  const windowAnimationRectRef = useRef<DOMRect | null>(null)
+  const initialTaskbarMetadataRef = useRef({ title, taskbarIcon })
   const [contentScrollable, setContentScrollable] = useState(!autoFitHeight)
+  const [windowHidden, setWindowHidden] = useState(false)
+  const reducedMotion = useReducedMotion()
+  const windowEntry = useFloatingWindowStore((state) =>
+    state.windows.find((window) => window.id === windowId),
+  )
+  const active = useFloatingWindowStore(
+    (state) => state.activeIds[graphId] === windowId,
+  )
+  const registerWindow = useFloatingWindowStore((state) => state.registerWindow)
+  const updateWindow = useFloatingWindowStore((state) => state.updateWindow)
+  const unregisterWindow = useFloatingWindowStore(
+    (state) => state.unregisterWindow,
+  )
+  const activateWindow = useFloatingWindowStore((state) => state.activateWindow)
+  const minimizeWindow = useFloatingWindowStore((state) => state.minimizeWindow)
+  const minimized = windowEntry?.minimized ?? false
+  const registered = Boolean(windowEntry)
+  const layerVisible = graphId === currentGraphId
+  const zIndex = windowEntry?.zIndex ?? FLOATING_WINDOW_Z_INDEX_BASE
 
   windowRectRef.current ??= getInitialWindowRect(defaultWidth, defaultHeight)
   const windowRect = windowRectRef.current
@@ -84,8 +126,134 @@ function FloatingWindow({
     minHeight,
     window.innerHeight - WINDOW_MARGIN * 2,
   )
+
   useLayoutEffect(() => {
-    if (!autoFitHeight || !contentAreaRef.current || !contentBodyRef.current)
+    registerWindow({
+      id: windowId,
+      graphId,
+      ...initialTaskbarMetadataRef.current,
+    })
+    return () => unregisterWindow(windowId)
+  }, [graphId, registerWindow, unregisterWindow, windowId])
+
+  useLayoutEffect(() => {
+    setFloatingWindowSurface(windowId, windowSurfaceRef.current)
+    return () => setFloatingWindowSurface(windowId, null)
+  }, [windowId])
+
+  useLayoutEffect(() => {
+    const surface = windowSurfaceRef.current
+    if (!surface) return
+    surface.style.removeProperty('transform')
+    surface.style.removeProperty('opacity')
+    surface.style.removeProperty('will-change')
+    surface.style.removeProperty('visibility')
+  }, [registered])
+
+  useLayoutEffect(() => {
+    updateWindow(windowId, { title, taskbarIcon })
+  }, [taskbarIcon, title, updateWindow, windowId])
+
+  const previousMinimizedRef = useRef(false)
+  useLayoutEffect(() => {
+    if (!registered || previousMinimizedRef.current === minimized) return
+    previousMinimizedRef.current = minimized
+
+    const surface = windowSurfaceRef.current
+    if (!surface) throw new Error(`Window surface is required for ${windowId}`)
+    surface.style.removeProperty('transform')
+    surface.style.removeProperty('opacity')
+    surface.style.removeProperty('will-change')
+    surface.style.removeProperty('visibility')
+    if (minimized) surface.style.removeProperty('display')
+    const taskbarAnchor = getFloatingWindowTaskbarAnchor(windowId)
+    const target = taskbarAnchor.getBoundingClientRect()
+    const source = minimized
+      ? surface.getBoundingClientRect()
+      : windowAnimationRectRef.current
+    if (!source)
+      throw new Error(`Window animation rect is required for ${windowId}`)
+    if (minimized) windowAnimationRectRef.current = source
+    const transform = {
+      x: target.left - source.left,
+      y: target.top - source.top,
+      scaleX: target.width / source.width,
+      scaleY: target.height / source.height,
+    }
+    let cancelled = false
+    let frame = 0
+    let animation: ReturnType<typeof animate> | null = null
+    const clearAnimationStyles = () => {
+      surface.style.removeProperty('transform')
+      surface.style.removeProperty('opacity')
+      surface.style.removeProperty('will-change')
+    }
+
+    if (reducedMotion) {
+      if (minimized) surface.style.display = 'none'
+      else surface.style.removeProperty('display')
+      clearAnimationStyles()
+      setWindowHidden(minimized)
+      if (minimized) taskbarAnchor.focus()
+      else surface.focus()
+      return
+    }
+
+    surface.style.willChange = 'transform, opacity'
+    if (minimized) {
+      setWindowHidden(false)
+      animation = animate(
+        surface,
+        { ...transform, opacity: 0.4 },
+        { duration: 0.24, ease: [0.4, 0, 0.2, 1] },
+      )
+      animation.then(() => {
+        if (!cancelled) {
+          surface.style.display = 'none'
+          setWindowHidden(true)
+          clearAnimationStyles()
+          taskbarAnchor.focus()
+        }
+      })
+    } else {
+      surface.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scaleX}, ${transform.scaleY})`
+      surface.style.opacity = '0.4'
+      surface.style.removeProperty('display')
+      setWindowHidden(false)
+      frame = requestAnimationFrame(() => {
+        animation = animate(
+          surface,
+          {
+            x: [transform.x, 0],
+            y: [transform.y, 0],
+            scaleX: [transform.scaleX, 1],
+            scaleY: [transform.scaleY, 1],
+            opacity: [0.4, 1],
+          },
+          { duration: 0.24, ease: [0.4, 0, 0.2, 1] },
+        )
+        animation.then(() => {
+          if (cancelled) return
+          clearAnimationStyles()
+          surface.focus()
+        })
+      })
+    }
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+      animation?.stop()
+      clearAnimationStyles()
+    }
+  }, [minimized, reducedMotion, registered, windowId])
+  useLayoutEffect(() => {
+    if (
+      minimized ||
+      !autoFitHeight ||
+      !contentAreaRef.current ||
+      !contentBodyRef.current
+    )
       return
 
     const fitWindowToContent = () => {
@@ -118,7 +286,7 @@ function FloatingWindow({
     fitWindowToContent()
 
     return () => resizeObserver.disconnect()
-  }, [autoFitHeight, maxAutoHeight])
+  }, [autoFitHeight, maxAutoHeight, minimized])
 
   return createPortal(
     <Rnd
@@ -127,10 +295,15 @@ function FloatingWindow({
       cancel="[data-floating-window-action]"
       default={windowRect}
       dragHandleClassName="floating-window-drag-handle"
+      enableResizing={!minimized}
       minHeight={viewportMinHeight}
       minWidth={viewportMinWidth}
-      style={{ zIndex }}
-      onMouseDown={() => setZIndex(++activeWindowZIndex)}
+      style={{
+        display: layerVisible ? undefined : 'none',
+        zIndex,
+        pointerEvents: !layerVisible || windowHidden ? 'none' : 'auto',
+      }}
+      onMouseDown={() => activateWindow(windowId)}
       onDragStop={(_, position) => {
         windowRectRef.current = {
           ...windowRectRef.current!,
@@ -147,56 +320,86 @@ function FloatingWindow({
         }
       }}
     >
-      <Card
-        className="h-full gap-0 rounded-lg py-0"
-        role="dialog"
-        aria-labelledby={titleId}
-        aria-modal="false"
+      <div
+        ref={windowSurfaceRef}
+        className="h-full origin-top-left outline-none"
+        aria-hidden={windowHidden}
+        tabIndex={-1}
       >
-        <CardHeader className="floating-window-drag-handle flex h-8 cursor-move touch-none items-center justify-between rounded-t-lg bg-[rgb(238_244_249)] px-3 py-0 select-none">
-          <CardTitle id={titleId} className="text-sm font-sans leading-none">
-            {title}
-          </CardTitle>
-          <CardAction className="self-center" data-floating-window-action>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`关闭${title}`}
-              data-floating-window-action
-              onClick={onClose}
-            >
-              <XIcon />
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <Separator />
-        <CardContent
-          ref={contentAreaRef}
+        <Card
           className={cn(
-            'min-h-0 flex-1 overflow-x-hidden p-3',
-            contentScrollable ? 'overflow-y-auto' : 'overflow-y-hidden',
+            'h-full gap-0 rounded-none py-0 transition-[box-shadow] duration-150',
+            active && 'shadow-[0_0_16px_rgba(0,0,0,0.32)]',
           )}
+          role="dialog"
+          aria-labelledby={titleId}
+          aria-modal="false"
         >
-          <div
-            ref={contentBodyRef}
-            className={autoFitHeight ? undefined : 'h-full'}
+          <CardHeader
+            className={cn(
+              'floating-window-drag-handle flex h-8 cursor-move touch-none items-center justify-between rounded-none px-3 py-0 transition-colors duration-150 select-none',
+              active ? 'bg-[rgb(211_227_253)]' : 'bg-[rgb(221_227_233)]',
+            )}
           >
-            {children}
-          </div>
-        </CardContent>
-        {footer && (
-          <>
-            <Separator />
-            <CardFooter
-              className="h-8 items-center justify-end gap-2 rounded-b-lg bg-[rgb(240_240_240)] px-3 py-0"
+            <CardTitle id={titleId} className="text-sm font-sans leading-none">
+              {title}
+            </CardTitle>
+            <CardAction
+              className="-mr-3 flex h-8 self-center"
               data-floating-window-action
             >
-              {footer}
-            </CardFooter>
-          </>
-        )}
-      </Card>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 w-10 rounded-none hover:bg-[rgb(219_219_219)]"
+                aria-label={`最小化${title}`}
+                title="最小化"
+                data-floating-window-action
+                onClick={() => minimizeWindow(windowId)}
+              >
+                <MinusIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 w-10 rounded-none hover:bg-destructive hover:text-card"
+                aria-label={`关闭${title}`}
+                title="关闭"
+                data-floating-window-action
+                onClick={onClose}
+              >
+                <XIcon />
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <Separator />
+          <CardContent
+            ref={contentAreaRef}
+            className={cn(
+              'min-h-0 flex-1 overflow-x-hidden p-3',
+              contentScrollable ? 'overflow-y-auto' : 'overflow-y-hidden',
+            )}
+          >
+            <div
+              ref={contentBodyRef}
+              className={autoFitHeight ? undefined : 'h-full'}
+            >
+              {children}
+            </div>
+          </CardContent>
+          {footer && (
+            <>
+              <Separator />
+              <CardFooter
+                className="h-8 items-center justify-end gap-2 rounded-none bg-[rgb(240_240_240)] px-3 py-0"
+                data-floating-window-action
+              >
+                {footer}
+              </CardFooter>
+            </>
+          )}
+        </Card>
+      </div>
     </Rnd>,
     document.body,
   )

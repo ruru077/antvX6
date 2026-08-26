@@ -1,7 +1,7 @@
 'use client'
 
 import { AuiIf, useAuiState, ThreadPrimitive } from '@assistant-ui/react'
-import { useCallback, useEffect, useRef, useState, type FC } from 'react'
+import type { FC } from 'react'
 
 const FollowupSuggestionsRow: FC = () => {
   const suggestions = useAuiState((s) => s.thread.suggestions)

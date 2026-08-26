@@ -14,7 +14,6 @@ import {
   Loader2Icon,
   AlertCircleIcon,
 } from 'lucide-react'
-import { type PropsWithChildren, useEffect, useState, type FC } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { TooltipIconButton } from '@/components/tooltip-icon-button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -31,6 +30,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { PropsWithChildren, FC } from 'react'
 
 const useFileSrc = (file: File | undefined) => {
   const [src, setSrc] = useState<string | undefined>(undefined)

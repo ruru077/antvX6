@@ -14,7 +14,6 @@ import {
   XIcon,
   type LucideIcon,
 } from 'lucide-react'
-import { type ComponentProps, useMemo } from 'react'
 import { clamp, pct } from '@/lib/range'
 import {
   field,
@@ -29,6 +28,7 @@ import {
   ShimmerLabel,
 } from '@/lib/surfaces'
 import { cn } from '@/lib/utils'
+import type { ComponentProps } from 'react'
 
 export interface ComposerAttachment {
   name: string

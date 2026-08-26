@@ -1,10 +1,27 @@
 import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { BotIcon, CircleHelpIcon, ListTreeIcon } from 'lucide-react'
-import CanvasLeftToolbarHiddenSvg from '@/assets/svg/canvas-left-toolbar-hidden.svg?react'
-import CanvasLeftToolbarVisibleSvg from '@/assets/svg/canvas-left-toolbar-visible.svg?react'
+import {
+  BotIcon,
+  ChartNoAxesCombinedIcon,
+  CircleHelpIcon,
+  ImageIcon,
+  ListTreeIcon,
+  WrenchIcon,
+  WrenchOffIcon,
+} from 'lucide-react'
+import CanvasToolbarCommentSvg from '@/assets/svg/canvas-toolbar-comment.svg?react'
+import CanvasToolbarMinimapSvg from '@/assets/svg/canvas-toolbar-minimap.svg?react'
+import {
+  cancelAnnotationPlacement,
+  startAnnotationPlacement,
+} from '@/services/annotation-service'
+import {
+  cancelImageNodePlacement,
+  startImageNodePlacement,
+} from '@/services/image-node-service'
 import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
+import { useGraphStore } from '@/store/graphStore'
 import '@styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
@@ -12,6 +29,8 @@ type CanvasLeftToolbarProps = {
   onToggleNavPanel: () => void
   toolbarsVisible: boolean
   onToggleToolbars: () => void
+  minimapVisible: boolean
+  onToggleMinimap: () => void
 }
 
 function CanvasLeftToolbar({
@@ -19,11 +38,26 @@ function CanvasLeftToolbar({
   onToggleNavPanel,
   toolbarsVisible,
   onToggleToolbars,
+  minimapVisible,
+  onToggleMinimap,
 }: CanvasLeftToolbarProps) {
   const agentPanelVisible = useAgentPanelStore((state) => state.visible)
+  const graph = useGraphStore((state) => state.graph)
   const toggleAgentPanel = useAgentPanelStore((state) => state.toggle)
   const hierarchyPanelOpen = useBottomPanelStore(
     (state) => state.visible && state.activeTab === 'hierarchy',
+  )
+  const signalAnalysisPanelOpen = useBottomPanelStore(
+    (state) => state.visible && state.activeTab === 'signal-analysis',
+  )
+
+  useEffect(
+    () => () => {
+      if (!graph) return
+      cancelAnnotationPlacement(graph)
+      cancelImageNodePlacement(graph)
+    },
+    [graph],
   )
 
   return (
@@ -67,11 +101,37 @@ function CanvasLeftToolbar({
         placement="right"
       >
         <button className="canvas-left-toolbar__btn" onClick={onToggleToolbars}>
-          {toolbarsVisible ? (
-            <CanvasLeftToolbarVisibleSvg />
-          ) : (
-            <CanvasLeftToolbarHiddenSvg />
-          )}
+          {toolbarsVisible ? <WrenchIcon /> : <WrenchOffIcon />}
+        </button>
+      </Tooltip>
+
+      <Tooltip title="添加图片" mouseEnterDelay={0.2} placement="right">
+        <button
+          type="button"
+          className="canvas-left-toolbar__btn"
+          aria-label="添加图片"
+          onClick={() => {
+            if (!graph) return
+            cancelAnnotationPlacement(graph)
+            startImageNodePlacement(graph)
+          }}
+        >
+          <ImageIcon />
+        </button>
+      </Tooltip>
+
+      <Tooltip title="注解" mouseEnterDelay={0.2} placement="right">
+        <button
+          type="button"
+          className="canvas-left-toolbar__btn"
+          aria-label="注解"
+          onClick={() => {
+            if (!graph) return
+            cancelImageNodePlacement(graph)
+            startAnnotationPlacement(graph)
+          }}
+        >
+          <CanvasToolbarCommentSvg />
         </button>
       </Tooltip>
 
@@ -92,17 +152,47 @@ function CanvasLeftToolbar({
         </button>
       </Tooltip>
 
+      <Tooltip
+        title={minimapVisible ? '隐藏小地图' : '小地图'}
+        mouseEnterDelay={0.2}
+        placement="right"
+      >
+        <button
+          type="button"
+          data-active={minimapVisible}
+          className="canvas-left-toolbar__btn canvas-left-toolbar__btn--bottom"
+          aria-label={minimapVisible ? '隐藏小地图' : '小地图'}
+          onClick={onToggleMinimap}
+        >
+          <CanvasToolbarMinimapSvg />
+        </button>
+      </Tooltip>
+
       <Tooltip title="系统层级预览" mouseEnterDelay={0.2} placement="right">
         <button
           type="button"
           data-active={hierarchyPanelOpen}
-          className="canvas-left-toolbar__btn canvas-left-toolbar__btn--bottom"
+          className="canvas-left-toolbar__btn"
           aria-label="系统层级预览"
           onClick={() =>
             useBottomPanelStore.getState().togglePanel('hierarchy')
           }
         >
           <ListTreeIcon />
+        </button>
+      </Tooltip>
+
+      <Tooltip title="信号分析" mouseEnterDelay={0.2} placement="right">
+        <button
+          type="button"
+          data-active={signalAnalysisPanelOpen}
+          className="canvas-left-toolbar__btn"
+          aria-label="信号分析"
+          onClick={() =>
+            useBottomPanelStore.getState().togglePanel('signal-analysis')
+          }
+        >
+          <ChartNoAxesCombinedIcon />
         </button>
       </Tooltip>
     </div>

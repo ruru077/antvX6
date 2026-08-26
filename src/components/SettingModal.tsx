@@ -4,6 +4,7 @@ import {
   Box,
   ChevronRight,
   Code2,
+  FlaskConical,
   Globe,
   Library,
   Paintbrush,
@@ -61,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: '参数封装', icon: Box },
   { name: '外观', icon: Paintbrush },
   { name: '语言', icon: Globe },
+  { name: '实验功能', icon: FlaskConical },
 ]
 
 const THEME_OPTIONS: { label: string; value: Theme }[] = [
@@ -101,6 +103,12 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
       key: 'stencilDefaultExpand',
       label: '库函数默认打开分组',
       desc: '开启后 stencil 面板中所有库函数分组默认展开。',
+      type: 'toggle',
+    },
+    {
+      key: 'stencilPreviewEnabled',
+      label: '默认使用模块预览',
+      desc: '开启后悬浮库函数模块时显示模块预览与参数。',
       type: 'toggle',
     },
   ],
@@ -150,6 +158,20 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
       options: DATE_FORMAT_OPTIONS,
     },
   ],
+  实验功能: [
+    {
+      key: 'betaGroupEnabled',
+      label: '打开 Beta Group 模块',
+      desc: '开启后在模块库与添加模块面板中显示 Beta 测试模块。',
+      type: 'toggle',
+    },
+    {
+      key: 'metaContextMenuEnabled',
+      label: '启用 Meta 右键菜单',
+      desc: '开启后使用 shadcn/ui 右键菜单；关闭时使用 Ant Design 右键菜单。',
+      type: 'toggle',
+    },
+  ],
 }
 
 // 工具 ----------------------------------------------------
@@ -162,12 +184,16 @@ type ConfigSlice = Pick<
   | 'locale'
   | 'timezone'
   | 'dateFormat'
+  | 'metaContextMenuEnabled'
+  | 'betaGroupEnabled'
   | 'setTheme'
   | 'setFontSize'
   | 'setCompactMode'
   | 'setLocale'
   | 'setTimezone'
   | 'setDateFormat'
+  | 'setMetaContextMenuEnabled'
+  | 'setBetaGroupEnabled'
 >
 
 function getConfigValue(
@@ -192,6 +218,9 @@ function setConfigValue(
   else if (key === 'locale') store.setLocale(val as Locale)
   else if (key === 'timezone') store.setTimezone(val as string)
   else if (key === 'dateFormat') store.setDateFormat(val as string)
+  else if (key === 'metaContextMenuEnabled')
+    store.setMetaContextMenuEnabled(Boolean(val))
+  else if (key === 'betaGroupEnabled') store.setBetaGroupEnabled(Boolean(val))
 }
 
 // 子组件 ----------------------------------------------------
@@ -295,13 +324,17 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
   const {
     hiddenStencilGroups,
     stencilDefaultExpand,
+    stencilPreviewEnabled,
     setStencilDefaultExpand,
+    setStencilPreviewEnabled,
     setHiddenStencilGroups,
   } = useConfigStore(
     useShallow((s) => ({
       hiddenStencilGroups: s.hiddenStencilGroups,
       stencilDefaultExpand: s.stencilDefaultExpand,
+      stencilPreviewEnabled: s.stencilPreviewEnabled,
       setStencilDefaultExpand: s.setStencilDefaultExpand,
+      setStencilPreviewEnabled: s.setStencilPreviewEnabled,
       setHiddenStencilGroups: s.setHiddenStencilGroups,
     })),
   )
@@ -319,6 +352,11 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
         item={SETTING_SCHEMA['库函数'][0]}
         value={stencilDefaultExpand}
         onChange={(v) => setStencilDefaultExpand(v)}
+      />
+      <ToggleRow
+        item={SETTING_SCHEMA['库函数'][1]}
+        value={stencilPreviewEnabled}
+        onChange={(v) => setStencilPreviewEnabled(v)}
       />
 
       <div>

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useMotionTemplate } from 'motion/react'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React from 'react'
 
 interface Position {
   /** The x coordinate of the lens */

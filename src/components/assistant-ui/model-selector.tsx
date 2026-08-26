@@ -5,18 +5,6 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon, ChevronDownIcon } from 'lucide-react'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  createContext,
-  useContext,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-} from 'react'
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -31,6 +19,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 export type ModelSelectorEffortOption = {
   id: string
@@ -748,9 +737,7 @@ type ModelSelectorComponent = typeof ModelSelectorImpl & {
   Effort: typeof ModelSelectorEffort
 }
 
-const ModelSelector = memo(
-  ModelSelectorImpl,
-) as unknown as ModelSelectorComponent
+const ModelSelector = ModelSelectorImpl as unknown as ModelSelectorComponent
 
 ModelSelector.displayName = 'ModelSelector'
 ModelSelector.Root = ModelSelectorRoot

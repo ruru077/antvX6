@@ -1,8 +1,8 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { Splitter } from 'antd'
-import { useState, type ReactNode } from 'react'
 import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
+import type { ReactNode } from 'react'
 
 type PanelSplitterProps =
   | {

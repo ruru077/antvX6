@@ -183,18 +183,38 @@ function runMenuAction(key: string, service: ContextMenuService) {
  * 画布简易右键菜单（Ant Design 实现）。
  * 普通画布操作复用现有 ContextMenuService；子系统封装菜单暂只提供 UI。
  */
-function ContextMenuAntd({ children }: { children: React.ReactNode }) {
+function ContextMenuAntd({
+  children,
+  enabled = true,
+}: {
+  children: React.ReactNode
+  enabled?: boolean
+}) {
   const graph = useGraphStore((state) => state.graph)
   const [contextInfo, setContextInfo] = useState<ContextInfo>({ type: 'blank' })
 
   useEffect(() => {
-    if (!graph) return
+    if (!graph || !enabled) return
+    const paper = graph.container.closest<HTMLElement>('.paper-container')
+    if (!paper) return
 
-    function onBlank() {
-      flushSync(() => setContextInfo({ type: 'blank' }))
+    function openMenu(event: { clientX: number; clientY: number }) {
+      paper?.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        }),
+      )
     }
 
-    function onCell({ cell }: EventArgs['cell:contextmenu']) {
+    function onBlank(args: EventArgs['blank:contextmenu']) {
+      flushSync(() => setContextInfo({ type: 'blank' }))
+      openMenu(args.e)
+    }
+
+    function onCell({ cell, e }: EventArgs['cell:contextmenu']) {
       if (cell.isNode()) {
         selectContextNode(graph, cell)
         flushSync(() => {
@@ -206,10 +226,12 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
             imageMode: cell.getData()?.imageMode,
           })
         })
+        openMenu(e)
         return
       }
 
       flushSync(() => setContextInfo({ type: 'edge', cell }))
+      openMenu(e)
     }
 
     graph.on('blank:contextmenu', onBlank)
@@ -219,7 +241,7 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
       graph.off('blank:contextmenu', onBlank)
       graph.off('cell:contextmenu', onCell)
     }
-  }, [graph])
+  }, [enabled, graph])
 
   const service = createContextMenuService(
     graph,
@@ -239,6 +261,7 @@ function ContextMenuAntd({ children }: { children: React.ReactNode }) {
 
   return (
     <Dropdown
+      disabled={!enabled}
       destroyOnHidden
       menu={{
         items,

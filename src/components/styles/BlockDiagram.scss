@@ -75,6 +75,7 @@
     top: 20vh !important;
     left: 50% !important;
     right: auto !important;
+    z-index: 10 !important;
     height: 40px !important;
     transform: translateX(-50%) !important;
     border-radius: 4px !important;
@@ -113,6 +114,7 @@
 
   // 画布区域主体（T 字型布局：左侧工具栏 + 画布列）
   .diagram-body {
+    position: relative;
     display: flex;
     flex-direction: row;
     width: 100%;
@@ -141,6 +143,16 @@
     flex-direction: column;
     flex: 1;
     overflow: hidden;
+  }
+
+  .diagram-canvas-frame {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgb(130, 135, 144);
   }
 
   // 画布容器

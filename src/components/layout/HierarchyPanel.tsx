@@ -4,7 +4,6 @@ import {
   SisternodeOutlined,
 } from '@ant-design/icons'
 import { Splitter, Tree } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { focusCellInSubGraph } from '@/services/graph-navigation-service'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -71,15 +70,16 @@ function HierarchyPanel() {
     [rootId, subGraphs],
   )
   const currentGraphId = currentPathIds[currentPathIds.length - 1]
-  const currentGraphKey = `graph:${currentGraphId}`
-  const currentGraphNodes = useMemo(
-    () => buildCurrentGraphNodes(subGraphs, currentGraphId),
-    [currentGraphId, subGraphs],
+  const [previewGraphId, setPreviewGraphId] = useState(currentGraphId)
+  const previewGraphKey = `graph:${previewGraphId}`
+  const previewGraphNodes = useMemo(
+    () => buildCurrentGraphNodes(subGraphs, previewGraphId),
+    [previewGraphId, subGraphs],
   )
-  const currentGraphName =
-    currentGraphId === rootId
+  const previewGraphName =
+    previewGraphId === rootId
       ? rootId
-      : (subGraphs[currentGraphId]?.name ?? currentGraphId)
+      : (subGraphs[previewGraphId]?.name ?? previewGraphId)
   const currentPathKeys = useMemo(
     () => currentPathIds.map((id) => `graph:${id}`),
     [currentPathIds],
@@ -91,6 +91,10 @@ function HierarchyPanel() {
       Array.from(new Set([...keys, ...currentPathKeys])),
     )
   }, [currentPathKeys])
+
+  useEffect(() => {
+    setPreviewGraphId(currentGraphId)
+  }, [currentGraphId])
 
   return (
     <Splitter
@@ -104,7 +108,7 @@ function HierarchyPanel() {
             <Tree
               blockNode
               expandedKeys={expandedKeys}
-              selectedKeys={[currentGraphKey]}
+              selectedKeys={[previewGraphKey]}
               showIcon
               showLine
               treeData={treeData}
@@ -112,6 +116,11 @@ function HierarchyPanel() {
               onExpand={(keys) => setExpandedKeys(keys)}
               onSelect={(selectedKeys) => {
                 const key = selectedKeys[0]
+                if (typeof key !== 'string') return
+                setPreviewGraphId(key.slice(6))
+              }}
+              onDoubleClick={(_, node) => {
+                const key = node.key
                 if (typeof key !== 'string') return
                 useSubSystemTabStore.getState().navigateWithin(key.slice(6))
               }}
@@ -125,18 +134,18 @@ function HierarchyPanel() {
           <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-muted px-2 text-sm font-medium text-foreground">
             <span>当前图层节点</span>
             <span className="truncate text-xs font-normal text-muted-foreground">
-              {currentGraphName} 共 {currentGraphNodes.length} 个
+              {previewGraphName} 共 {previewGraphNodes.length} 个
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2">
             <Tree
               blockNode
-              treeData={currentGraphNodes}
+              treeData={previewGraphNodes}
               className="min-w-max bg-transparent"
               onSelect={(_, info) => {
                 const key = info.node.key
                 if (typeof key !== 'string') return
-                focusCellInSubGraph(currentGraphId, key.slice(5))
+                focusCellInSubGraph(previewGraphId, key.slice(5))
               }}
             />
           </div>

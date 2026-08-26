@@ -32,14 +32,6 @@ import {
   SquareIcon,
 } from 'lucide-react'
 import {
-  createContext,
-  useContext,
-  type ComponentType,
-  type FC,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react'
-import {
   ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
@@ -64,6 +56,7 @@ import {
 import { TooltipIconButton } from '@/components/tooltip-icon-button'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import type { ComponentType, FC, PropsWithChildren, ReactNode } from 'react'
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart
 

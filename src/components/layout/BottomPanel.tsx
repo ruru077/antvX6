@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import { HierarchyPanel } from './HierarchyPanel'
 import { SearchPanel } from './SearchPanel'
+import { SignalAnalysisPanel } from './SignalAnalysisPanel'
 import type { BottomPanelId } from '@/store/bottomPanelStore'
 import type { ReactNode } from 'react'
 
@@ -14,6 +15,7 @@ const PANEL_REGISTRY: Record<
 > = {
   search: { label: '搜索', content: <SearchPanel /> },
   hierarchy: { label: '系统层级', content: <HierarchyPanel /> },
+  'signal-analysis': { label: '信号分析', content: <SignalAnalysisPanel /> },
 }
 
 function BottomPanel() {

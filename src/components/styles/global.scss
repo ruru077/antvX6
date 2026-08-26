@@ -7,20 +7,13 @@
   // padding: 0;
 }
 
-@font-face {
-  font-family: 'OPPO Sans';
-  src: local('OPPO Sans'), local('OPPOSans');
-  font-style: normal;
-  font-display: swap;
-}
-
 html,
 body {
   height: 100%;
   font-weight: 500;
   font-size: 16px;
   line-height: 24px;
-  font-family: var(--font-family-sans);
+  font-family: var(--font-sans);
 }
 
 button,
@@ -32,7 +25,7 @@ select {
 
 .x6-graph svg text,
 .x6-graph svg tspan {
-  font-family: var(--font-family-sans) !important;
+  font-family: var(--font-sans) !important;
 }
 
 .x6-graph foreignObject ::selection {
@@ -58,10 +51,6 @@ select {
 }
 
 :root {
-  /* Font */
-  --font-family-sans:
-    'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue',
-    Arial, sans-serif;
   --font-size-base: 14px;
   /* 默认最小字号 */
   --line-height-base: 22px;

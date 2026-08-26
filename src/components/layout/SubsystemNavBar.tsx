@@ -67,10 +67,21 @@ function SubsystemNavBar() {
   return (
     <Flex
       align="center"
-      className="flex h-8 items-center overflow-visible border-b border-gray-100 bg-white"
+      className="flex h-8 items-center overflow-visible bg-white"
     >
       {/* 路径 + 展开按钮 */}
-      <Flex flex={1} align="center" justify="space-between" className="h-full">
+      <Flex
+        flex={1}
+        align="center"
+        justify="space-between"
+        className="h-full"
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          border: '2px solid rgb(240, 240, 240)',
+          boxShadow: '0 2px 0 rgb(130, 135, 144)',
+        }}
+      >
         {/* 路径面包屑 */}
         <Flex
           flex={1}

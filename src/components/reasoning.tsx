@@ -8,16 +8,6 @@ import {
 } from '@assistant-ui/react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { BrainIcon, ChevronDownIcon } from 'lucide-react'
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
 import { MarkdownText } from '@/components/markdown-text'
 import {
   Collapsible,
@@ -359,9 +349,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
   )
 }
 
-const Reasoning = memo(
-  ReasoningImpl,
-) as unknown as ReasoningMessagePartComponent & {
+const Reasoning = ReasoningImpl as unknown as ReasoningMessagePartComponent & {
   Root: typeof ReasoningRoot
   Trigger: typeof ReasoningTrigger
   Content: typeof ReasoningContent
@@ -383,7 +371,7 @@ Reasoning.Fade = ReasoningFade
  * / `ReasoningTrigger` / `ReasoningContent` / `ReasoningText` directly.
  * See `thread.tsx` for an example.
  */
-const ReasoningGroup = memo(ReasoningGroupImpl)
+const ReasoningGroup = ReasoningGroupImpl
 ReasoningGroup.displayName = 'ReasoningGroup'
 
 export {

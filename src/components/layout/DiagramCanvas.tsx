@@ -1,11 +1,15 @@
+import { ContextMenu } from '@/components/ContextMenu'
 import { ContextMenuAntd } from '@/components/contextMenuAntd'
 import { BottomPanel } from '@/components/layout/BottomPanel'
 import { CanvasLeftToolbar } from '@/components/layout/CanvasLeftToolbar'
+import { CanvasStatusBar } from '@/components/layout/CanvasStatusBar'
 import { CanvasToolbars } from '@/components/layout/CanvasToolbars'
+import { HistoryParamNotice } from '@/components/layout/HistoryParamNotice'
 import { PanelSplitter } from '@/components/layout/PanelSplitter'
 import { PaperToolbar } from '@/components/layout/PaperToolbar'
 import { SubsystemNavBar } from '@/components/layout/SubsystemNavBar'
 import { SubsystemTabBar } from '@/components/layout/SubsystemTabBar'
+import { useConfigStore } from '@/store/configStore'
 import type { RefObject } from 'react'
 
 function DiagramCanvas({
@@ -15,6 +19,20 @@ function DiagramCanvas({
 }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
+  const [minimapVisible, setMinimapVisible] = useState(false)
+  const metaContextMenuEnabled = useConfigStore(
+    (state) => state.metaContextMenuEnabled,
+  )
+  const paperContainer = (
+    <div className="paper-container">
+      <div ref={paperContainerRef} className="paper" />
+      {/* 悬浮工具栏 */}
+      <CanvasToolbars
+        visible={toolbarsVisible}
+        minimapVisible={minimapVisible}
+      />
+    </div>
+  )
 
   return (
     <div className="diagram-canvas-area">
@@ -34,18 +52,26 @@ function DiagramCanvas({
               onToggleNavPanel={() => setNavPanelVisible((value) => !value)}
               toolbarsVisible={toolbarsVisible}
               onToggleToolbars={() => setToolbarsVisible((value) => !value)}
+              minimapVisible={minimapVisible}
+              onToggleMinimap={() => setMinimapVisible((value) => !value)}
             />
             <div className="diagram-canvas-right">
-              {/* 子系统导航栏 */}
-              {navPanelVisible && <SubsystemNavBar />}
-              <ContextMenuAntd>
-                <div className="paper-container">
-                  <div ref={paperContainerRef} className="paper" />
-                  {/* 悬浮工具栏 */}
-                  <CanvasToolbars visible={toolbarsVisible} />
-                </div>
-              </ContextMenuAntd>
+              <div className="diagram-canvas-frame">
+                {/* 子系统导航栏 */}
+                {navPanelVisible && <SubsystemNavBar />}
+                <ContextMenu
+                  enabled={metaContextMenuEnabled}
+                  toolbarsVisible={toolbarsVisible}
+                  onToggleToolbars={() => setToolbarsVisible((value) => !value)}
+                >
+                  <ContextMenuAntd enabled={!metaContextMenuEnabled}>
+                    {paperContainer}
+                  </ContextMenuAntd>
+                </ContextMenu>
+                <CanvasStatusBar />
+              </div>
             </div>
+            <HistoryParamNotice />
           </div>
         }
         second={<BottomPanel />}

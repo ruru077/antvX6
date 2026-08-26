@@ -7,10 +7,10 @@ import {
   useIsMarkdownCodeBlock,
 } from '@assistant-ui/react-markdown'
 import { CheckIcon, CopyIcon } from 'lucide-react'
-import { type FC, memo, useState } from 'react'
 import remarkGfm from 'remark-gfm'
 import { TooltipIconButton } from '@/components/tooltip-icon-button'
 import { cn } from '@/lib/utils'
+import type { FC } from 'react'
 import '@assistant-ui/react-markdown/styles/dot.css'
 
 const MarkdownTextImpl = () => {
@@ -24,7 +24,7 @@ const MarkdownTextImpl = () => {
   )
 }
 
-export const MarkdownText = memo(MarkdownTextImpl)
+export const MarkdownText = MarkdownTextImpl
 
 const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   const { isCopied, copyToClipboard } = useCopyToClipboard()
