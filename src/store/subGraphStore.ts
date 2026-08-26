@@ -1,5 +1,5 @@
 import { StringExt } from '@antv/x6'
-import { isEqual } from 'lodash-es'
+import { cloneDeep, isEqual } from 'lodash-es'
 import { create } from 'zustand'
 import {
   buildSubsystemMarkup,
@@ -7,7 +7,7 @@ import {
   maskArrowAttrs,
   MASK_SELECTOR,
 } from '@/assets/x6Model'
-import type { Graph, Node } from '@antv/x6'
+import type { Cell, Graph, Node } from '@antv/x6'
 import type {
   EntryGraphModel,
   GraphJSON,
@@ -65,6 +65,13 @@ interface CreateSubGraphItemOptions {
   /** Node 注册为子系统时使用的初始内部图 */
   graphJson?: GraphJSON
 }
+
+interface SubGraphHistoryPayload {
+  items: SubGraphMap
+  parentChildrenIds: Record<string, string[]>
+}
+
+const SUBGRAPH_HISTORY_OPTION = 'subGraphHistory'
 
 /**
  * 子系统封装的Block同步函数
@@ -256,6 +263,7 @@ function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
 
 /**
  * 将 EntryGraphModel 中的选中 outline 恢复为未选中模型样式。
+ * Annotation 的选中蓝底同样恢复为透明运行时样式。
  */
 function normalizeEntryGraphModel(model: EntryGraphModel): EntryGraphModel {
   const normalized = structuredClone(model)
@@ -263,8 +271,21 @@ function normalizeEntryGraphModel(model: EntryGraphModel): EntryGraphModel {
   Object.values(normalized.subGraphs).forEach((subGraph) => {
     subGraph.graphJson.cells.forEach((cell) => {
       const attrs = cell.attrs as
-        | Record<string, { filter?: { name?: string } }>
+        | Record<
+            string,
+            {
+              fill?: unknown
+              fillOpacity?: number
+              filter?: { name?: string }
+            }
+          >
         | undefined
+
+      if (cell.data?.blockType === 'Annotation' && attrs?.body) {
+        attrs.body.fill = '#ffffff'
+        attrs.body.fillOpacity = 0
+        delete attrs.body.filter
+      }
 
       Object.values(attrs ?? {}).forEach((selectorAttrs) => {
         const filterName = selectorAttrs.filter?.name
@@ -383,8 +404,14 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       return true
     } else if (action === 'delete') {
       const nextSubGraphs = { ...subGraphs }
-      delete nextSubGraphs[subGraphNode.id]
       const parentId = subGraphs[subGraphNode.id].parentId!
+      function removeSubGraphTree(subGraphId: string) {
+        const subGraph = nextSubGraphs[subGraphId]
+        if (!subGraph) return
+        subGraph.childrenIds.forEach(removeSubGraphTree)
+        delete nextSubGraphs[subGraphId]
+      }
+      removeSubGraphTree(subGraphNode.id)
 
       set({
         subGraphs: {
@@ -436,6 +463,56 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   },
 }))
 
+function captureSubGraphHistory(
+  cells: Cell[],
+): SubGraphHistoryPayload | undefined {
+  const { subGraphs } = useSubGraphStore.getState()
+  const rootIds = cells
+    .map((cell) => cell.id)
+    .filter((id) => subGraphs[id] !== undefined)
+  if (!rootIds.length) return
+
+  const items: SubGraphMap = {}
+  const parentChildrenIds: Record<string, string[]> = {}
+  function collectSubGraphTree(subGraphId: string) {
+    const subGraph = subGraphs[subGraphId]
+    items[subGraphId] = cloneDeep(subGraph)
+    subGraph.childrenIds.forEach(collectSubGraphTree)
+  }
+
+  rootIds.forEach((rootId) => {
+    const parentId = subGraphs[rootId].parentId!
+    parentChildrenIds[parentId] = [...subGraphs[parentId].childrenIds]
+    collectSubGraphTree(rootId)
+  })
+
+  return { items, parentChildrenIds }
+}
+
+function restoreSubGraphHistory(payload: SubGraphHistoryPayload) {
+  const { subGraphs } = useSubGraphStore.getState()
+  const nextSubGraphs = {
+    ...subGraphs,
+    ...cloneDeep(payload.items),
+  }
+
+  Object.entries(payload.parentChildrenIds).forEach(
+    ([parentId, childrenIds]) => {
+      nextSubGraphs[parentId] = {
+        ...nextSubGraphs[parentId],
+        childrenIds: [...childrenIds],
+      }
+    },
+  )
+  useSubGraphStore.setState({ subGraphs: nextSubGraphs })
+}
+
+function getSubGraphHistory(options: unknown) {
+  return (options as Record<string, SubGraphHistoryPayload | undefined>)?.[
+    SUBGRAPH_HISTORY_OPTION
+  ]
+}
+
 function saveEntryGraphModel(graph: Graph) {
   const { syncGraph, exportEntryGraphModel, markSaved } =
     useSubGraphStore.getState()
@@ -446,11 +523,15 @@ function saveEntryGraphModel(graph: Graph) {
   return model
 }
 
-export type { EntryGraphModel, SubGraphItem, GraphJSON }
+export type { EntryGraphModel, SubGraphItem, GraphJSON, SubGraphHistoryPayload }
 export {
   useSubGraphStore,
   saveEntryGraphModel,
   createSubGraphItem,
   buildPaths,
   normalizeEntryGraphModel,
+  SUBGRAPH_HISTORY_OPTION,
+  captureSubGraphHistory,
+  restoreSubGraphHistory,
+  getSubGraphHistory,
 }
