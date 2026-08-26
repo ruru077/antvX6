@@ -21,6 +21,7 @@ import { createInteractiveService } from '@/services/interactive-service'
 import { registerKeyboard } from '@/services/keyboard-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
 import { rightEdgeDragging } from '@/store/flags'
+import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
 import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
@@ -218,10 +219,10 @@ function registerPlugins(graph: GraphType) {
           '[data-action="create-subsystem"]',
         )!
         btn.addEventListener('mousedown', (e) => e.stopPropagation())
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
           e.stopPropagation()
           const cells = graph.getSelectedCells()
-          mergeToSubsystem(cells, graph)
+          await mergeToSubsystem(cells, graph)
         })
         return ''
       },
@@ -260,6 +261,8 @@ function registerPlugins(graph: GraphType) {
   graph.use(
     new History({
       enabled: true,
+      revertOptionsList: ['propertyPath', SUBGRAPH_HISTORY_OPTION],
+      applyOptionsList: ['propertyPath', SUBGRAPH_HISTORY_OPTION],
       beforeAddCommand(_event, args) {
         if (!args) return
         if ('options' in args && args.options?.undo === false) return false
