@@ -40,6 +40,9 @@ interface SubSystemTabStore {
   /** 在当前选项卡的图层历史中前进 */
   goForward: () => void
 
+  /** 删除已注销子系统的导航历史 */
+  removeHistory: (subGraphIds: string[]) => void
+
   /** 跳转父级 */
   goUp: () => void
 
@@ -57,6 +60,10 @@ function createTab(subGraphId: string): TabItem {
     history: [subGraphId],
     historyIndex: 0,
   }
+}
+
+function compactHistory(history: string[]) {
+  return history.filter((id, index) => id !== history[index - 1])
 }
 
 const initialTab = createTab(ROOT_ID)
@@ -167,6 +174,15 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
 
     const newIndex = tab.historyIndex - 1
     const targetId = tab.history[newIndex]
+    const existing = tabs.find(
+      (item) => item.key !== activeKey && item.currentSubGraphId === targetId,
+    )
+    if (existing) {
+      set({ activeKey: existing.key })
+      loadGraph(existing.currentSubGraphId)
+      return
+    }
+
     const nextTabs = tabs.map((t) =>
       t.key === activeKey
         ? { ...t, currentSubGraphId: targetId, historyIndex: newIndex }
@@ -183,6 +199,15 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
 
     const newIndex = tab.historyIndex + 1
     const targetId = tab.history[newIndex]
+    const existing = tabs.find(
+      (item) => item.key !== activeKey && item.currentSubGraphId === targetId,
+    )
+    if (existing) {
+      set({ activeKey: existing.key })
+      loadGraph(existing.currentSubGraphId)
+      return
+    }
+
     const nextTabs = tabs.map((t) =>
       t.key === activeKey
         ? { ...t, currentSubGraphId: targetId, historyIndex: newIndex }
@@ -190,6 +215,48 @@ const useSubSystemTabStore = create<SubSystemTabStore>((set, get) => ({
     )
     set({ tabs: nextTabs })
     loadGraph(targetId)
+  },
+
+  removeHistory: (subGraphIds) => {
+    const removedIds = new Set(subGraphIds)
+    const { tabs, activeKey } = get()
+    const cleanedTabs = tabs.flatMap((tab) => {
+      const previousHistory = compactHistory(
+        tab.history
+          .slice(0, tab.historyIndex + 1)
+          .filter((id) => !removedIds.has(id)),
+      )
+      const nextHistory = tab.history
+        .slice(tab.historyIndex + 1)
+        .filter((id) => !removedIds.has(id))
+      const history = compactHistory([...previousHistory, ...nextHistory])
+
+      if (history.length === 0) return []
+
+      const historyIndex = Math.max(previousHistory.length - 1, 0)
+      return [
+        {
+          ...tab,
+          currentSubGraphId: history[historyIndex],
+          history,
+          historyIndex,
+        },
+      ]
+    })
+    const activeTab = cleanedTabs.find((tab) => tab.key === activeKey)
+    const currentSubGraphIds = new Set(
+      activeTab ? [activeTab.currentSubGraphId] : [],
+    )
+    const nextTabs = cleanedTabs.filter((tab) => {
+      if (tab.key === activeKey) return true
+      if (currentSubGraphIds.has(tab.currentSubGraphId)) return false
+      currentSubGraphIds.add(tab.currentSubGraphId)
+      return true
+    })
+    const nextActiveKey = nextTabs.some((tab) => tab.key === activeKey)
+      ? activeKey
+      : nextTabs[0].key
+    set({ tabs: nextTabs, activeKey: nextActiveKey })
   },
 
   goUp: () => {
