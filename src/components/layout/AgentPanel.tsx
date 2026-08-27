@@ -109,7 +109,7 @@ function AgentPanel() {
 }
 
 function ConnectedAgentChat({ endpoint }: { endpoint: string }) {
-  const [threadId] = useState(() => crypto.randomUUID())
+  const [threadId] = useState(() => createThreadId())
   const agent = useMemo(
     () =>
       new HttpAgent({
@@ -153,6 +153,25 @@ function ConnectedAgentChat({ endpoint }: { endpoint: string }) {
       </div>
     </AssistantRuntimeProvider>
   )
+}
+
+function createThreadId() {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID()
+  }
+
+  const fallback =
+    typeof crypto !== 'undefined' &&
+    typeof crypto.getRandomValues === 'function'
+      ? Array.from(crypto.getRandomValues(new Uint8Array(16)))
+          .map((n) => n.toString(16).padStart(2, '0'))
+          .join('')
+      : Math.random().toString(36).slice(2)
+
+  return `thread-${Date.now()}-${fallback}`
 }
 
 function AgentWelcome() {
