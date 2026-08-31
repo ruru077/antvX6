@@ -25,8 +25,14 @@ import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
 import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
+import { registerTouchArrowheadTools } from '@/utils/plugin/touchArrowheadTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
-import type { Edge, Graph as GraphType, Node } from '@antv/x6'
+import type {
+  Edge,
+  Graph as GraphType,
+  Node,
+  ValidateConnectionArgs,
+} from '@antv/x6'
 
 const interactiveService = createInteractiveService()
 
@@ -66,7 +72,46 @@ function createGraph(container: HTMLElement): GraphType {
       allowNode: false,
       // TODO Edge 拉线反接
       allowEdge: false,
-      allowMulti: 'withPort',
+      // 重连时当前 edge 仍挂在旧端口，排除它后再执行 X6 的重复连接判断。
+      allowMulti({
+        edge,
+        sourceCell,
+        targetCell,
+        sourcePort,
+        targetPort,
+        type,
+      }: ValidateConnectionArgs): boolean {
+        // `type` 表示当前正在修改的是 edge 的哪一个端点：
+        // - source：正在拖动 source 端，候选端口是 sourcePort；
+        // - target：正在拖动 target 端，候选端口是 targetPort。
+        // 它表示 edge terminal 的方向，不是端口组名称（`in`/`out`）。
+        if (
+          !edge ||
+          !sourceCell ||
+          !targetCell ||
+          sourcePort == null ||
+          targetPort == null
+        ) {
+          return true
+        }
+
+        // 只查询当前待修改端所在方向的边：source 看 outgoing，target 看 incoming。
+        // 这样既保持单端口限制，也不会把无关方向的边算进来。
+        const connectedEdges = graph.getConnectedEdges(
+          type === 'source' ? sourceCell : targetCell,
+          type === 'source' ? { outgoing: true } : { incoming: true },
+        )
+        return !connectedEdges.some(
+          (connectedEdge: Edge) =>
+            // 重连中的 edge 还暂时挂在旧端口上，必须排除它自身；
+            // 这里只拦截其他 edge 的重复连接。
+            connectedEdge !== edge &&
+            connectedEdge.getSourceCell()?.id === sourceCell.id &&
+            connectedEdge.getTargetCell()?.id === targetCell.id &&
+            connectedEdge.getSourcePortId() === sourcePort &&
+            connectedEdge.getTargetPortId() === targetPort,
+        )
+      },
       allowLoop: true,
       sourceConnectionPoint: 'anchor',
       targetConnectionPoint: {
@@ -79,7 +124,7 @@ function createGraph(container: HTMLElement): GraphType {
         radius: SNAP_RADIUS,
         anchor: 'bbox',
       },
-      createEdge({ sourceCell, sourceMagnet }) {
+      createEdge() {
         return new Shape.Edge(previewLinkAttrs)
       },
       highlight: true,
@@ -89,14 +134,16 @@ function createGraph(container: HTMLElement): GraphType {
         sourcePort,
         targetPort,
         edge,
+        type,
       }): boolean {
         // 缺少关键参数直接拒绝
-        if (!sourceCell || !targetCell || !targetPort) return false
+        const candidatePort = type === 'source' ? sourcePort : targetPort
+        if (candidatePort == null) return false
         return isConnectionValid(
           graph,
-          sourceCell as Node | Edge,
+          sourceCell as Node | Edge | null,
           sourcePort,
-          targetCell as Node,
+          targetCell as Node | null,
           targetPort,
           edge,
         )
@@ -126,7 +173,12 @@ function createGraph(container: HTMLElement): GraphType {
         },
       },
     },
-    grid: { visible: true, size: GRAPH_GRID, type: 'doubleMesh' },
+    grid: {
+      visible: true,
+      size: GRAPH_GRID,
+      type: 'mesh',
+      // args: { thickness: 0.5 },
+    },
     scaling: { min: 0.5, max: 5 },
     panning: false,
     virtual: false,
@@ -183,6 +235,7 @@ function registerSteppedMouseWheel(graph: GraphType) {
 
 registerEdgeEditTool()
 registerRatioAnchorTool()
+registerTouchArrowheadTools()
 // registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {

@@ -29,12 +29,36 @@ function resolveSourceFromUpstreamEdge(
 /** 校验连接方向与端口占用。 */
 function isConnectionValid(
   graph: Graph,
-  sourceCell: Node | Edge,
+  sourceCell: Node | Edge | null | undefined,
   sourcePort: string | null | undefined,
-  targetCell: Node,
-  targetPort: string,
+  targetCell: Node | null | undefined,
+  targetPort: string | null | undefined,
   edge?: Edge | null,
 ) {
+  const currentEdgeId = edge?.id
+  const isPortOccupied = (cell: Node, portId: string) =>
+    graph
+      .getConnectedEdges(cell)
+      .some(
+        (connectedEdge) =>
+          connectedEdge.id !== currentEdgeId &&
+          ((connectedEdge.getSourceCell()?.id === cell.id &&
+            connectedEdge.getSourcePortId() === portId) ||
+            (connectedEdge.getTargetCell()?.id === cell.id &&
+              connectedEdge.getTargetPortId() === portId)),
+      )
+
+  // previewEdge 的 source 端尚未绑定时，暂时无法做完整的 source -> target 校验。
+  // 此时只校验当前候选 target：它必须是一个未被其他 Edge 占用的 in 端口。
+  if (!sourceCell) {
+    // target 节点或 target 端口也不存在，说明当前没有可校验的候选端口。
+    if (!targetCell || targetPort == null) return false
+    // target 端只能连接 in 端口，out 端口不能作为终点。
+    if (commonService.getPortGroup(targetCell.getPort(targetPort)) !== 'in')
+      return false
+    return !isPortOccupied(targetCell, targetPort)
+  }
+
   const sourcePortInfo = sourceCell.isNode()
     ? { cell: sourceCell, portId: sourcePort! }
     : resolveSourceFromUpstreamEdge(sourceCell as Edge)!
@@ -42,6 +66,16 @@ function isConnectionValid(
   const sourceDirection = commonService.getPortGroup(
     sourcePortInfo.cell.getPort(sourcePortInfo.portId),
   )
+
+  // previewEdge 的 target 端尚未绑定时，只校验已经确定的 source：
+  // 它必须是一个未被其他 Edge 占用的 out 端口。
+  if (!targetCell) {
+    if (sourceDirection !== 'out') return false
+    return !isPortOccupied(sourcePortInfo.cell, sourcePortInfo.portId)
+  }
+
+  // targetCell 已存在但没有 targetPort，表示命中的是节点本身而不是具体端口。
+  if (targetPort == null) return false
   const targetDirection = commonService.getPortGroup(
     targetCell.getPort(targetPort),
   )
@@ -53,31 +87,11 @@ function isConnectionValid(
     return false
   }
 
-  const currentEdgeId = edge?.id
   if (sourceCell.isNode()) {
-    const sourcePortOccupied = graph
-      .getConnectedEdges(sourcePortInfo.cell)
-      .some(
-        (connectedEdge) =>
-          connectedEdge.id !== currentEdgeId &&
-          ((connectedEdge.getSourceCell()?.id === sourcePortInfo.cell.id &&
-            connectedEdge.getSourcePortId() === sourcePortInfo.portId) ||
-            (connectedEdge.getTargetCell()?.id === sourcePortInfo.cell.id &&
-              connectedEdge.getTargetPortId() === sourcePortInfo.portId)),
-      )
-    if (sourcePortOccupied) return false
+    if (isPortOccupied(sourcePortInfo.cell, sourcePortInfo.portId)) return false
   }
 
-  return !graph
-    .getConnectedEdges(targetCell)
-    .some(
-      (connectedEdge) =>
-        connectedEdge.id !== currentEdgeId &&
-        ((connectedEdge.getSourceCell()?.id === targetCell.id &&
-          connectedEdge.getSourcePortId() === targetPort) ||
-          (connectedEdge.getTargetCell()?.id === targetCell.id &&
-            connectedEdge.getTargetPortId() === targetPort)),
-    )
+  return !isPortOccupied(targetCell, targetPort)
 }
 
 /** 按端口 ID 顺序连接两个模块当前可用的 out -> in 端口。 */
