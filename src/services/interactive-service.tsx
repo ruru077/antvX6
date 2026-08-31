@@ -12,19 +12,14 @@ import {
   BlockParamWindow,
   SubsystemParamWindow,
 } from '@/components/NodeParamWindow'
+import { getGraphInteractionAdapter } from '@/services/graph-interaction-adapter-service'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
+import sourceAnchorCursor from '@/touch/assets/source-anchor-cursor.png'
 import type { NodeParamWindowTarget } from '@/components/NodeParamWindow'
-import type {
-  Cell,
-  Edge,
-  EdgeView,
-  Graph,
-  Node,
-  NodeProperties,
-} from '@antv/x6'
+import type { Cell, Edge, Graph, Node, NodeProperties } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
 
@@ -115,6 +110,11 @@ function createInteractiveService() {
         { undo: false },
       )
     } else if (cell.isEdge()) {
+      const adapter = getGraphInteractionAdapter()
+      if (adapter) {
+        adapter.addEdgeOutline(cell, { getFilterWidth })
+        return
+      }
       cell.attr(
         'line/filter',
         {
@@ -154,7 +154,14 @@ function createInteractiveService() {
       )
     } else if (cell.isNode())
       cell.attr('body/filter', DROP_SHADOW_FILTER, { undo: false })
-    else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
+    else if (cell.isEdge()) {
+      const adapter = getGraphInteractionAdapter()
+      if (adapter) {
+        adapter.removeEdgeOutline(cell)
+        return
+      }
+      cell.attr('line/filter', null, { undo: false })
+    }
   }
 
   /**
@@ -185,15 +192,22 @@ function createInteractiveService() {
 
     const sourceCell = graph.getCellById(edge.getSourceCellId())
     const isBranchEdge = sourceCell?.isEdge()
+    const adapter = getGraphInteractionAdapter()
+    if (adapter) {
+      adapter.initializeEdgeTools(edge, { graph, isPreview, isBranchEdge })
+      return
+    }
+
+    const managedToolNames = [
+      'ratio-anchor',
+      'source-arrowhead',
+      'target-arrowhead',
+    ]
     const tools = edge.getTools()
     const persistentTools =
       tools?.items.filter((item) => {
         const name = typeof item === 'string' ? item : item.name
-        return ![
-          'ratio-anchor',
-          'source-arrowhead',
-          'target-arrowhead',
-        ].includes(name)
+        return !managedToolNames.includes(name)
       }) ?? []
     const hoverTools = []
     if (isBranchEdge) {
@@ -208,10 +222,10 @@ function createInteractiveService() {
           args: {
             className: HOVER_EDGE_TOOL_CLASS,
             attrs: {
-              d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
-              fill: 'white',
-              stroke: 'black',
-              cursor: 'move',
+              d: 'M -7.5 -7.5 H 7.5 V 7.5 H -7.5 Z',
+              fill: 'transparent',
+              stroke: 'transparent',
+              cursor: `url("${sourceAnchorCursor}") 16 16, default`,
               'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
             },
           },
@@ -240,13 +254,8 @@ function createInteractiveService() {
     )
     const expectedNames = hoverTools.map((item) => item.name)
     const alreadyInitialized =
-      currentNames
-        ?.filter((name) =>
-          ['ratio-anchor', 'source-arrowhead', 'target-arrowhead'].includes(
-            name,
-          ),
-        )
-        .join() === expectedNames.join()
+      currentNames?.filter((name) => managedToolNames.includes(name)).join() ===
+      expectedNames.join()
     if (alreadyInitialized) return
 
     edge.setTools(
