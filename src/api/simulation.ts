@@ -1,6 +1,6 @@
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
-const SIMULATION_WS_URL = 'ws://localhost:8071/NCSLabLink/websocketsimulatert'
+const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketsimulatert'
 
 interface ScopeResult {
   uuid?: string
