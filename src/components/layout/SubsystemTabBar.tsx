@@ -15,6 +15,7 @@ import { Button, Dropdown, Input, Tabs, Tag, Tooltip, Typography } from 'antd'
 import { ArrowBigLeft, ArrowBigRight, ArrowBigUp } from 'lucide-react'
 import { cloneElement, type CSSProperties, type ReactElement } from 'react'
 import { useShallow } from 'zustand/shallow'
+import { VirtualKeyboard } from '@/components/VirtualKeyboard'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
 import type { DragEndEvent } from '@dnd-kit/core'
@@ -242,6 +243,7 @@ function SubsystemTabBar() {
       </div>
       {/* 项目名区域 */}
       <div className="subsystem-tab-bar__model-name">
+        <VirtualKeyboard />
         {editing ? (
           <Input
             size="small"

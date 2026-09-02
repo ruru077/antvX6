@@ -54,6 +54,7 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
+    gap: 4px;
     padding: 0 8px;
 
     .ant-tag {
@@ -74,6 +75,107 @@
       flex-shrink: 0;
       cursor: pointer;
     }
+  }
+
+  &__keyboard {
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+
+    img {
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+    }
+  }
+}
+
+.virtual-keyboard-window {
+  height: 100%;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.32);
+
+  &__drag-handle {
+    display: flex;
+    height: 32px;
+    cursor: move;
+    touch-action: none;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0;
+    background: rgb(211, 227, 253);
+    padding: 0 0 0 12px;
+    user-select: none;
+
+    [data-slot='card-title'] {
+      font-family: sans-serif;
+      font-size: 14px;
+      line-height: 1;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    height: 32px;
+    align-self: center;
+
+    button {
+      width: 40px;
+      height: 32px;
+      border-radius: 0;
+
+      &:last-child:hover {
+        background: var(--destructive);
+        color: var(--card);
+      }
+    }
+  }
+
+  &__content {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+  }
+}
+
+.virtual-keyboard-side-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 80;
+  display: flex;
+  width: 38px;
+  align-items: center;
+  gap: 6px;
+  flex-direction: column;
+  border: 1px solid rgb(160, 160, 160);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: rgb(211, 227, 253);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: #2c2c2c;
+  cursor: pointer;
+  padding: 9px 7px;
+  transform: translateY(-50%);
+  touch-action: manipulation;
+
+  img {
+    width: 22px;
+    height: 22px;
+  }
+
+  span {
+    font-size: 12px;
+    line-height: 1.2;
+    writing-mode: vertical-rl;
   }
 }
 

@@ -40,6 +40,7 @@
     "react-intl-universal": "^2.14.0",
     "react-rnd": "^10.5.3",
     "react-router": "^7.18.2",
+    "react-simple-keyboard": "3.8.261",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
