@@ -17,6 +17,14 @@ const PORT_MIN_SPACING = 20
 const PORT_PADDING = 10
 
 function createCommonService() {
+  function getPrimaryModifeierByDevice(): 'ctrlKey' | 'metaKey' {
+    if (typeof navigator === 'undefined') return 'ctrlKey'
+
+    return /Macintosh|Mac OS X|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      ? 'metaKey'
+      : 'ctrlKey'
+  }
+
   function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
@@ -284,23 +292,8 @@ function createCommonService() {
     return getUniqueLabel(rawLabel, labels, true)
   }
 
-  /**
-   * 复制文本到剪贴板
-   * - string 直接复制
-   * - 对象/数组自动 JSON.stringify
-   */
-  async function copyText(data: any): Promise<void> {
-    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
-
-    if (!navigator.clipboard?.writeText) {
-      throw new Error(
-        '当前环境不支持 Clipboard API（需现代浏览器或 HTTPS/localhost）',
-      )
-    }
-
-    return navigator.clipboard.writeText(text)
-  }
   return {
+    getPrimaryModifeierByDevice,
     resize,
     isTextMatched,
     isDblClickOnLabel,
@@ -313,7 +306,6 @@ function createCommonService() {
     getUniqueLabel,
     ensureLabelUnique,
     isLabelUnique,
-    copyText,
   }
 }
 

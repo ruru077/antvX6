@@ -1,8 +1,12 @@
 import { DoubleRightOutlined, SisternodeOutlined } from '@ant-design/icons'
 import { Breadcrumb, Button, Flex, Space, Tooltip, Typography } from 'antd'
+import { createCommonService } from '@/services/common-service'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
+
+const commonService = createCommonService()
+const primaryModifierKey = commonService.getPrimaryModifeierByDevice()
 
 function SubsystemNavBar() {
   const currentPathIds = useSubGraphStore((state) => state.currentPathIds)
@@ -17,7 +21,7 @@ function SubsystemNavBar() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((!e.ctrlKey && !e.metaKey) || e.key.toLowerCase() !== 'f') return
+      if (!e[primaryModifierKey] || e.key.toLowerCase() !== 'f') return
       e.preventDefault()
       useBottomPanelStore.getState().togglePanel('search')
     }

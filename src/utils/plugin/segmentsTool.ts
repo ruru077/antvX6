@@ -1,10 +1,13 @@
 /* oxlint-disable @typescript-eslint/no-explicit-any */
 import { Dom, Graph, Line, Point, View, edgeToolRegistry } from '@antv/x6'
+import { createCommonService } from '@/services/common-service'
 
 const DRAG_THRESHOLD = 4
 const TERMINAL_STUB_THRESHOLD = 24
 const POINT_TOLERANCE = 0.5
 const SVG_NS = 'http://www.w3.org/2000/svg'
+const commonService = createCommonService()
+const primaryModifierKey = commonService.getPrimaryModifeierByDevice()
 
 type SegmentHandleOptions = {
   graph: Graph
@@ -65,7 +68,7 @@ class SegmentHandle extends View<SegmentHandleEventArgs> {
 
   protected onMouseDown(evt: any) {
     if (this.options.guard(evt)) return
-    if (evt.ctrlKey || evt.metaKey) return
+    if (evt[primaryModifierKey]) return
 
     const startX = evt.clientX
     const startY = evt.clientY

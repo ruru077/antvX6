@@ -7,6 +7,7 @@ import {
   cutSelection,
   pasteAndSelect,
 } from '@/services/clipboard-service'
+import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   firstTimePaste,
@@ -22,6 +23,7 @@ import { saveEntryGraphModel } from '@/store/subGraphStore'
 import type { Graph, Node } from '@antv/x6'
 
 const interactiveService = createInteractiveService()
+const commonService = createCommonService()
 
 // ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
 
@@ -204,6 +206,10 @@ function bindKeys(graph: Graph, bindings: KeyBinding[]) {
 function registerKeyboard(graph: Graph) {
   graph.use(new Keyboard({ enabled: true }))
   const space = createSpaceHandlers(graph)
+  const primaryModifier =
+    commonService.getPrimaryModifeierByDevice() === 'metaKey' ? 'meta' : 'ctrl'
+  const redoKeys =
+    primaryModifier === 'meta' ? ['meta+shift+z'] : ['ctrl+y', 'ctrl+shift+z']
 
   // 方向键合并：Space 按住时走 pan，否则走 move。
   DIRECTIONS.forEach((direction) => {
@@ -219,17 +225,17 @@ function registerKeyboard(graph: Graph) {
   })
 
   bindKeys(graph, [
-    [['ctrl+s', 'meta+s'], () => saveEntryGraphModel(graph)],
-    [['ctrl+c', 'meta+c'], () => copySelection(graph)],
+    [`${primaryModifier}+s`, () => saveEntryGraphModel(graph)],
+    [`${primaryModifier}+c`, () => copySelection(graph)],
     [
-      ['ctrl+v', 'meta+v'],
+      `${primaryModifier}+v`,
       () => {
         if (!firstTimePaste || !pasteAndSelect(graph)) return
         setFirstTimePaste(false)
       },
     ],
-    [['ctrl+v', 'meta+v'], () => setFirstTimePaste(true), 'keyup'],
-    [['ctrl+x', 'meta+x'], () => cutSelection(graph)],
+    [`${primaryModifier}+v`, () => setFirstTimePaste(true), 'keyup'],
+    [`${primaryModifier}+x`, () => cutSelection(graph)],
     [
       ['delete', 'backspace'],
       () => {
@@ -240,7 +246,7 @@ function registerKeyboard(graph: Graph) {
       },
     ],
     [
-      ['ctrl+a', 'meta+a'],
+      `${primaryModifier}+a`,
       () => {
         const cells = graph.getCells()
         if (cells.length) graph.resetSelection(cells)
@@ -253,8 +259,8 @@ function registerKeyboard(graph: Graph) {
     ['0', space.zoomReset],
     ['g', space.zoomToFit],
     ['f', space.zoomToSelection],
-    [['ctrl+z', 'meta+z'], () => graph.undo()],
-    [['ctrl+y', 'meta+y', 'meta+shift+z', 'ctrl+shift+z'], () => graph.redo()],
+    [`${primaryModifier}+z`, () => graph.undo()],
+    [redoKeys, () => graph.redo()],
   ])
 }
 

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { getAntdMessage } from '@/services/antd-message-service'
+import { createCommonService } from '@/services/common-service'
 import {
   loadEntryGraphModel,
   changeGraphView,
@@ -34,6 +35,10 @@ import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
 type PaperToolbarProps = Record<string, never>
+
+const commonService = createCommonService()
+const primaryModifierLabel =
+  commonService.getPrimaryModifeierByDevice() === 'metaKey' ? '⌘' : 'Ctrl+'
 
 const simulateMenuItems: MenuProps['items'] = [
   {
@@ -54,7 +59,9 @@ const simulateMenuItems: MenuProps['items'] = [
         style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
       >
         <span>快速仿真</span>
-        <span style={{ color: '#999', fontSize: 12 }}>Ctrl+Shift+R</span>
+        <span style={{ color: '#999', fontSize: 12 }}>
+          {primaryModifierLabel}Shift+R
+        </span>
       </span>
     ),
   },
@@ -65,7 +72,9 @@ const simulateMenuItems: MenuProps['items'] = [
         style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
       >
         <span>编译</span>
-        <span style={{ color: '#999', fontSize: 12 }}>Ctrl+B</span>
+        <span style={{ color: '#999', fontSize: 12 }}>
+          {primaryModifierLabel}B
+        </span>
       </span>
     ),
   },
@@ -155,7 +164,10 @@ function PaperToolbar(_: PaperToolbarProps) {
           </AntdButton>
         </Tooltip>
 
-        <Tooltip title="保存 (Ctrl+S)" mouseEnterDelay={0.3}>
+        <Tooltip
+          title={`保存 (${primaryModifierLabel}S)`}
+          mouseEnterDelay={0.3}
+        >
           <AntdButton
             size="small"
             icon={<Save size={14} />}

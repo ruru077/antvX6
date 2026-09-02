@@ -57,6 +57,7 @@ import {
   useSubGraphStore,
 } from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
+import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
 import { useDomListener } from '@/utils/hooks/useDomListener'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import {
@@ -160,7 +161,9 @@ function registerCellSelectionListeners(graph: Graph) {
     graph.resetSelection([cell])
   }
 
-  return registerListeners(graph, [['cell:mousedown', cellMouseDownHandler]])
+  return registerListeners(graph, [
+    ['cell:mousedown', withDeviceGuard('desktop', cellMouseDownHandler)],
+  ])
 }
 
 /**
@@ -433,8 +436,8 @@ function registerEdgeToolListeners(graph: Graph) {
   const unregisterGraphListeners = registerListeners(graph, [
     ['edge:added', edgeAddedHandler],
     ['edge:connected', edgeConnectedHandler],
-    ['edge:mouseenter', edgeMouseenterHandler],
-    ['edge:mouseleave', edgeMouseleaveHandler],
+    ['edge:mouseenter', withDeviceGuard('desktop', edgeMouseenterHandler)],
+    ['edge:mouseleave', withDeviceGuard('desktop', edgeMouseleaveHandler)],
   ])
   return () => {
     unregisterGraphListeners()
@@ -535,7 +538,7 @@ function registerTransformListeners(graph: Graph) {
   return registerListeners(graph, [
     ['node:resize', nodeResizeHandler],
     ['node:resized', nodeResizedHandler],
-    ['node:mouseenter', nodeMouseEnterHandler],
+    ['node:mouseenter', withDeviceGuard('desktop', nodeMouseEnterHandler)],
   ])
 }
 
@@ -887,7 +890,9 @@ function registerEditableLabelListeners(graph: Graph) {
     })
   }
 
-  return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
+  return registerListeners(graph, [
+    ['node:mouseenter', withDeviceGuard('desktop', nodeMouseEnterHandler)],
+  ])
 }
 // ── Ctrl+Click 拉线 ──────────────────────────────────────────────────────
 type RightEdgeDragEventSetter = (
@@ -909,7 +914,7 @@ function registerEdgeBranchListeners(
       setRightEdgeDragEvent(edge, edgeView, e)
       return
     }
-    if (!e.ctrlKey && !e.metaKey) return
+    if (!e[commonService.getPrimaryModifeierByDevice()]) return
 
     e.stopPropagation()
     e.preventDefault()
@@ -957,7 +962,9 @@ function registerEdgeBranchListeners(
     }, 0)
   }
 
-  return registerListeners(graph, [['edge:mousedown', edgeMousedownHandler]])
+  return registerListeners(graph, [
+    ['edge:mousedown', withDeviceGuard('desktop', edgeMousedownHandler)],
+  ])
 }
 // ── 事件注册工具 ──────────────────────────────────────────────────────────
 type ListenerEntry = {

@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { createCommonService } from '@/services/common-service'
 import { useIsMobile } from '@/utils/hooks/use-mobile'
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
@@ -29,6 +30,8 @@ const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
+const commonService = createCommonService()
+const primaryModifierKey = commonService.getPrimaryModifeierByDevice()
 
 type SidebarContextProps = {
   state: 'expanded' | 'collapsed'
@@ -96,7 +99,7 @@ function SidebarProvider({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-        (event.metaKey || event.ctrlKey)
+        event[primaryModifierKey]
       ) {
         event.preventDefault()
         toggleSidebar()

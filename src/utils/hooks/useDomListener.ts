@@ -1,5 +1,6 @@
 import { RED, RIGHT_DRAG_COPY_THRESHOLD } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
+import { createCommonService } from '@/services/common-service'
 import { connectAvailablePorts } from '@/services/connection-service'
 import {
   clearEdgeInsertionPreview,
@@ -13,10 +14,14 @@ import {
   setSuppressDomContextMenu,
   suppressDomContextMenu,
 } from '@/store/flags'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import { setHoverEdgeToolsVisible } from '@/utils/plugin/edgeToolVisibility'
 import type { Cell, Edge, EdgeView, EventArgs, Graph, Node } from '@antv/x6'
 
 type EdgeMouseDownEvent = EventArgs['edge:mousedown']['e']
+
+const commonService = createCommonService()
+const primaryModifierKey = commonService.getPrimaryModifeierByDevice()
 
 type PointerGesture =
   | {
@@ -125,7 +130,7 @@ function registerPointerGestures(
 
   function onMouseDown(e: MouseEvent) {
     const view = graph.findViewByElem(e.target as Element)
-    if (view?.cell?.isEdge?.() && (e.button === 2 || e.ctrlKey || e.metaKey)) {
+    if (view?.cell?.isEdge?.() && (e.button === 2 || e[primaryModifierKey])) {
       scroller?.togglePanning(false)
       if (e.button === 2) {
         const edge = view.cell as Edge
@@ -148,7 +153,7 @@ function registerPointerGestures(
 
     const target = e.target instanceof Element ? e.target : null
     const isRightDrag = e.button === 2
-    const isCtrlDrag = e.button === 0 && (e.ctrlKey || e.metaKey)
+    const isCtrlDrag = e.button === 0 && e[primaryModifierKey]
     if (!isRightDrag && !isCtrlDrag) return
     if (target?.closest('.x6-port')) return
 
@@ -446,6 +451,7 @@ function useDomListener(
   onGraphMouseMove: (e: MouseEvent) => void,
   cancelGraphMouseMove: () => void,
 ) {
+  const touchTerminal = useTouchTerminal()
   const gesturesRef = useRef<RegisteredPointerGestures | null>(null)
 
   function setRightEdgeDragEvent(
@@ -457,7 +463,7 @@ function useDomListener(
   }
 
   useEffect(() => {
-    if (!graph) return
+    if (!graph || touchTerminal) return
 
     const gestures = registerPointerGestures(graph, onGraphMouseMove)
     gesturesRef.current = gestures
@@ -467,7 +473,7 @@ function useDomListener(
       gestures.dispose()
       if (gesturesRef.current === gestures) gesturesRef.current = null
     }
-  }, [graph, onGraphMouseMove, cancelGraphMouseMove])
+  }, [graph, onGraphMouseMove, cancelGraphMouseMove, touchTerminal])
 
   return setRightEdgeDragEvent
 }
