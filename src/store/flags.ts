@@ -13,8 +13,6 @@ export let rightEdgeDragging = false
 export let currentNode: Node | null = null
 /** 当前是否正在 Transform，避免移动时误清理工具 */
 export let isTransforming = false
-/** paste keydown 连续触发时，只允许第一次执行 */
-export let firstTimePaste = true
 /** Space 是否按下，用于组合快捷键和平移 */
 export let spaceHeld = false
 /** Space 按下期间是否已经触发组合行为 */
@@ -44,10 +42,6 @@ export const setCurrentNode = (node: Node | null) => {
 
 export const setIsTransforming = (val: boolean) => {
   isTransforming = val
-}
-
-export const setFirstTimePaste = (val: boolean) => {
-  firstTimePaste = val
 }
 
 export const setSpaceHeld = (val: boolean) => {

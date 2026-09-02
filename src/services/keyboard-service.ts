@@ -10,9 +10,7 @@ import {
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
-  firstTimePaste,
   isSelectionByKey,
-  setFirstTimePaste,
   setIsSelectionByKey,
   setSpaceComboUsed,
   setSpaceHeld,
@@ -178,7 +176,7 @@ function createSpaceHandlers(graph: Graph) {
 
 type KeyBinding = [
   keys: string | string[],
-  handler: () => void,
+  handler: (event: KeyboardEvent) => void,
   eventType?: 'keydown' | 'keyup' | 'keypress',
 ]
 
@@ -186,10 +184,10 @@ function bindKeys(graph: Graph, bindings: KeyBinding[]) {
   bindings.forEach(([keys, handler, eventType]) => {
     graph.bindKey(
       keys,
-      () => {
+      (event) => {
         // 编辑态：不执行 handler，不 return false（避免 Mousetrap 调 preventDefault）
         if (isEditingElement()) return
-        handler()
+        handler(event)
         return false
       },
       eventType,
@@ -229,12 +227,12 @@ function registerKeyboard(graph: Graph) {
     [`${primaryModifier}+c`, () => copySelection(graph)],
     [
       `${primaryModifier}+v`,
-      () => {
-        if (!firstTimePaste || !pasteAndSelect(graph)) return
-        setFirstTimePaste(false)
+      (event) => {
+        /** paste keydown 连续触发时，只允许第一次执行 */
+        if (event.repeat) return
+        pasteAndSelect(graph)
       },
     ],
-    [`${primaryModifier}+v`, () => setFirstTimePaste(true), 'keyup'],
     [`${primaryModifier}+x`, () => cutSelection(graph)],
     [
       ['delete', 'backspace'],
