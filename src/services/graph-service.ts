@@ -19,13 +19,14 @@ import { previewLinkAttrs } from '@/assets/x6Model'
 import { isConnectionValid } from '@/services/connection-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { registerKeyboard } from '@/services/keyboard-service'
+import { createSettingService } from '@/services/setting-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
 import { rightEdgeDragging } from '@/store/flags'
 import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
+import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
 import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
-import { registerTouchArrowheadTools } from '@/utils/plugin/touchArrowheadTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
 import type {
   Edge,
@@ -35,6 +36,7 @@ import type {
 } from '@antv/x6'
 
 const interactiveService = createInteractiveService()
+const settingService = createSettingService()
 
 // ── 主入口 ──────────────────────────────────────────────────────────────────
 
@@ -43,11 +45,11 @@ function createAndSetupGraph(
   onScale: (zoom: number) => void,
 ): GraphType {
   const graph = createGraph(container)
-  registerSteppedMouseWheel(graph)
+  withDeviceGuard('desktop', registerSteppedMouseWheel)(graph)
   setupDevTools(graph)
   registerPlugins(graph)
   // Keyboard 的插件安装和快捷键行为由 keyboard-service 统一维护。
-  registerKeyboard(graph)
+  withDeviceGuard('desktop', registerKeyboard)(graph)
   graph.on('scale', ({ sx }: { sx: number }) => {
     // 使用selection 插件选择多个cell 之后滚轮进行缩放，选择框错位 #3452
     const cells = graph.getSelectedCells()
@@ -235,29 +237,27 @@ function registerSteppedMouseWheel(graph: GraphType) {
 
 registerEdgeEditTool()
 registerRatioAnchorTool()
-registerTouchArrowheadTools()
 // registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
   graph.use(new Export())
-  graph.use(
-    new Selection({
-      enabled: true,
-      // 关闭内置多选 使用 Ctrl/Command + 鼠标点击 进行模块连接
-      multiple: false,
-      // 允许在画布空白处拖出矩形框选区域
-      rubberband: true,
-      // Edge 与框选区域命中时，也将 Edge 加入 Selection
-      rubberEdge: true,
-      // 为每个选中的 Node 显示独立的 SelectionBox
-      showNodeSelectionBox: true,
-      // Edge 可以被选中，但不为其显示独立的 SelectionBox
-      showEdgeSelectionBox: false,
-      movingRouterFallback: 'orth',
-      modifiers: 'shift',
-      content(_selection, el) {
-        el.innerHTML = `
+  const selection = new Selection({
+    enabled: true,
+    // 关闭内置多选 使用 Ctrl/Command + 鼠标点击 进行模块连接
+    multiple: false,
+    // 允许在画布空白处拖出矩形框选区域
+    rubberband: true,
+    // Edge 与框选区域命中时，也将 Edge 加入 Selection
+    rubberEdge: true,
+    // 为每个选中的 Node 显示独立的 SelectionBox
+    showNodeSelectionBox: true,
+    // Edge 可以被选中，但不为其显示独立的 SelectionBox
+    showEdgeSelectionBox: false,
+    // movingRouterFallback: 'orth',
+    modifiers: 'shift',
+    content(_selection, el) {
+      el.innerHTML = `
           <div class="x6-selection-action-bar">
             <button class="x6-selection-action-bar__btn" data-action="create-subsystem" title="创建子系统">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
@@ -268,19 +268,26 @@ function registerPlugins(graph: GraphType) {
             </button>
           </div>
         `
-        const btn = el.querySelector<HTMLElement>(
-          '[data-action="create-subsystem"]',
-        )!
-        btn.addEventListener('mousedown', (e) => e.stopPropagation())
-        btn.addEventListener('click', async (e) => {
-          e.stopPropagation()
-          const cells = graph.getSelectedCells()
-          await mergeToSubsystem(cells, graph)
-        })
-        return ''
-      },
-    }),
-  )
+      const btn = el.querySelector<HTMLElement>(
+        '[data-action="create-subsystem"]',
+      )!
+      const stopSelectionGesture = (e: Event) => e.stopPropagation()
+      btn.addEventListener('mousedown', stopSelectionGesture)
+      btn.addEventListener('pointerdown', stopSelectionGesture)
+      // X6 Selection 仍单独监听 touchstart，必须阻止它把按钮点击识别为框选移动。
+      btn.addEventListener('touchstart', stopSelectionGesture, {
+        passive: true,
+      })
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        const cells = graph.getSelectedCells()
+        await mergeToSubsystem(cells, graph)
+      })
+      return ''
+    },
+  })
+  graph.use(selection)
+  settingService.registerSelectionSettings(graph, selection)
   const scroller = new Scroller({
     enabled: true,
     pannable: true,

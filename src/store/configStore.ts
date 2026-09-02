@@ -22,6 +22,7 @@ interface ConfigValues {
   stencilDefaultExpand: boolean
   stencilPreviewEnabled: boolean
   stencilArrangeMode: StencilArrangeMode
+  selectionMovingRouterFallbackEnabled: boolean
   // 过滤/隐藏的分组列表（空 = 全部显示）
   hiddenStencilGroups: string[]
 }
@@ -38,6 +39,7 @@ interface ConfigStore extends ConfigValues {
   setStencilDefaultExpand: (enabled: boolean) => void
   setStencilPreviewEnabled: (enabled: boolean) => void
   setStencilArrangeMode: (mode: StencilArrangeMode) => void
+  setSelectionMovingRouterFallbackEnabled: (enabled: boolean) => void
   setHiddenStencilGroups: (groups: string[]) => void
 }
 
@@ -54,6 +56,7 @@ const DEFAULT_VALUES: ConfigValues = {
   stencilDefaultExpand: false,
   stencilPreviewEnabled: false,
   stencilArrangeMode: 'default',
+  selectionMovingRouterFallbackEnabled: false,
   hiddenStencilGroups: [],
 }
 
@@ -92,6 +95,9 @@ const useConfigStore = create<ConfigStore>()(
           set({ stencilPreviewEnabled }),
         setStencilArrangeMode: (stencilArrangeMode) =>
           set({ stencilArrangeMode }),
+        setSelectionMovingRouterFallbackEnabled: (
+          selectionMovingRouterFallbackEnabled,
+        ) => set({ selectionMovingRouterFallbackEnabled }),
         setHiddenStencilGroups: (hiddenStencilGroups) =>
           set({ hiddenStencilGroups }),
       }),

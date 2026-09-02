@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   FlaskConical,
+  Gauge,
   Globe,
   Library,
   Paintbrush,
@@ -59,6 +60,7 @@ interface SettingItem {
 // 模块常量 ----------------------------------------------------
 const NAV_ITEMS: NavItem[] = [
   { name: '库函数', icon: Library },
+  { name: '性能', icon: Gauge },
   { name: '参数封装', icon: Box },
   { name: '外观', icon: Paintbrush },
   { name: '语言', icon: Globe },
@@ -109,6 +111,14 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
       key: 'stencilPreviewEnabled',
       label: '启用模块预览',
       desc: '开启后悬浮库函数模块时显示模块预览与参数。',
+      type: 'toggle',
+    },
+  ],
+  性能: [
+    {
+      key: 'selectionMovingRouterFallbackEnabled',
+      label: '开启框选 Orth 回退',
+      desc: '牺牲框选移动过程中的 Edge UI 表现换取性能。(模块数100+建议开启)',
       type: 'toggle',
     },
   ],
@@ -426,6 +436,30 @@ function LibraryContent({ onNewModule }: { onNewModule: () => void }) {
   )
 }
 
+function PerformanceContent() {
+  const {
+    selectionMovingRouterFallbackEnabled,
+    setSelectionMovingRouterFallbackEnabled,
+  } = useConfigStore(
+    useShallow((state) => ({
+      selectionMovingRouterFallbackEnabled:
+        state.selectionMovingRouterFallbackEnabled,
+      setSelectionMovingRouterFallbackEnabled:
+        state.setSelectionMovingRouterFallbackEnabled,
+    })),
+  )
+
+  return (
+    <>
+      <ToggleRow
+        item={SETTING_SCHEMA['性能'][0]}
+        value={selectionMovingRouterFallbackEnabled}
+        onChange={setSelectionMovingRouterFallbackEnabled}
+      />
+    </>
+  )
+}
+
 function CustomModulePage({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -495,7 +529,8 @@ function SettingModal({ open, onOpenChange }: SettingModalProps) {
               {!subPage && activeNav === '库函数' && (
                 <LibraryContent onNewModule={() => setSubPage('自定义模块')} />
               )}
-              {!subPage && activeNav !== '库函数' && (
+              {!subPage && activeNav === '性能' && <PerformanceContent />}
+              {!subPage && activeNav !== '库函数' && activeNav !== '性能' && (
                 <GenericSettings items={items} />
               )}
             </div>
