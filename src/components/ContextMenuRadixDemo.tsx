@@ -14,6 +14,11 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { createCommonService } from '@/services/common-service'
+
+const commonService = createCommonService()
+const primaryModifierLabel =
+  commonService.getPrimaryModifeierByDevice() === 'metaKey' ? '⌘' : 'Ctrl+'
 
 /**
  * Radix/shadcn ContextMenu 完整功能 Demo。
@@ -27,15 +32,15 @@ function ContextMenuRadixDemo({ children }: { children: React.ReactNode }) {
         <ContextMenuGroup>
           <ContextMenuItem>
             Back
-            <ContextMenuShortcut>⌘[</ContextMenuShortcut>
+            <ContextMenuShortcut>{primaryModifierLabel}[</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuItem disabled>
             Forward
-            <ContextMenuShortcut>⌘]</ContextMenuShortcut>
+            <ContextMenuShortcut>{primaryModifierLabel}]</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuItem>
             Reload
-            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
+            <ContextMenuShortcut>{primaryModifierLabel}R</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuSub>
             <ContextMenuSubTrigger>More Tools</ContextMenuSubTrigger>

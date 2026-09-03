@@ -6,22 +6,24 @@ import {
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
+import sourceAnchorCursor from '@/assets/source-anchor-cursor.png'
 import { DROP_SHADOW_FILTER, OUTLINE_COLOR } from '@/assets/x6Model'
 import { AddBlockCommand } from '@/components/AddBlockCommand'
 import {
   BlockParamWindow,
   SubsystemParamWindow,
 } from '@/components/NodeParamWindow'
-import { getGraphInteractionAdapter } from '@/services/graph-interaction-adapter-service'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
-import sourceAnchorCursor from '@/touch/assets/source-anchor-cursor.png'
+import { getGraphInteractionAdapter } from '@/touch/service/graph-interaction-adapter-service'
 import type { NodeParamWindowTarget } from '@/components/NodeParamWindow'
 import type { Cell, Edge, Graph, Node, NodeProperties } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
+
+let activeAddBlockCommandDestroy: (() => void) | null = null
 
 // ── Label 就地编辑器（antd Input 浮层）──────────────────────────────────────
 
@@ -202,6 +204,8 @@ function createInteractiveService() {
       'ratio-anchor',
       'source-arrowhead',
       'target-arrowhead',
+      'touch-source-arrowhead',
+      'touch-target-arrowhead',
     ]
     const tools = edge.getTools()
     const persistentTools =
@@ -362,16 +366,23 @@ function createInteractiveService() {
     screenX: number,
     screenY: number,
   ) {
+    activeAddBlockCommandDestroy?.()
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
 
+    let destroyed = false
     const destroy = () => {
+      if (destroyed) return
+      destroyed = true
+      if (activeAddBlockCommandDestroy === destroy)
+        activeAddBlockCommandDestroy = null
+      container.remove()
       requestAnimationFrame(() => {
         root.unmount()
-        container.remove()
       })
     }
+    activeAddBlockCommandDestroy = destroy
 
     root.render(
       <AddBlockCommand

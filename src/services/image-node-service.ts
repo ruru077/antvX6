@@ -5,11 +5,12 @@ import {
   readImageFileAsDataURL,
   selectImageFile,
 } from '@/services/image-file-service'
+import { registerPlacementHandler } from '@/touch/service/placement-interaction-service'
 import type { Graph, Node } from '@antv/x6'
 
 const activePlacements = new WeakMap<Graph, () => void>()
 
-function startImageNodePlacement(graph: Graph) {
+function startImageNodePlacement(graph: Graph, onPlacementEnd?: () => void) {
   activePlacements.get(graph)?.()
 
   const preview = graph.createNode(structuredClone(ImageNode))
@@ -21,6 +22,7 @@ function startImageNodePlacement(graph: Graph) {
   graph.container.style.cursor = 'crosshair'
   let clickTimer: number | null = null
   let placementActive = true
+  let unregisterPlacementHandler: (() => void) | null = null
 
   function movePreview(clientX: number, clientY: number) {
     const rect = graph.container.getBoundingClientRect()
@@ -45,27 +47,34 @@ function startImageNodePlacement(graph: Graph) {
     document.removeEventListener('mousemove', mouseMoveHandler, true)
     document.removeEventListener('click', clickHandler, true)
     document.removeEventListener('keydown', keyDownHandler, true)
+    unregisterPlacementHandler?.()
     graph.container.style.cursor = previousCursor
     if (cancel && graph.getCellById(preview.id) === preview)
       graph.removeNode(preview)
     graph.stopBatch('add-image-node')
     if (activePlacements.get(graph) === cleanup) activePlacements.delete(graph)
+    onPlacementEnd?.()
   }
 
   function mouseMoveHandler(event: MouseEvent) {
     movePreview(event.clientX, event.clientY)
   }
 
-  function clickHandler(event: MouseEvent) {
-    if (!movePreview(event.clientX, event.clientY)) {
+  function placePreview(clientX: number, clientY: number) {
+    if (!movePreview(clientX, clientY)) {
       cleanup()
-      return
+      return false
     }
 
-    event.preventDefault()
-    event.stopPropagation()
     cleanup(false)
     graph.resetSelection([preview])
+    return true
+  }
+
+  function clickHandler(event: MouseEvent) {
+    if (!placePreview(event.clientX, event.clientY)) return
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   function keyDownHandler(event: KeyboardEvent) {
@@ -78,6 +87,7 @@ function startImageNodePlacement(graph: Graph) {
     clickTimer = null
     document.addEventListener('click', clickHandler, true)
   }, 0)
+  unregisterPlacementHandler = registerPlacementHandler(graph, placePreview)
   activePlacements.set(graph, cleanup)
 }
 

@@ -22,6 +22,7 @@ import {
 import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import { useGraphStore } from '@/store/graphStore'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import '@styles/CanvasLeftToolbar.scss'
 
 type CanvasLeftToolbarProps = {
@@ -33,6 +34,8 @@ type CanvasLeftToolbarProps = {
   onToggleMinimap: () => void
 }
 
+type TouchPlacementMode = 'image' | 'annotation' | null
+
 function CanvasLeftToolbar({
   navPanelVisible,
   onToggleNavPanel,
@@ -43,6 +46,9 @@ function CanvasLeftToolbar({
 }: CanvasLeftToolbarProps) {
   const agentPanelVisible = useAgentPanelStore((state) => state.visible)
   const graph = useGraphStore((state) => state.graph)
+  const touchTerminal = useTouchTerminal()
+  const [touchPlacementMode, setTouchPlacementMode] =
+    useState<TouchPlacementMode>(null)
   const toggleAgentPanel = useAgentPanelStore((state) => state.toggle)
   const hierarchyPanelOpen = useBottomPanelStore(
     (state) => state.visible && state.activeTab === 'hierarchy',
@@ -108,12 +114,19 @@ function CanvasLeftToolbar({
       <Tooltip title="添加图片" mouseEnterDelay={0.2} placement="right">
         <button
           type="button"
+          data-active={touchTerminal && touchPlacementMode === 'image'}
           className="canvas-left-toolbar__btn"
           aria-label="添加图片"
+          aria-pressed={touchTerminal && touchPlacementMode === 'image'}
           onClick={() => {
             if (!graph) return
             cancelAnnotationPlacement(graph)
-            startImageNodePlacement(graph)
+            cancelImageNodePlacement(graph)
+            if (touchTerminal) setTouchPlacementMode('image')
+            startImageNodePlacement(
+              graph,
+              touchTerminal ? () => setTouchPlacementMode(null) : undefined,
+            )
           }}
         >
           <ImageIcon />
@@ -123,12 +136,19 @@ function CanvasLeftToolbar({
       <Tooltip title="注解" mouseEnterDelay={0.2} placement="right">
         <button
           type="button"
+          data-active={touchTerminal && touchPlacementMode === 'annotation'}
           className="canvas-left-toolbar__btn"
           aria-label="注解"
+          aria-pressed={touchTerminal && touchPlacementMode === 'annotation'}
           onClick={() => {
             if (!graph) return
             cancelImageNodePlacement(graph)
-            startAnnotationPlacement(graph)
+            cancelAnnotationPlacement(graph)
+            if (touchTerminal) setTouchPlacementMode('annotation')
+            startAnnotationPlacement(
+              graph,
+              touchTerminal ? () => setTouchPlacementMode(null) : undefined,
+            )
           }}
         >
           <CanvasToolbarCommentSvg />

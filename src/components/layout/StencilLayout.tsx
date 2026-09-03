@@ -187,15 +187,20 @@ function Actions({
 
       <HoverCard openDelay={10} closeDelay={100}>
         <HoverCardTrigger asChild>
-          <SButton variant="link">V0.0.1-alpha</SButton>
+          <SButton variant="link">V0.0.1</SButton>
         </HoverCardTrigger>
         <HoverCardContent className="flex w-64 flex-col gap-0.5">
           <div className="font-semibold">@ChangeLogs</div>
           <div>(1) 发布master分支</div>
           <div>(2) 进行master分支的回归测试</div>
-          <div className="mt-1 text-xs text-muted-foreground">
+          <a
+            href="https://github.com/ruru077/antvX6/releases/tag/v0.0.1"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 text-xs text-muted-foreground hover:underline"
+          >
             master date 08/25
-          </div>
+          </a>
         </HoverCardContent>
       </HoverCard>
 

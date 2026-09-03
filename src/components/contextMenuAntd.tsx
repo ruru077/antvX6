@@ -20,6 +20,7 @@ import {
   type ContextMenuService,
 } from '@/services/contextMenu-servicer'
 import { useGraphStore } from '@/store/graphStore'
+import { registerContextMenuController } from '@/touch/service/context-menu-controller-service'
 import type { Cell, EventArgs } from '@antv/x6'
 import type { MenuProps } from 'antd'
 
@@ -192,6 +193,8 @@ function ContextMenuAntd({
 }) {
   const graph = useGraphStore((state) => state.graph)
   const [contextInfo, setContextInfo] = useState<ContextInfo>({ type: 'blank' })
+  const [open, setOpen] = useState(false)
+  const openRef = useRef(false)
 
   useEffect(() => {
     if (!graph || !enabled) return
@@ -234,14 +237,32 @@ function ContextMenuAntd({
       openMenu(e)
     }
 
+    function closeMenu({ sync = false }: { sync?: boolean } = {}) {
+      if (!openRef.current) return
+      openRef.current = false
+      if (sync) flushSync(() => setOpen(false))
+      else setOpen(false)
+    }
+
+    const unregisterController = registerContextMenuController(graph, {
+      close: closeMenu,
+    })
     graph.on('blank:contextmenu', onBlank)
     graph.on('cell:contextmenu', onCell)
 
     return () => {
+      unregisterController()
       graph.off('blank:contextmenu', onBlank)
       graph.off('cell:contextmenu', onCell)
     }
   }, [enabled, graph])
+
+  useEffect(() => {
+    if (!enabled) {
+      openRef.current = false
+      setOpen(false)
+    }
+  }, [enabled])
 
   const service = createContextMenuService(
     graph,
@@ -263,6 +284,11 @@ function ContextMenuAntd({
     <Dropdown
       disabled={!enabled}
       destroyOnHidden
+      open={open}
+      onOpenChange={(nextOpen) => {
+        openRef.current = nextOpen
+        setOpen(nextOpen)
+      }}
       menu={{
         items,
         onClick: ({ key }) => {

@@ -17,6 +17,11 @@ import {
 } from '@/services/stencil-layout-service'
 import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
+import { registerTouchStencilEdgeInsertionLifecycle } from '@/touch/service/stencil-edge-insertion-service'
+import {
+  adaptStencilBlock,
+  shouldShowStencilTooltip,
+} from '@/touch/service/stencil-presentation-adapter-service'
 import type { Node } from '@antv/x6'
 import type { TextMatchOptions } from '~/types/common/text'
 import type { Block, BlockData } from '~/types/vo/block'
@@ -37,6 +42,8 @@ const STENCIL_DRAG_LEFT_PORT_OFFSET = 9
 let loadedLibraryNames: string[] = []
 // 模块级：供外部读取当前已加载的库 → Block[] 映射
 let loadedLibraryWithBlocks: Map<string, Block[]> = new Map()
+// 当前挂载的 Stencil Group 切换入口，供输入适配层复用业务实例。
+let mountedStencilGroupToggle: ((groupName: string) => void) | null = null
 class ManagedStencil extends Stencil {
   public getManagedGroupGraph(groupName: string): Graph | undefined {
     return this.getGraph(groupName)
@@ -685,10 +692,13 @@ function createStencilService() {
 
         const endHandler = () => setTimeout(cleanup, 0)
 
+        let disposeTouchLifecycle: (() => void) | undefined
+
         const cleanup = () => {
           if (stopEdgeInsertionPreview !== cleanup) return
           document.removeEventListener('mousemove', moveHandler)
           document.removeEventListener('mouseup', endHandler)
+          disposeTouchLifecycle?.()
           draggingGraph.container.style.transform = ''
           clearEdgeInsertionPreview(targetGraph, node.id)
           stopEdgeInsertionPreview = null
@@ -696,6 +706,10 @@ function createStencilService() {
 
         document.addEventListener('mousemove', moveHandler)
         document.addEventListener('mouseup', endHandler, { once: true })
+        disposeTouchLifecycle = registerTouchStencilEdgeInsertionLifecycle({
+          onMove: moveHandler,
+          onEnd: endHandler,
+        })
         stopEdgeInsertionPreview = cleanup
       },
       0,
@@ -748,13 +762,13 @@ function createStencilService() {
           library.name.toUpperCase(),
           blocks
             .filter((item) => item.libraryId === library.id)
-            .map((item) => item.block),
+            .map((item) => adaptStencilBlock(item.block)),
         ]),
     )
 
     // ── 测试：push 测试组（独立分组，不干扰后端数据） ──
     libraryWithBlock.set(TEST_GROUP_NAME, [
-      SUBSYSTEM_TEST_BLOCK,
+      adaptStencilBlock(SUBSYSTEM_TEST_BLOCK),
       ADD_TEST_BLOCK,
       PRODUCT_TEST_BLOCK,
       SUM_TEST_BLOCK,
@@ -854,10 +868,9 @@ function createStencilService() {
       )
     }
     container.appendChild(stencil.container)
-    const disposeTooltip = createStencilTooltip(
-      stencil,
-      Array.from(libraryWithBlock.keys()),
-    )
+    const disposeTooltip = shouldShowStencilTooltip()
+      ? createStencilTooltip(stencil, Array.from(libraryWithBlock.keys()))
+      : undefined
 
     // 初始隐藏已配置的分组以及默认关闭的 Beta 分组
     for (const libraryName of libraryWithBlock.keys()) {
@@ -917,7 +930,7 @@ function createStencilService() {
       lastHasVerticalScrollbar,
       contentAreas,
       dispose() {
-        disposeTooltip()
+        disposeTooltip?.()
         stopEdgeInsertionPreview?.()
         syncContainerWidth.cancel()
         contentMutationObserver.disconnect()
@@ -926,6 +939,7 @@ function createStencilService() {
         container.replaceChildren()
       },
     }
+    mountedStencilGroupToggle = (groupName) => stencil.toggleGroup(groupName)
     resize(container.clientWidth)
 
     // 配置变化时自动同步（subscribeWithSelector 自动过滤无关字段）
@@ -961,6 +975,7 @@ function createStencilService() {
   function dispose(): void {
     session?.dispose()
     session = null
+    mountedStencilGroupToggle = null
   }
 
   function syncSearchKeyword(
@@ -1126,4 +1141,16 @@ const getLibraryWithBlocks = () => {
   )
 }
 
-export { createStencilService, getLibraryNames, getLibraryWithBlocks }
+/** 切换当前已挂载的 Stencil Group；未挂载时不执行。 */
+function toggleMountedStencilGroup(groupName: string) {
+  if (!mountedStencilGroupToggle) return false
+  mountedStencilGroupToggle(groupName)
+  return true
+}
+
+export {
+  createStencilService,
+  getLibraryNames,
+  getLibraryWithBlocks,
+  toggleMountedStencilGroup,
+}

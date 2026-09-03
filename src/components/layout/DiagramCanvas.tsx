@@ -10,6 +10,7 @@ import { PaperToolbar } from '@/components/layout/PaperToolbar'
 import { SubsystemNavBar } from '@/components/layout/SubsystemNavBar'
 import { SubsystemTabBar } from '@/components/layout/SubsystemTabBar'
 import { useConfigStore } from '@/store/configStore'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import type { RefObject } from 'react'
 
 function DiagramCanvas({
@@ -23,6 +24,7 @@ function DiagramCanvas({
   const metaContextMenuEnabled = useConfigStore(
     (state) => state.metaContextMenuEnabled,
   )
+  const touchTerminal = useTouchTerminal()
   const paperContainer = (
     <div className="paper-container">
       <div ref={paperContainerRef} className="paper" />
@@ -60,11 +62,13 @@ function DiagramCanvas({
                 {/* 子系统导航栏 */}
                 {navPanelVisible && <SubsystemNavBar />}
                 <ContextMenu
-                  enabled={metaContextMenuEnabled}
+                  enabled={!touchTerminal && metaContextMenuEnabled}
                   toolbarsVisible={toolbarsVisible}
                   onToggleToolbars={() => setToolbarsVisible((value) => !value)}
                 >
-                  <ContextMenuAntd enabled={!metaContextMenuEnabled}>
+                  <ContextMenuAntd
+                    enabled={touchTerminal || !metaContextMenuEnabled}
+                  >
                     {paperContainer}
                   </ContextMenuAntd>
                 </ContextMenu>

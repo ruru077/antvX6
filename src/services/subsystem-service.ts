@@ -1351,7 +1351,6 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
   const { rootId, subGraphs } = useSubGraphStore.getState()
   const rootGraph = subGraphs[rootId]
   const { blocks, lines } = solve(subGraphs, rootId, graph)
-  await commonService.copyText({ lines, blocks })
   return {
     userId: 0, // TODO: 从用户context中获取
     testRig: 105, // TODO: 从配置中获取

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { getLibraryWithBlocks } from '@/services/stencil-service'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import type { Block } from '~/types/vo/block'
 
 interface AddBlockCommandProps {
@@ -35,6 +36,7 @@ function AddBlockCommand({
 }: AddBlockCommandProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const libraryWithBlocks = getLibraryWithBlocks()
+  const touchTerminal = useTouchTerminal()
 
   // 固定左上角，视口边界检测，确保面板不超出屏幕
   const left = Math.min(screenX, window.innerWidth - PANEL_WIDTH - 8)
@@ -42,7 +44,7 @@ function AddBlockCommand({
 
   // 外部点击 + ESC 关闭（面板生命周期管理）
   useEffect(() => {
-    function handlePointerDown(e: MouseEvent) {
+    function handlePointerDown(e: PointerEvent) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onDestroy()
       }
@@ -52,12 +54,12 @@ function AddBlockCommand({
     }
     // 延迟一帧注册，避免捕获到触发双击事件的残余 mousedown
     const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handlePointerDown)
+      document.addEventListener('pointerdown', handlePointerDown)
       document.addEventListener('keydown', handleKeyDown)
     }, 0)
     return () => {
       clearTimeout(timer)
-      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [onDestroy])
@@ -86,7 +88,7 @@ function AddBlockCommand({
         maxHeight: PANEL_MAX_HEIGHT,
       }}
     >
-      <CommandInput autoFocus placeholder="搜索模块..." />
+      <CommandInput autoFocus={!touchTerminal} placeholder="搜索模块..." />
       <CommandList className="max-h-[340px]">
         <CommandEmpty className="flex flex-col items-center gap-2 py-6">
           <Boxes className="size-8 text-muted-foreground" />

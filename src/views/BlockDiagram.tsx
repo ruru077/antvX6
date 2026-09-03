@@ -10,6 +10,8 @@ import {
 } from '@/components'
 import { bindAntdMessage } from '@/services/antd-message-service'
 import { useGraphStore } from '@/store/graphStore'
+import { useTouchAdapter } from '@/touch/useTouchAdapter'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import '@styles/BlockDiagram.scss'
 
 const SPLITTER_THEME = {
@@ -35,6 +37,7 @@ function DiagramWorkspace() {
 
   bindAntdMessage(message)
   useGraphListener()
+  useTouchAdapter()
   useScrollListener(paperContainerRef)
 
   useEffect(() => {
@@ -60,9 +63,14 @@ function DiagramWorkspace() {
   )
 }
 
-function BlockDiagram({ modelName }: { modelName?: string }) {
+function BlockDiagram(_props: { modelName?: string }) {
+  const touchTerminal = useTouchTerminal()
+
   return (
-    <ConfigProvider theme={SPLITTER_THEME}>
+    <ConfigProvider
+      theme={SPLITTER_THEME}
+      tooltip={{ trigger: touchTerminal ? [] : 'hover' }}
+    >
       <AntdApp component={false}>
         <DiagramWorkspace />
       </AntdApp>

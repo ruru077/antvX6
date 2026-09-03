@@ -49,7 +49,7 @@ function createAndSetupGraph(
   setupDevTools(graph)
   registerPlugins(graph)
   // Keyboard 的插件安装和快捷键行为由 keyboard-service 统一维护。
-  withDeviceGuard('desktop', registerKeyboard)(graph)
+  registerKeyboard(graph)
   graph.on('scale', ({ sx }: { sx: number }) => {
     // 使用selection 插件选择多个cell 之后滚轮进行缩放，选择框错位 #3452
     const cells = graph.getSelectedCells()

@@ -3,6 +3,7 @@
 import { Tooltip as TooltipPrimitive } from 'radix-ui'
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 
 function TooltipProvider({
   delayDuration = 0,
@@ -18,9 +19,18 @@ function TooltipProvider({
 }
 
 function Tooltip({
+  open,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  const touchTerminal = useTouchTerminal()
+
+  return (
+    <TooltipPrimitive.Root
+      data-slot="tooltip"
+      open={touchTerminal ? false : open}
+      {...props}
+    />
+  )
 }
 
 function TooltipTrigger({

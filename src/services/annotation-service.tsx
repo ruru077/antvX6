@@ -1,6 +1,7 @@
 import { Button, ColorPicker, Input, InputNumber } from 'antd'
 import { createRoot } from 'react-dom/client'
 import { AnnotationNode } from '@/assets/TestModel'
+import { registerPlacementHandler } from '@/touch/service/placement-interaction-service'
 import type { Graph, Node } from '@antv/x6'
 
 const activeSessions = new WeakMap<Graph, () => void>()
@@ -152,13 +153,14 @@ function openAnnotationEditor(
   activeSessions.set(graph, destroy)
 }
 
-function startAnnotationPlacement(graph: Graph) {
+function startAnnotationPlacement(graph: Graph, onPlacementEnd?: () => void) {
   activeSessions.get(graph)?.()
 
   const previousCursor = graph.container.style.cursor
   graph.container.style.cursor = 'crosshair'
   let clickTimer: number | null = null
   let placementActive = true
+  let unregisterPlacementHandler: (() => void) | null = null
 
   function cleanup() {
     if (!placementActive) return
@@ -166,30 +168,19 @@ function startAnnotationPlacement(graph: Graph) {
     if (clickTimer !== null) window.clearTimeout(clickTimer)
     document.removeEventListener('click', clickHandler, true)
     document.removeEventListener('keydown', keyDownHandler, true)
+    unregisterPlacementHandler?.()
     graph.container.style.cursor = previousCursor
     if (activeSessions.get(graph) === cleanup) activeSessions.delete(graph)
+    onPlacementEnd?.()
   }
 
-  function clickHandler(event: MouseEvent) {
-    const rect = graph.container.getBoundingClientRect()
-    const inside =
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom
-    if (!inside) {
-      cleanup()
-      return
-    }
-
-    event.preventDefault()
-    event.stopPropagation()
-    const point = graph.clientToLocal(event.clientX, event.clientY)
+  function placeAnnotation(clientX: number, clientY: number) {
+    const point = graph.clientToLocal(clientX, clientY)
     cleanup()
     openAnnotationEditor(
       graph,
-      event.clientX,
-      event.clientY,
+      clientX,
+      clientY,
       { text: '', fontSize: 14, color: '#000000' },
       (value) => {
         const node = graph.createNode(structuredClone(AnnotationNode))
@@ -208,6 +199,23 @@ function startAnnotationPlacement(graph: Graph) {
     )
   }
 
+  function clickHandler(event: MouseEvent) {
+    const rect = graph.container.getBoundingClientRect()
+    const inside =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    if (!inside) {
+      cleanup()
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    placeAnnotation(event.clientX, event.clientY)
+  }
+
   function keyDownHandler(event: KeyboardEvent) {
     if (event.key === 'Escape') cleanup()
   }
@@ -217,6 +225,7 @@ function startAnnotationPlacement(graph: Graph) {
     clickTimer = null
     document.addEventListener('click', clickHandler, true)
   }, 0)
+  unregisterPlacementHandler = registerPlacementHandler(graph, placeAnnotation)
   activeSessions.set(graph, cleanup)
 }
 
