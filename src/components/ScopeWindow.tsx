@@ -41,8 +41,8 @@ function ScopeWindowInstance({ scopeId }: { scopeId: string }) {
       windowId={`scope:${scopeId}`}
       title={scopeLabel ?? 'Scope'}
       taskbarIcon={ChartNoAxesCombinedIcon}
-      defaultWidth={820}
-      defaultHeight={560}
+      defaultWidth={720}
+      defaultHeight={500}
       minWidth={520}
       minHeight={360}
       onClose={() => closeScope(scopeId)}

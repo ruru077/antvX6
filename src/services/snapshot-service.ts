@@ -89,7 +89,6 @@ export async function snapshotToDataURL(
     interacting: false,
     connecting: {
       allowNode: false,
-      // TODO Edge 拉线反接
       allowEdge: false,
       allowMulti: 'withPort',
       allowLoop: true,

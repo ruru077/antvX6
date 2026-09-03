@@ -72,7 +72,7 @@ function createGraph(container: HTMLElement): GraphType {
     autoResize: true,
     connecting: {
       allowNode: false,
-      // TODO Edge 拉线反接
+      // TODO 电力系统 允许Edge连接Edge
       allowEdge: false,
       // 重连时当前 edge 仍挂在旧端口，排除它后再执行 X6 的重复连接判断。
       allowMulti({

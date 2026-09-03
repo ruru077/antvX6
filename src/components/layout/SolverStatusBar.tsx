@@ -1,4 +1,11 @@
-import { Alert, Card as AntCard, Collapse, Input, Select } from 'antd'
+import {
+  Alert,
+  Card as AntCard,
+  Collapse,
+  Input,
+  InputNumber,
+  Select,
+} from 'antd'
 import {
   CalculatorIcon,
   CheckCircleIcon,
@@ -17,8 +24,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useInterpreterStore } from '@/store/interpreterStore'
+import type {
+  CompileConfig,
+  SimulationConfig,
+  StepType,
+} from '@/store/interpreterStore'
 
-type StepType = 'variable' | 'fixed'
 type SettingsPage = 'simulation' | 'compile'
 
 const VARIABLE_SOLVERS = [
@@ -76,7 +88,7 @@ function SolverSelect({
   stepType: StepType
   onChange: (value: string) => void
 }) {
-  const solvers = stepType === 'variable' ? VARIABLE_SOLVERS : FIXED_SOLVERS
+  const solvers = stepType === 'VariableStep' ? VARIABLE_SOLVERS : FIXED_SOLVERS
   return (
     <Select
       value={value}
@@ -108,65 +120,94 @@ function SettingRow({
 }
 
 function SimulationSettings({
-  stepType,
-  solver,
-  onStepTypeChange,
-  onSolverChange,
+  config,
+  onChange,
 }: {
-  stepType: StepType
-  solver: string
-  onStepTypeChange: (value: StepType) => void
-  onSolverChange: (value: string) => void
+  config: SimulationConfig
+  onChange: (config: SimulationConfig) => void
 }) {
+  function changeStepType(Step: StepType) {
+    onChange({
+      ...config,
+      Step,
+      FixedStep:
+        Step === 'VariableStep'
+          ? 'auto'
+          : config.FixedStep === 'auto'
+            ? '0.01'
+            : config.FixedStep,
+      Solver: 'auto',
+    })
+  }
+
   return (
     <div className="flex flex-col gap-4 px-5 py-2">
       <SettingRow label="步长类型">
         <Select
-          value={stepType}
-          onChange={onStepTypeChange}
+          value={config.Step}
+          onChange={changeStepType}
           options={[
-            { value: 'variable', label: '可变步长' },
-            { value: 'fixed', label: '固定步长' },
+            { value: 'VariableStep', label: '可变步长' },
+            { value: 'FixedStep', label: '固定步长' },
           ]}
           className="w-full"
         />
       </SettingRow>
       <SettingRow label="固定步长">
         <Input
-          value={stepType === 'fixed' ? '0.01' : 'auto'}
-          disabled={stepType === 'variable'}
+          value={config.FixedStep}
+          disabled={config.Step === 'VariableStep'}
+          onChange={(event) =>
+            onChange({ ...config, FixedStep: event.target.value })
+          }
         />
       </SettingRow>
       <SettingRow label="求解器">
         <SolverSelect
-          value={solver}
-          stepType={stepType}
-          onChange={onSolverChange}
+          value={config.Solver}
+          stepType={config.Step}
+          onChange={(Solver) => onChange({ ...config, Solver })}
         />
       </SettingRow>
 
       <AntCard size="small" className="ml-[124px]">
         <div className="flex items-center gap-1.5 font-medium">
-          {SOLVER_LABELS[solver]}
+          {SOLVER_LABELS[config.Solver]}
           <CheckCircleIcon className="size-4 text-emerald-500" />
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {SOLVER_DESCRIPTIONS[solver]}
+          {SOLVER_DESCRIPTIONS[config.Solver]}
         </p>
         <code className="mt-2 inline-block rounded border bg-muted px-1.5 py-0.5 text-xs">
-          Type: {stepType === 'variable' ? 'Variable-step' : 'Fixed-step'} |
+          Type:{' '}
+          {config.Step === 'VariableStep' ? 'Variable-step' : 'Fixed-step'} |
           Order: Adaptive
         </code>
       </AntCard>
 
       <SettingRow label="开始时间">
-        <Input defaultValue="0.0" />
+        <Input
+          value={config.StartTime}
+          onChange={(event) =>
+            onChange({ ...config, StartTime: event.target.value })
+          }
+        />
       </SettingRow>
       <SettingRow label="停止时间">
-        <Input defaultValue="10.0" />
+        <Input
+          value={config.StopTime}
+          onChange={(event) =>
+            onChange({ ...config, StopTime: event.target.value })
+          }
+        />
       </SettingRow>
       <SettingRow label="最大数据点">
-        <Input defaultValue="10000" />
+        <Input
+          value={config.MaxDataPoints}
+          onChange={(event) =>
+            onChange({ ...config, MaxDataPoints: event.target.value })
+          }
+        />
       </SettingRow>
 
       <Collapse
@@ -178,19 +219,44 @@ function SimulationSettings({
             children: (
               <div className="flex flex-col gap-3">
                 <SettingRow label="最大步长">
-                  <Input defaultValue="auto" />
+                  <Input
+                    value={config.MaxStep}
+                    onChange={(event) =>
+                      onChange({ ...config, MaxStep: event.target.value })
+                    }
+                  />
                 </SettingRow>
                 <SettingRow label="最小步长">
-                  <Input defaultValue="auto" />
+                  <Input
+                    value={config.MinStep}
+                    onChange={(event) =>
+                      onChange({ ...config, MinStep: event.target.value })
+                    }
+                  />
                 </SettingRow>
                 <SettingRow label="初始步长">
-                  <Input defaultValue="auto" />
+                  <Input
+                    value={config.InitialStep}
+                    onChange={(event) =>
+                      onChange({ ...config, InitialStep: event.target.value })
+                    }
+                  />
                 </SettingRow>
                 <SettingRow label="相对容差">
-                  <Input defaultValue="1e-3" />
+                  <Input
+                    value={config.RelTol}
+                    onChange={(event) =>
+                      onChange({ ...config, RelTol: event.target.value })
+                    }
+                  />
                 </SettingRow>
                 <SettingRow label="绝对容差">
-                  <Input defaultValue="auto" />
+                  <Input
+                    value={config.AbsTol}
+                    onChange={(event) =>
+                      onChange({ ...config, AbsTol: event.target.value })
+                    }
+                  />
                 </SettingRow>
               </div>
             ),
@@ -202,11 +268,15 @@ function SimulationSettings({
 }
 
 function CompileSettings({
+  config,
+  onChange,
   solver,
   onSolverChange,
 }: {
+  config: CompileConfig
+  onChange: (config: CompileConfig) => void
   solver: string
-  onSolverChange: (value: string) => void
+  onSolverChange: (solver: string) => void
 }) {
   return (
     <div className="flex flex-col gap-4 px-5 py-2">
@@ -225,40 +295,54 @@ function CompileSettings({
       <SettingRow label="求解器">
         <SolverSelect
           value={solver}
-          stepType="fixed"
+          stepType="FixedStep"
           onChange={onSolverChange}
         />
       </SettingRow>
       <SettingRow label="固定步长">
-        <Input defaultValue="0.01" />
+        <InputNumber
+          value={config.stepTime}
+          onChange={(stepTime) => {
+            if (stepTime !== null) onChange({ ...config, stepTime })
+          }}
+          className="w-full"
+        />
       </SettingRow>
       <SettingRow label="数据包大小">
-        <Input defaultValue="10" />
+        <InputNumber
+          value={config.packetSize}
+          precision={0}
+          onChange={(packetSize) => {
+            if (packetSize !== null) onChange({ ...config, packetSize })
+          }}
+          className="w-full"
+        />
       </SettingRow>
     </div>
   )
 }
 
 function SolverConfigWindow({
-  appliedStepType,
-  appliedSolver,
+  appliedSimulationConfig,
+  appliedCompileConfig,
   onApply,
   onClose,
 }: {
-  appliedStepType: StepType
-  appliedSolver: string
-  onApply: (stepType: StepType, solver: string) => void
+  appliedSimulationConfig: SimulationConfig
+  appliedCompileConfig: CompileConfig
+  onApply: (
+    simulationConfig: SimulationConfig,
+    compileConfig: CompileConfig,
+  ) => void
   onClose: () => void
 }) {
   const [page, setPage] = useState<SettingsPage>('simulation')
-  const [stepType, setStepType] = useState<StepType>(appliedStepType)
-  const [solver, setSolver] = useState(appliedSolver)
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(
+    appliedSimulationConfig,
+  )
+  const [compileConfig, setCompileConfig] =
+    useState<CompileConfig>(appliedCompileConfig)
   const [compileSolver, setCompileSolver] = useState('ode5')
-
-  function changeStepType(value: StepType) {
-    setStepType(value)
-    setSolver('auto')
-  }
 
   return (
     <FloatingWindow
@@ -284,7 +368,7 @@ function SolverConfigWindow({
             type="button"
             size="xs"
             className="rounded-sm"
-            onClick={() => onApply(stepType, solver)}
+            onClick={() => onApply(simulationConfig, compileConfig)}
           >
             确定
           </Button>
@@ -318,13 +402,13 @@ function SolverConfigWindow({
         <div className="min-w-0 flex-1">
           {page === 'simulation' ? (
             <SimulationSettings
-              stepType={stepType}
-              solver={solver}
-              onStepTypeChange={changeStepType}
-              onSolverChange={setSolver}
+              config={simulationConfig}
+              onChange={setSimulationConfig}
             />
           ) : (
             <CompileSettings
+              config={compileConfig}
+              onChange={setCompileConfig}
               solver={compileSolver}
               onSolverChange={setCompileSolver}
             />
@@ -337,8 +421,12 @@ function SolverConfigWindow({
 
 function SolverStatusBar() {
   const [windowOpen, setWindowOpen] = useState(false)
-  const [stepType, setStepType] = useState<StepType>('variable')
-  const [solver, setSolver] = useState('auto')
+  const simulationConfig = useInterpreterStore((state) => state.config)
+  const compileConfig = useInterpreterStore((state) => state.compileConfig)
+  const setSimulationConfig = useInterpreterStore((state) => state.setConfig)
+  const setCompileConfig = useInterpreterStore(
+    (state) => state.setCompileConfig,
+  )
 
   return (
     <>
@@ -367,7 +455,7 @@ function SolverStatusBar() {
                     tabIndex={0}
                     className="flex h-5 items-center gap-1 rounded-sm border bg-muted px-2 font-mono text-[11px] text-foreground"
                   >
-                    {SOLVER_LABELS[solver]}
+                    {SOLVER_LABELS[simulationConfig.Solver]}
                     <CheckCircleIcon className="size-3 text-emerald-500" />
                   </span>
                 </TooltipTrigger>
@@ -376,10 +464,12 @@ function SolverStatusBar() {
                     <p className="font-semibold">当前求解器配置</p>
                     <p>
                       步长类型：
-                      {stepType === 'variable' ? '可变步长' : '固定步长'}
+                      {simulationConfig.Step === 'VariableStep'
+                        ? '可变步长'
+                        : '固定步长'}
                     </p>
-                    <p>求解器：{SOLVER_LABELS[solver]}</p>
-                    <p>固定步长：{stepType === 'variable' ? 'auto' : '0.01'}</p>
+                    <p>求解器：{SOLVER_LABELS[simulationConfig.Solver]}</p>
+                    <p>固定步长：{simulationConfig.FixedStep}</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -402,12 +492,12 @@ function SolverStatusBar() {
       </div>
       {windowOpen && (
         <SolverConfigWindow
-          appliedStepType={stepType}
-          appliedSolver={solver}
+          appliedSimulationConfig={simulationConfig}
+          appliedCompileConfig={compileConfig}
           onClose={() => setWindowOpen(false)}
-          onApply={(nextStepType, nextSolver) => {
-            setStepType(nextStepType)
-            setSolver(nextSolver)
+          onApply={(nextSimulationConfig, nextCompileConfig) => {
+            setSimulationConfig(nextSimulationConfig)
+            setCompileConfig(nextCompileConfig)
             setWindowOpen(false)
           }}
         />

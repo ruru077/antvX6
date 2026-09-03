@@ -22,6 +22,7 @@ import { resolveSubGraphMaskParams } from '@/services/mask-param-service'
 import { routeAllEdges } from '@/services/routing-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
+import { useInterpreterStore } from '@/store/interpreterStore'
 import {
   buildPaths,
   createSubGraphItem,
@@ -1348,30 +1349,37 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
 }
 
 async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
-  const { rootId, subGraphs } = useSubGraphStore.getState()
-  const rootGraph = subGraphs[rootId]
+  const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
+  const { config, compileConfig } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, rootId, graph)
+  const solver =
+    config.Solver === 'auto'
+      ? config.Step === 'VariableStep'
+        ? 'VariableStepAuto'
+        : 'FixedStepAuto'
+      : config.Solver
+
   return {
-    userId: 0, // TODO: 从用户context中获取
-    testRig: 105, // TODO: 从配置中获取
-    copyNum: -1, // TODO: 从模型配置中获取
-    modelId: 0, // TODO: 从模型配置中获取
-    modelName: 'name', // TODO: 从模型配置中获取
-    uuid: 0, // TODO: 从模型配置中获取
-    modelRealName: 'rootGraph.name', // TODO: 从模型配置中获取
-    templateName: 'BlockDiagram', // TODO: 从模型配置中获取
+    userId: 0, // TODO
+    testRig: 105, // TODO
+    copyNum: 0, // TODO
+    modelId: 0, // TODO
+    modelName: 'name', // TODO
+    uuid: 0, // TODO
+    modelRealName: modelName,
+    templateName: 'BlockDiagram', // TODO
     config: {
-      Step: 'VariableStep',
-      FixedStep: 'auto',
-      Solver: 'VariableStepAuto',
-      StartTime: '0.0',
-      StopTime: '20.0',
-      MaxDataPoints: '1000',
-      MaxStep: 'auto',
-      MinStep: 'auto',
-      InitialStep: 'auto',
-      RelTol: '1e-3',
-      AbsTol: 'auto',
+      Step: config.Step,
+      FixedStep: config.FixedStep,
+      Solver: solver, // 解释器配置 求解器类型
+      StartTime: config.StartTime,
+      StopTime: config.StopTime,
+      MaxDataPoints: config.MaxDataPoints,
+      MaxStep: config.MaxStep,
+      MinStep: config.MinStep,
+      InitialStep: config.InitialStep,
+      RelTol: config.RelTol,
+      AbsTol: config.AbsTol,
     },
     blocks,
     lines,
@@ -1380,13 +1388,13 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       uuid: 0,
       userId: 0,
       modelId: 0,
-      modelRealName: 'modelRealName',
-      stepTime: 0.1,
-      packetSize: 10,
-      targetPlatform: 1,
-      publicFlag: 0,
-      testRig: 0,
-      copyNum: -1,
+      modelRealName: modelName,
+      stepTime: compileConfig.stepTime,
+      packetSize: compileConfig.packetSize,
+      targetPlatform: 1, // TODO
+      publicFlag: 0, // TODO
+      testRig: 105,
+      copyNum: 0,
       description: '',
     },
   }
