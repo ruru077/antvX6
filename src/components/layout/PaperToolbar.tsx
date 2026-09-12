@@ -255,10 +255,6 @@ function PaperToolbar() {
         okText="打开"
         cancelText="取消"
       >
-        <p>
-          这里显示 M2PLink 保存的模型，包含此前新版 Sim
-          保存的模型。历史模型请从首页进入 M2PSim 打开。
-        </p>
         <Select
           aria-label="选择模型"
           style={{ width: '100%' }}
@@ -271,7 +267,7 @@ function PaperToolbar() {
         />
       </Modal>
       <Modal
-        title="导入新版模型"
+        title="导入模型"
         open={importOpen}
         onCancel={() => setImportOpen(false)}
         onOk={importFile}

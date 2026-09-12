@@ -1,5 +1,5 @@
 import { LoginOutlined } from '@ant-design/icons'
-import { Modal, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import {
   BotIcon,
   ChartNoAxesCombinedIcon,
@@ -161,21 +161,11 @@ function CanvasLeftToolbar({
           className="canvas-left-toolbar__btn"
           aria-label="键位指南"
           onClick={() =>
-            Modal.info({
-              title: '键位指南',
-              content: (
-                <div>
-                  <p>
-                    Ctrl / ⌘ + S 保存；C / V / X 复制、粘贴、剪切；A 全选；Z
-                    撤销。
-                  </p>
-                  <p>
-                    Delete 删除选中模块；空格配合方向键移动视图；+ / − 缩放；0
-                    重置缩放；G 适应画布；F 聚焦选中模块。
-                  </p>
-                </div>
-              ),
-            })
+            window.open(
+              'https://www.douyin.com/',
+              '_blank',
+              'noopener,noreferrer',
+            )
           }
         >
           <CircleHelpIcon />

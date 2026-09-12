@@ -34,7 +34,7 @@ export function parseModelFile(value: unknown): ModelFile {
     !file.model.rootId ||
     !file.model.currentGraphId
   ) {
-    throw new Error('请选择 M2PLink 导出的模型；历史模型请使用 M2PSim 打开')
+    throw new Error('模型文件格式无效')
   }
   const { subGraphs, rootId, currentGraphId } = file.model
   if (
