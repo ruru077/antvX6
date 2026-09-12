@@ -190,7 +190,7 @@ function AgentEndpointRequired() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
       <BotIcon className="size-8 text-muted-foreground" />
-      <div className="font-medium">新版 Sim 的 AI 对话尚未接入</div>
+      <div className="font-medium">M2PLink 的 AI 对话尚未接入</div>
       <div className="text-xs text-muted-foreground">
         当前可返回 M2PLab 首页使用 AI 工作区。
       </div>

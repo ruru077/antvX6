@@ -255,7 +255,10 @@ function PaperToolbar() {
         okText="打开"
         cancelText="取消"
       >
-        <p>这里显示新版 Sim 保存的模型。历史模型请通过“切换旧版”打开。</p>
+        <p>
+          这里显示 M2PLink 保存的模型，包含此前新版 Sim
+          保存的模型。历史模型请从首页进入 M2PSim 打开。
+        </p>
         <Select
           aria-label="选择模型"
           style={{ width: '100%' }}

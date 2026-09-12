@@ -5,6 +5,8 @@ import { usePlatformStore } from '@/store/platformStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { EntryGraphModel } from '~/types'
 
+// Keep the existing directory and format so models saved before the M2PLink
+// entry split remain readable without a data migration.
 const DIRECTORY = 'M2PSim'
 const API = '/filesystem-link'
 export const MODEL_FORMAT = 'm2psim-x6'
@@ -32,7 +34,7 @@ export function parseModelFile(value: unknown): ModelFile {
     !file.model.rootId ||
     !file.model.currentGraphId
   ) {
-    throw new Error('请选择新版 Sim 导出的模型；历史模型请使用旧版编辑器打开')
+    throw new Error('请选择 M2PLink 导出的模型；历史模型请使用 M2PSim 打开')
   }
   const { subGraphs, rootId, currentGraphId } = file.model
   if (

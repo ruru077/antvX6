@@ -7,6 +7,9 @@ import BlockDiagram from '@/views/BlockDiagram'
 export default function EmbeddedPage() {
   const [error, setError] = useState('')
   const user = usePlatformStore((s) => s.user)
+  const language = new URLSearchParams(location.search).get('lang')
+  const returnQuery = new URLSearchParams(language ? { lang: language } : {})
+  const returnPath = `/m2plab/m2plink${returnQuery.size ? `?${returnQuery}` : ''}`
   useEffect(() => {
     let active = true
     getPlatformUser()
@@ -61,7 +64,10 @@ export default function EmbeddedPage() {
     return (
       <div style={{ padding: 32 }} role="alert">
         {error}。
-        <a href="/login?redirect=%2Fm2plab%2Fm2psim" target="_top">
+        <a
+          href={`/login?redirect=${encodeURIComponent(returnPath)}`}
+          target="_top"
+        >
           返回登录
         </a>
       </div>
