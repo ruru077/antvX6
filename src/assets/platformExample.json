@@ -1,0 +1,488 @@
+{
+  "modelName": "常数增益示例",
+  "rootId": "root",
+  "currentGraphId": "root",
+  "subGraphs": {
+    "root": {
+      "id": "root",
+      "name": "root",
+      "deep": 0,
+      "parentId": null,
+      "childrenIds": [],
+      "graphJson": {
+        "cells": [
+          {
+            "shape": "rect",
+            "width": 45,
+            "height": 45,
+            "markup": [
+              {
+                "tagName": "rect",
+                "selector": "body"
+              },
+              {
+                "tagName": "text",
+                "selector": "label"
+              },
+              {
+                "tagName": "text",
+                "selector": "label_middle"
+              }
+            ],
+            "attrs": {
+              "body": {
+                "fill": "#FFFFFF",
+                "stroke": "#000000",
+                "refWidth": "100%",
+                "refHeight": "100%",
+                "strokeWidth": 2
+              },
+              "label": {
+                "fill": "#000000",
+                "refX": "50%",
+                "refY": "120%",
+                "fontSize": 14,
+                "transform": "rotate(0)",
+                "textAnchor": "middle",
+                "textRotation": 0,
+                "textVerticalAnchor": "middle",
+                "text": "Constant"
+              },
+              "label_middle": {
+                "fill": "#000000",
+                "refX": "50%",
+                "refY": "50%",
+                "text": "2",
+                "fontSize": 14,
+                "transform": "rotate(0)",
+                "fontWeight": "bold",
+                "textAnchor": "middle",
+                "textRotation": 0,
+                "textVerticalAnchor": "middle"
+              }
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "o1",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z"
+                      }
+                    }
+                  ],
+                  "z": 1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "left"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "left"
+                    }
+                  }
+                },
+                "out": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 9 0 0 -5 0 -3 6 0 0 3 0 5 z"
+                      }
+                    }
+                  ],
+                  "z": -1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "right"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "right"
+                    }
+                  }
+                }
+              }
+            },
+            "data": {
+              "title": "Constant",
+              "srcBlock": "simulink/Sources/Constant",
+              "blockType": "Constant",
+              "description": "Output a constant value.",
+              "paramChecks": {
+                "Value": "s|v"
+              },
+              "paramLables": {
+                "Value": "Constant Value"
+              },
+              "paramValues": {
+                "Value": "2"
+              },
+              "level": 10
+            },
+            "id": "sim-example-constant",
+            "position": {
+              "x": 140,
+              "y": 180
+            },
+            "size": {
+              "width": 60,
+              "height": 60
+            }
+          },
+          {
+            "shape": "rect",
+            "width": 45,
+            "height": 45,
+            "markup": [
+              {
+                "tagName": "image",
+                "selector": "body"
+              },
+              {
+                "tagName": "text",
+                "selector": "label"
+              },
+              {
+                "tagName": "text",
+                "selector": "label_middle"
+              }
+            ],
+            "attrs": {
+              "body": {
+                "refWidth": "100%",
+                "refHeight": "100%"
+              },
+              "image": {
+                "xlinkHref": "data:image/png;base64,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"
+              },
+              "label": {
+                "fill": "#000000",
+                "refX": "50%",
+                "refY": "120%",
+                "fontSize": 14,
+                "textAnchor": "middle",
+                "textRotation": 0,
+                "textVerticalAnchor": "middle",
+                "text": "Gain"
+              },
+              "label_middle": {
+                "fill": "#000000",
+                "refX": "35%",
+                "refY": "50%",
+                "text": "3",
+                "fontSize": 14,
+                "fontWeight": "bold",
+                "textAnchor": "middle",
+                "textRotation": 0,
+                "textVerticalAnchor": "middle"
+              }
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "i1",
+                  "group": "in"
+                },
+                {
+                  "id": "o1",
+                  "group": "out"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z"
+                      }
+                    }
+                  ],
+                  "z": 1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "left"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "left"
+                    }
+                  }
+                },
+                "out": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 9 0 0 -5 0 -3 6 0 0 3 0 5 z"
+                      }
+                    }
+                  ],
+                  "z": -1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "right"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "right"
+                    }
+                  }
+                }
+              }
+            },
+            "data": {
+              "title": "Gain",
+              "srcBlock": "simulink/Math Operations/Gain",
+              "blockType": "Gain",
+              "description": "Element wise gain y=K.*u or matrix gain y=k*u or y=u*K.",
+              "paramLables": {
+                "Gain": "Gain",
+                "Multiplication": "Multiplication"
+              },
+              "paramValues": {
+                "Gain": "3",
+                "Multiplication": "Element-wise(K.*u)"
+              },
+              "paramOptions": {
+                "Multiplication": [
+                  "Element-wise(.*)",
+                  "Matrix(*)"
+                ]
+              },
+              "level": 10
+            },
+            "id": "sim-example-gain",
+            "position": {
+              "x": 330,
+              "y": 180
+            },
+            "size": {
+              "width": 60,
+              "height": 60
+            }
+          },
+          {
+            "shape": "rect",
+            "width": 45,
+            "height": 45,
+            "markup": [
+              {
+                "tagName": "rect",
+                "selector": "body"
+              },
+              {
+                "tagName": "text",
+                "selector": "label"
+              },
+              {
+                "tagName": "image",
+                "selector": "image"
+              }
+            ],
+            "attrs": {
+              "body": {
+                "fill": "#FFFFFF",
+                "stroke": "#000000",
+                "refWidth": "100%",
+                "refHeight": "100%",
+                "strokeWidth": 2
+              },
+              "image": {
+                "refDx": "-95%",
+                "refDy": "-95%",
+                "refWidth": "90%",
+                "refHeight": "90%",
+                "xlinkHref": ""
+              },
+              "label": {
+                "fill": "#000000",
+                "refX": "50%",
+                "refY": "120%",
+                "fontSize": 14,
+                "textAnchor": "middle",
+                "textVerticalAnchor": "middle",
+                "text": "Scope"
+              }
+            },
+            "ports": {
+              "items": [
+                {
+                  "id": "i1",
+                  "group": "in"
+                }
+              ],
+              "groups": {
+                "in": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 0 0 -9 -5 -9 -3 -3 0 -9 3 -9 5 z"
+                      }
+                    }
+                  ],
+                  "z": 1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "left"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "left"
+                    }
+                  }
+                },
+                "out": {
+                  "markup": [
+                    {
+                      "tagName": "path",
+                      "selector": "portBody",
+                      "attrs": {
+                        "d": "M 9 0 0 -5 0 -3 6 0 0 3 0 5 z"
+                      }
+                    }
+                  ],
+                  "z": -1,
+                  "attrs": {
+                    "portBody": {
+                      "magnet": true,
+                      "fill": "#000000",
+                      "stroke": "#000000",
+                      "strokeWidth": 10,
+                      "strokeOpacity": 0
+                    }
+                  },
+                  "position": {
+                    "name": "right"
+                  },
+                  "label": {
+                    "position": {
+                      "name": "right"
+                    }
+                  }
+                }
+              }
+            },
+            "data": {
+              "title": "Scope",
+              "isScope": true,
+              "srcBlock": "simulink/Sinks/Out1",
+              "blockType": "Scope",
+              "description": "This block can be used to add test point to port,\nyou can watch the signal connected to it. ",
+              "paramLables": [],
+              "paramValues": {},
+              "level": 10
+            },
+            "id": "sim-example-scope",
+            "position": {
+              "x": 520,
+              "y": 180
+            },
+            "size": {
+              "width": 60,
+              "height": 60
+            }
+          },
+          {
+            "id": "sim-example-edge-0",
+            "shape": "edge",
+            "source": {
+              "cell": "sim-example-constant",
+              "port": "o1"
+            },
+            "target": {
+              "cell": "sim-example-gain",
+              "port": "i1"
+            },
+            "attrs": {
+              "line": {
+                "stroke": "#1f2937",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "classic",
+                  "size": 6
+                }
+              }
+            }
+          },
+          {
+            "id": "sim-example-edge-1",
+            "shape": "edge",
+            "source": {
+              "cell": "sim-example-gain",
+              "port": "o1"
+            },
+            "target": {
+              "cell": "sim-example-scope",
+              "port": "i1"
+            },
+            "attrs": {
+              "line": {
+                "stroke": "#1f2937",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "classic",
+                  "size": 6
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

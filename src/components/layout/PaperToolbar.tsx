@@ -1,266 +1,289 @@
-import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
-import {
-  ArrowLeft,
-  ChevronDown,
-  Download,
-  FileJson2,
-  Play,
-  PlayCircle,
-  Save,
-} from 'lucide-react'
+import { Button, Input, Modal, Select, Space, Tooltip } from 'antd'
+import { useState } from 'react'
 import { startSimulation } from '@/api/simulation'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import example from '@/assets/platformExample.json'
 import { getAntdMessage } from '@/services/antd-message-service'
-import { createCommonService } from '@/services/common-service'
 import {
+  createModelFile,
+  parseModelFile,
+  listModelFiles,
+  readModelFile,
+} from '@/services/model-file-service'
+import {
+  buildGraphModelDTO,
   loadEntryGraphModel,
   changeGraphView,
-  buildGraphModelDTO,
-  flatGraph,
-  buildFlowChain,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
+import {
+  useInterpreterStore,
+  DEFAULT_SIMULATION_CONFIG,
+  DEFAULT_COMPILE_CONFIG,
+} from '@/store/interpreterStore'
+import { usePlatformStore } from '@/store/platformStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { saveEntryGraphModel, useSubGraphStore } from '@/store/subGraphStore'
-import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
-type PaperToolbarProps = Record<string, never>
-
-const commonService = createCommonService()
-const primaryModifierLabel =
-  commonService.getPrimaryModifeierByDevice() === 'metaKey' ? '⌘' : 'Ctrl+'
-
-const simulateMenuItems: MenuProps['items'] = [
-  {
-    key: 'simulate',
-    label: (
-      <span
-        style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
-      >
-        <span>仿真</span>
-        <span style={{ color: '#999', fontSize: 12 }}>F5</span>
-      </span>
-    ),
-  },
-  {
-    key: 'quick-simulate',
-    label: (
-      <span
-        style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
-      >
-        <span>快速仿真</span>
-        <span style={{ color: '#999', fontSize: 12 }}>
-          {primaryModifierLabel}Shift+R
-        </span>
-      </span>
-    ),
-  },
-  {
-    key: 'compile',
-    label: (
-      <span
-        style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
-      >
-        <span>编译</span>
-        <span style={{ color: '#999', fontSize: 12 }}>
-          {primaryModifierLabel}B
-        </span>
-      </span>
-    ),
-  },
-  { type: 'divider' },
-  { key: 'verify-model', label: '验证模型' },
-  {
-    key: 'download-to-device',
-    label: (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Download size={14} />
-        下载到目标设备
-      </span>
-    ),
-  },
-]
-
-function PaperToolbar(_: PaperToolbarProps) {
+function PaperToolbar() {
   const message = getAntdMessage()
   const graph = useGraphStore((s) => s.graph)
-  const syncGraph = useSubGraphStore((s) => s.syncGraph)
-  const markSaved = useSubGraphStore((s) => s.markSaved)
+  const modelName = useSubGraphStore((s) => s.modelName)
+  const dirty = useSubGraphStore((s) => s.isDirty)
+  const saving = usePlatformStore((s) => s.saving)
+  const fileName = usePlatformStore((s) => s.fileName)
+  const isRunning = useSimulationStore((s) => s.isRunning)
+  const progress = useSimulationStore((s) => s.progress)
+  const [files, setFiles] = useState<string[]>([])
+  const [selected, setSelected] = useState<string>()
+  const [filesOpen, setFilesOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [json, setJson] = useState('')
+  const mayReplace = () =>
+    !useSubGraphStore.getState().isDirty ||
+    window.confirm('当前模型尚未保存，确定打开其他模型吗？')
 
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
-  const [jsonText, setJsonText] = useState('')
-  const isSimulating = useSimulationStore((state) => state.isRunning)
-  const progress = useSimulationStore((state) => state.progress)
+  function load(
+    model: EntryGraphModel,
+    fileName: string | null = null,
+    saved = false,
+  ) {
+    if (!graph) return
+    loadEntryGraphModel(structuredClone(model), graph)
+    changeGraphView(model.currentGraphId, graph)
+    useSubGraphStore.getState().syncGraph(graph.toJSON())
+    usePlatformStore.setState({ fileName, settingsDirty: false })
+    useSimulationStore.setState({
+      results: null,
+      openScopeIds: [],
+      error: null,
+      progress: null,
+    })
+    if (saved) useSubGraphStore.getState().markSaved()
+    else useSubGraphStore.setState({ isDirty: true })
+    requestAnimationFrame(() => graph.zoomToFit({ padding: 100, maxScale: 1 }))
+  }
 
-  async function handleSimulation() {
-    if (!graph || isSimulating) return
-    const simulation = useSimulationStore.getState()
-    simulation.setRunning(true)
-    simulation.setError(null)
-    syncGraph(graph.toJSON())
+  async function simulate() {
+    if (!graph || isRunning) return
+    const state = useSimulationStore.getState()
+    state.setRunning(true)
+    state.setError(null)
+    useSimulationStore.setState({ results: null, progress: null })
     try {
+      useSubGraphStore.getState().syncGraph(graph.toJSON())
       const model = await buildGraphModelDTO(graph)
-      console.log(JSON.stringify(model, null, 2))
-      await startSimulation({
+      if (
+        !model.blocks.length ||
+        !model.blocks.some((b) => b.blockType === 'Scope')
+      )
+        throw new Error('请先添加并连接模块和 Scope')
+      const results = await startSimulation({
         model,
-        onProgress: simulation.setProgress,
-        onResults: simulation.setResults,
+        onProgress: state.setProgress,
+        onResults: state.setResults,
       })
+      results.scopes.forEach((scope, index) =>
+        state.openScope(scope.uuid || scope.path || `scope-${index}`),
+      )
+      state.setProgress({ message: 'finished', percent: 100 })
       message.success('仿真完成')
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
-      simulation.setError(text)
-      message.error(text)
+      state.setError(text)
+      message.error(text, 8)
     } finally {
-      simulation.setRunning(false)
+      state.setRunning(false)
     }
   }
 
-  function handleLoadFromJson() {
-    if (!graph) return
+  async function showFiles() {
+    setFilesOpen(true)
+    setLoading(true)
     try {
-      const model = JSON.parse(jsonText) as EntryGraphModel
-      if (!model.subGraphs || !model.currentGraphId || !model.rootId) {
-        message.error(
-          'JSON 格式不正确，缺少 subGraphs / currentGraphId / rootId',
-        )
-        return
-      }
-      syncGraph(graph.toJSON())
-      loadEntryGraphModel(model, graph)
-      changeGraphView(model.currentGraphId, graph)
-      syncGraph(graph.toJSON())
-      markSaved()
-      setJsonDialogOpen(false)
-      setJsonText('')
-      message.success('图加载成功')
+      setFiles(await listModelFiles())
     } catch (e) {
-      message.error(
-        `JSON 解析失败：${e instanceof Error ? e.message : String(e)}`,
-      )
+      message.error((e as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
-
+  async function openFile() {
+    if (!selected || !mayReplace()) return
+    setLoading(true)
+    try {
+      const file = await readModelFile(selected)
+      useInterpreterStore.setState({
+        config: file.config || DEFAULT_SIMULATION_CONFIG,
+        compileConfig: file.compileConfig || DEFAULT_COMPILE_CONFIG,
+      })
+      load(file.model, selected, true)
+      setFilesOpen(false)
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  function exportFile() {
+    if (!graph) return
+    useSubGraphStore.getState().syncGraph(graph.toJSON())
+    const file = createModelFile(
+      useSubGraphStore.getState().exportEntryGraphModel(),
+    )
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }),
+    )
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${modelName.replace(/[<>:"/\\|?*]/g, '_')}.x6.json`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  function importFile() {
+    try {
+      const value = JSON.parse(json)
+      const file = parseModelFile(value)
+      if (!mayReplace()) return
+      useInterpreterStore.setState({
+        config: file.config || DEFAULT_SIMULATION_CONFIG,
+        compileConfig: file.compileConfig || DEFAULT_COMPILE_CONFIG,
+      })
+      load(file.model)
+      setImportOpen(false)
+      setJson('')
+    } catch (e) {
+      message.error((e as Error).message)
+    }
+  }
   return (
     <>
-      <Space size={4} align="center" style={{ width: '100%' }}>
-        <Tooltip title="返回" mouseEnterDelay={0.3}>
-          <AntdButton
-            size="small"
-            icon={<ArrowLeft size={14} />}
-            onClick={() => {}}
-          >
-            返回
-          </AntdButton>
-        </Tooltip>
-
-        <Tooltip
-          title={`保存 (${primaryModifierLabel}S)`}
-          mouseEnterDelay={0.3}
+      <Space size={6} wrap style={{ padding: '2px 4px', width: '100%' }}>
+        <Input
+          aria-label="模型名称"
+          value={modelName}
+          style={{ width: 170 }}
+          onChange={(e) =>
+            useSubGraphStore.getState().renameModel(e.target.value)
+          }
+          disabled={isRunning || saving}
+        />
+        <Button
+          size="small"
+          disabled={isRunning || saving}
+          onClick={() => {
+            if (!mayReplace()) return
+            useInterpreterStore.setState({
+              config: DEFAULT_SIMULATION_CONFIG,
+              compileConfig: DEFAULT_COMPILE_CONFIG,
+            })
+            const empty = structuredClone(example) as unknown as EntryGraphModel
+            empty.modelName = '未命名模型'
+            empty.subGraphs[empty.rootId].graphJson.cells = []
+            load(empty)
+          }}
         >
-          <AntdButton
+          新建
+        </Button>
+        <Tooltip title="保存到当前账号的我的文件">
+          <Button
             size="small"
-            icon={<Save size={14} />}
-            onClick={() => {
-              if (!graph) return
-              saveEntryGraphModel(graph)
-            }}
+            loading={saving}
+            disabled={isRunning}
+            onClick={() => graph && void saveEntryGraphModel(graph)}
           >
             保存
-          </AntdButton>
+          </Button>
         </Tooltip>
-
-        <Tooltip title="测试DTO" mouseEnterDelay={0.3}>
-          <AntdButton
-            size="small"
-            icon={<FileJson2 size={14} />}
-            onClick={() => {
-              if (!graph) return
-              syncGraph(graph.toJSON())
-              // console.log(JSON.stringify(buildGraphModelDTO(graph), null, 2))
-              void buildGraphModelDTO(graph)
-            }}
-          >
-            测试DTO
-          </AntdButton>
-        </Tooltip>
-
-        <Tooltip title="从 JSON 加载图" mouseEnterDelay={0.3}>
-          <AntdButton
-            size="small"
-            icon={<FileJson2 size={14} />}
-            onClick={() => setJsonDialogOpen(true)}
-          >
-            加载图
-          </AntdButton>
-        </Tooltip>
-
-        <Divider orientation="vertical" />
-
-        <Dropdown
-          menu={{
-            items: simulateMenuItems,
-            onClick: ({ key }) => {
-              if (key === 'simulate') void handleSimulation()
-            },
-          }}
-          trigger={['click']}
-          placement="bottomLeft"
+        <Button
+          size="small"
+          disabled={isRunning || saving}
+          onClick={() => void showFiles()}
         >
-          <AntdButton
-            type="primary"
-            size="small"
-            icon={<Play size={14} />}
-            loading={isSimulating}
-          >
-            {isSimulating ? `${progress?.percent ?? 0}%` : '仿真'}
-            <ChevronDown size={10} style={{ marginLeft: 2 }} />
-          </AntdButton>
-        </Dropdown>
-
-        <Tooltip title="运行" mouseEnterDelay={0.3}>
-          <AntdButton size="small" icon={<PlayCircle size={14} />}>
-            运行
-          </AntdButton>
-        </Tooltip>
+          我的模型
+        </Button>
+        <Button
+          size="small"
+          disabled={isRunning || saving}
+          onClick={() => {
+            if (!mayReplace()) return
+            useInterpreterStore.setState({
+              config: DEFAULT_SIMULATION_CONFIG,
+              compileConfig: DEFAULT_COMPILE_CONFIG,
+            })
+            load(example as unknown as EntryGraphModel)
+          }}
+        >
+          加载示例
+        </Button>
+        <Button size="small" onClick={exportFile}>
+          导出模型
+        </Button>
+        <Button
+          size="small"
+          disabled={isRunning || saving}
+          onClick={() => setImportOpen(true)}
+        >
+          导入模型
+        </Button>
+        <Button
+          type="primary"
+          size="small"
+          loading={isRunning}
+          disabled={saving}
+          onClick={() => void simulate()}
+        >
+          {isRunning ? `仿真 ${progress?.percent || 0}%` : '仿真'}
+        </Button>
+        <span role="status" style={{ fontSize: 12, color: '#667085' }}>
+          {isRunning
+            ? '正在仿真'
+            : progress?.message === 'finished'
+              ? '仿真完成'
+              : ''}
+          {dirty ? ' · 未保存' : fileName ? ' · 已保存' : ' · 新模型'}
+        </span>
       </Space>
-
-      {/* 从 JSON 加载图弹窗 */}
-      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>从 JSON 加载图</DialogTitle>
-            <DialogDescription>
-              粘贴 EntryGraphModel JSON 数据，点击加载
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={jsonText}
-            onChange={(e) => setJsonText(e.target.value)}
-            placeholder='{"currentGraphId": "root", "rootId": "root", "subGraphs": {...}}'
-            rows={14}
-            className="font-mono text-xs max-h-[60vh] overflow-y-auto"
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setJsonDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleLoadFromJson}>加载</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Modal
+        title="我的模型"
+        open={filesOpen}
+        onCancel={() => setFilesOpen(false)}
+        onOk={() => void openFile()}
+        confirmLoading={loading}
+        okButtonProps={{ disabled: !selected }}
+        okText="打开"
+        cancelText="取消"
+      >
+        <p>这里显示新版 Sim 保存的模型。历史模型请通过“切换旧版”打开。</p>
+        <Select
+          aria-label="选择模型"
+          style={{ width: '100%' }}
+          loading={loading}
+          value={selected}
+          onChange={setSelected}
+          options={files.map((name) => ({ label: name, value: name }))}
+          placeholder="选择已保存的模型"
+          notFoundContent={loading ? '正在读取…' : '还没有保存的模型'}
+        />
+      </Modal>
+      <Modal
+        title="导入新版模型"
+        open={importOpen}
+        onCancel={() => setImportOpen(false)}
+        onOk={importFile}
+        okText="导入"
+        cancelText="取消"
+      >
+        <p>粘贴通过“导出模型”获得的 JSON 内容。</p>
+        <Input.TextArea
+          aria-label="模型 JSON"
+          rows={12}
+          value={json}
+          onChange={(e) => setJson(e.target.value)}
+        />
+      </Modal>
     </>
   )
 }
-
 export { PaperToolbar }

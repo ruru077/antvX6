@@ -1,11 +1,6 @@
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
-// 本地服务器版
-// const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketsimulatert'
-// 0902 bugfix版
-const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink0902/websocketsimulatert'
-// 本地调试版
-// const SIMULATION_WS_URL = 'ws://localhost:8071/NCSLabLink/websocketsimulatert'
+const SIMULATION_WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/m2plab/matlab/websocketsimulatert`
 interface ScopeResult {
   uuid?: string
   path?: string
@@ -63,9 +58,16 @@ function startSimulation({
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(SIMULATION_WS_URL)
     let completed = false
+    let lastResults: SimulationResults | null = null
+    const timer = setTimeout(() => {
+      completed = true
+      reject(new Error('仿真超过 120 秒，请缩短仿真时间后重试'))
+      socket.close()
+    }, 120000)
 
     const finish = (results: SimulationResults) => {
       completed = true
+      clearTimeout(timer)
       onResults(results)
       resolve(results)
       socket.close(1000)
@@ -96,14 +98,22 @@ function startSimulation({
             messageText(message.error ?? message.message, '仿真失败'),
           )
           completed = true
+          clearTimeout(timer)
           reject(error)
           socket.close()
           return
         }
 
         if (type === 'scope_update') {
-          const results = normalizeResults(message.scopeData)
-          if (results) onResults(results)
+          const results =
+            normalizeResults(message.scopeData) ??
+            normalizeResults(
+              (message.data as Record<string, unknown> | undefined)?.scopeData,
+            )
+          if (results) {
+            lastResults = results
+            onResults(results)
+          }
         }
 
         if (type === 'final_results') {
@@ -113,11 +123,16 @@ function startSimulation({
             normalizeResults(message)
           if (!results) {
             completed = true
+            clearTimeout(timer)
             reject(new Error('仿真完成，但返回结果中没有 scopes 数据'))
             socket.close()
             return
           }
           finish(results)
+          return
+        }
+        if (type === 'simulated' && lastResults) {
+          finish(lastResults)
           return
         }
 
@@ -137,14 +152,21 @@ function startSimulation({
     }
 
     socket.onerror = () => {
+      clearTimeout(timer)
       if (!completed)
         reject(new Error(`无法连接仿真服务：${SIMULATION_WS_URL}`))
     }
 
     socket.onclose = (event) => {
-      if (!completed && event.code !== 1000) {
-        reject(new Error('仿真 WebSocket 连接意外关闭'))
-      }
+      clearTimeout(timer)
+      if (!completed)
+        reject(
+          new Error(
+            lastResults
+              ? '仿真连接在完成前关闭'
+              : '仿真结束但没有收到结果，请检查模型中是否有 Scope',
+          ),
+        )
     }
   })
 }

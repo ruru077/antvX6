@@ -1,4 +1,5 @@
 import { AvoidLib } from 'libavoid-js'
+import { assetUrl } from '@/api/platform'
 import { GAP_SIZE, GRAPH_GRID, RED } from '@/assets/constant'
 // 参数配置
 const ROUTE_OPTIONS = {
@@ -250,8 +251,8 @@ async function routeWithAvoid(graph, routableEdges) {
 }
 function ensureAvoidReady() {
   if (!avoidInitPromise) {
-    avoidInitPromise = AvoidLib.load('/vendor/libavoid.wasm').then(() =>
-      AvoidLib.getInstance(),
+    avoidInitPromise = AvoidLib.load(assetUrl('vendor/libavoid.wasm')).then(
+      () => AvoidLib.getInstance(),
     )
   }
   return avoidInitPromise

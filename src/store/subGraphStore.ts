@@ -7,6 +7,7 @@ import {
   maskArrowAttrs,
   MASK_SELECTOR,
 } from '@/assets/x6Model'
+import { usePlatformStore } from '@/store/platformStore'
 import type { Cell, Graph, Node } from '@antv/x6'
 import type {
   EntryGraphModel,
@@ -243,7 +244,7 @@ function buildPaths(subGraphs: SubGraphMap, subGraphId: string) {
   return pathIds
 }
 const ROOT_ID = 'root'
-const DEFAULT_MODEL_NAME = '实验二-系统稳态误差分析'
+const DEFAULT_MODEL_NAME = '未命名模型'
 
 // 压缩 JSON
 function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
@@ -353,9 +354,14 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   },
   recomputeDirty: () => {
     const { exportEntryGraphModel, savedSnapshot } = get()
-    set({ isDirty: !isEqual(exportEntryGraphModel(), savedSnapshot) })
+    set({
+      isDirty:
+        usePlatformStore.getState().settingsDirty ||
+        !isEqual(exportEntryGraphModel(), savedSnapshot),
+    })
   },
   markSaved: () => {
+    usePlatformStore.setState({ settingsDirty: false })
     set({
       savedSnapshot: get().exportEntryGraphModel(),
       isDirty: false,
@@ -513,14 +519,12 @@ function getSubGraphHistory(options: unknown) {
   ]
 }
 
-function saveEntryGraphModel(graph: Graph) {
-  const { syncGraph, exportEntryGraphModel, markSaved } =
-    useSubGraphStore.getState()
+async function saveEntryGraphModel(graph: Graph) {
+  const { syncGraph, exportEntryGraphModel } = useSubGraphStore.getState()
   syncGraph(graph.toJSON())
   const model = exportEntryGraphModel()
-  console.log(JSON.stringify(model, null, 2))
-  markSaved()
-  return model
+  const { saveModelFile } = await import('@/services/model-file-service')
+  return saveModelFile(model)
 }
 
 export type { EntryGraphModel, SubGraphItem, GraphJSON, SubGraphHistoryPayload }

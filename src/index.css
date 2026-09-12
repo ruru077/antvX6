@@ -4,6 +4,17 @@
 @import '@fontsource-variable/inter';
 @import 'tw-shimmer';
 
+.sim-embedded {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: #fff;
+  color: #1f2937;
+}
+.sim-embedded .ant-app {
+  height: 100%;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

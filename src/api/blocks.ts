@@ -1,3 +1,4 @@
+import { assetUrl } from './platform'
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
 /**
@@ -6,7 +7,7 @@ import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
  */
 async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
   try {
-    const response = await fetch('https://www.stencil.top/antvblocks')
+    const response = await fetch(assetUrl('catalog/blocks.json'))
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -31,7 +32,7 @@ async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
  */
 async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
   try {
-    const response = await fetch('https://www.stencil.top/library')
+    const response = await fetch(assetUrl('catalog/libraries.json'))
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }

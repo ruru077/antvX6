@@ -23,6 +23,7 @@ import { routeAllEdges } from '@/services/routing-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useInterpreterStore } from '@/store/interpreterStore'
+import { usePlatformStore } from '@/store/platformStore'
 import {
   buildPaths,
   createSubGraphItem,
@@ -275,6 +276,7 @@ function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
   graph.resetCells([])
 
   useSubGraphStore.setState({
+    modelName: model.modelName || 'Untitled',
     currentGraphId: model.currentGraphId,
     currentPathIds: buildPaths(model.subGraphs, model.currentGraphId),
     rootId: model.rootId,
@@ -1337,11 +1339,32 @@ function syncParentSubsystemPorts(graph: Graph): boolean {
 function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
   const resolvedSubGraphs = resolveSubGraphMaskParams(subGraphs)
   // 1) 平铺所有边到 remap 结果
-  const linesDTO = flatGraph(resolvedSubGraphs, rootId, graph)
-  // 2) 按连通性构造 flow chain
-  const flowChain = buildFlowChain(linesDTO, graph)
-  // 3) 验证并去噪
-  const { lines, blocks } = flowChainToDTO(flowChain, resolvedSubGraphs)
+  // Keep every connected component, including autonomous feedback loops.
+  // The Link DTO is flat, so all exported blocks share one model path.
+  const lines = flatGraph(resolvedSubGraphs, rootId, graph).map((line) => ({
+    ...line,
+    linePath: 'model',
+  }))
+  const blocks: BlockDTO[] = Object.values(resolvedSubGraphs).flatMap((layer) =>
+    layer.graphJson.cells
+      .filter(
+        (cell) =>
+          cell.shape !== 'edge' &&
+          cell.data?.blockType &&
+          !['Annotation', 'Image'].includes(cell.data.blockType) &&
+          isComputedBlock(cell as NodeProperties),
+      )
+      .map((cell) => ({
+        blockType: cell.data!.blockType,
+        srcBlock: cell.data!.srcBlock || '',
+        blockName: getBlockLabel(cell as NodeProperties),
+        paramValues: isEmpty(cell.data!.paramValues)
+          ? {}
+          : cell.data!.paramValues,
+        blockPath: 'model',
+        blockUUID: cell.id!,
+      })),
+  )
   return {
     lines,
     blocks,
@@ -1351,6 +1374,8 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
 async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
   const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
   const { config, compileConfig } = useInterpreterStore.getState()
+  const { user, plantId, copyNum } = usePlatformStore.getState()
+  if (!user?.id) throw new Error('请先登录 M2PLab')
   const { blocks, lines } = solve(subGraphs, rootId, graph)
   const solver =
     config.Solver === 'auto'
@@ -1360,12 +1385,12 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       : config.Solver
 
   return {
-    userId: 0, // TODO
-    testRig: 105, // TODO
-    copyNum: 0, // TODO
+    userId: user.id,
+    testRig: plantId,
+    copyNum,
     modelId: 0, // TODO
-    modelName: 'name', // TODO
-    uuid: 0, // TODO
+    modelName: 'model',
+    uuid: Date.now(),
     modelRealName: modelName,
     templateName: 'BlockDiagram', // TODO
     config: {
@@ -1385,16 +1410,16 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
     lines,
     option: {},
     saveInfo: {
-      uuid: 0,
-      userId: 0,
+      uuid: Date.now(),
+      userId: user.id,
       modelId: 0,
       modelRealName: modelName,
       stepTime: compileConfig.stepTime,
       packetSize: compileConfig.packetSize,
       targetPlatform: 1, // TODO
       publicFlag: 0, // TODO
-      testRig: 105,
-      copyNum: 0,
+      testRig: plantId,
+      copyNum,
       description: '',
     },
   }

@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { usePlatformStore } from '@/store/platformStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import type { GraphModelDTO } from '~/types'
 
 type StepType = 'VariableStep' | 'FixedStep'
@@ -35,8 +37,16 @@ const DEFAULT_COMPILE_CONFIG: CompileConfig = {
 const useInterpreterStore = create<InterpreterStore>((set) => ({
   config: DEFAULT_SIMULATION_CONFIG,
   compileConfig: DEFAULT_COMPILE_CONFIG,
-  setConfig: (config) => set({ config }),
-  setCompileConfig: (compileConfig) => set({ compileConfig }),
+  setConfig: (config) => {
+    set({ config })
+    usePlatformStore.setState({ settingsDirty: true })
+    useSubGraphStore.getState().recomputeDirty()
+  },
+  setCompileConfig: (compileConfig) => {
+    set({ compileConfig })
+    usePlatformStore.setState({ settingsDirty: true })
+    useSubGraphStore.getState().recomputeDirty()
+  },
 }))
 
 export {
