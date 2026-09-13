@@ -1,11 +1,4 @@
-import {
-  Button as AntdButton,
-  Divider,
-  Dropdown,
-  Space,
-  Tooltip,
-  message,
-} from 'antd'
+import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
 import {
   ArrowLeft,
   ChevronDown,
@@ -15,6 +8,7 @@ import {
   PlayCircle,
   Save,
 } from 'lucide-react'
+import { startSimulation } from '@/api/simulation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -25,6 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { getAntdMessage } from '@/services/antd-message-service'
+import { createCommonService } from '@/services/common-service'
 import {
   loadEntryGraphModel,
   changeGraphView,
@@ -33,11 +29,16 @@ import {
   buildFlowChain,
 } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
-import { useSubGraphStore } from '@/store/subGraphStore'
+import { useSimulationStore } from '@/store/simulationStore'
+import { saveEntryGraphModel, useSubGraphStore } from '@/store/subGraphStore'
 import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
 type PaperToolbarProps = Record<string, never>
+
+const commonService = createCommonService()
+const primaryModifierLabel =
+  commonService.getPrimaryModifeierByDevice() === 'metaKey' ? '⌘' : 'Ctrl+'
 
 const simulateMenuItems: MenuProps['items'] = [
   {
@@ -58,7 +59,9 @@ const simulateMenuItems: MenuProps['items'] = [
         style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
       >
         <span>快速仿真</span>
-        <span style={{ color: '#999', fontSize: 12 }}>Ctrl+Shift+R</span>
+        <span style={{ color: '#999', fontSize: 12 }}>
+          {primaryModifierLabel}Shift+R
+        </span>
       </span>
     ),
   },
@@ -69,7 +72,9 @@ const simulateMenuItems: MenuProps['items'] = [
         style={{ display: 'flex', justifyContent: 'space-between', gap: 32 }}
       >
         <span>编译</span>
-        <span style={{ color: '#999', fontSize: 12 }}>Ctrl+B</span>
+        <span style={{ color: '#999', fontSize: 12 }}>
+          {primaryModifierLabel}B
+        </span>
       </span>
     ),
   },
@@ -87,12 +92,39 @@ const simulateMenuItems: MenuProps['items'] = [
 ]
 
 function PaperToolbar(_: PaperToolbarProps) {
+  const message = getAntdMessage()
   const graph = useGraphStore((s) => s.graph)
-  const exportEntryGraphModel = useSubGraphStore((s) => s.exportEntryGraphModel)
   const syncGraph = useSubGraphStore((s) => s.syncGraph)
+  const markSaved = useSubGraphStore((s) => s.markSaved)
 
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
+  const isSimulating = useSimulationStore((state) => state.isRunning)
+  const progress = useSimulationStore((state) => state.progress)
+
+  async function handleSimulation() {
+    if (!graph || isSimulating) return
+    const simulation = useSimulationStore.getState()
+    simulation.setRunning(true)
+    simulation.setError(null)
+    syncGraph(graph.toJSON())
+    try {
+      const model = await buildGraphModelDTO(graph)
+      console.log(JSON.stringify(model, null, 2))
+      await startSimulation({
+        model,
+        onProgress: simulation.setProgress,
+        onResults: simulation.setResults,
+      })
+      message.success('仿真完成')
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      simulation.setError(text)
+      message.error(text)
+    } finally {
+      simulation.setRunning(false)
+    }
+  }
 
   function handleLoadFromJson() {
     if (!graph) return
@@ -107,6 +139,8 @@ function PaperToolbar(_: PaperToolbarProps) {
       syncGraph(graph.toJSON())
       loadEntryGraphModel(model, graph)
       changeGraphView(model.currentGraphId, graph)
+      syncGraph(graph.toJSON())
+      markSaved()
       setJsonDialogOpen(false)
       setJsonText('')
       message.success('图加载成功')
@@ -130,14 +164,16 @@ function PaperToolbar(_: PaperToolbarProps) {
           </AntdButton>
         </Tooltip>
 
-        <Tooltip title="保存 (Ctrl+S)" mouseEnterDelay={0.3}>
+        <Tooltip
+          title={`保存 (${primaryModifierLabel}S)`}
+          mouseEnterDelay={0.3}
+        >
           <AntdButton
             size="small"
             icon={<Save size={14} />}
             onClick={() => {
               if (!graph) return
-              syncGraph(graph.toJSON())
-              console.log(JSON.stringify(exportEntryGraphModel(), null, 2))
+              saveEntryGraphModel(graph)
             }}
           >
             保存
@@ -152,7 +188,7 @@ function PaperToolbar(_: PaperToolbarProps) {
               if (!graph) return
               syncGraph(graph.toJSON())
               // console.log(JSON.stringify(buildGraphModelDTO(graph), null, 2))
-              buildGraphModelDTO(graph)
+              void buildGraphModelDTO(graph)
             }}
           >
             测试DTO
@@ -172,12 +208,22 @@ function PaperToolbar(_: PaperToolbarProps) {
         <Divider orientation="vertical" />
 
         <Dropdown
-          menu={{ items: simulateMenuItems }}
+          menu={{
+            items: simulateMenuItems,
+            onClick: ({ key }) => {
+              if (key === 'simulate') void handleSimulation()
+            },
+          }}
           trigger={['click']}
           placement="bottomLeft"
         >
-          <AntdButton type="primary" size="small" icon={<Play size={14} />}>
-            仿真
+          <AntdButton
+            type="primary"
+            size="small"
+            icon={<Play size={14} />}
+            loading={isSimulating}
+          >
+            {isSimulating ? `${progress?.percent ?? 0}%` : '仿真'}
             <ChevronDown size={10} style={{ marginLeft: 2 }} />
           </AntdButton>
         </Dropdown>

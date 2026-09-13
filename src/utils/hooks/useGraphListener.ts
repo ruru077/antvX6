@@ -1,31 +1,69 @@
 import { GUARD_BLOCK_TYPES, withNodeGuard } from '@hof/withNodeGuard'
 import { useThrottleFn } from 'ahooks'
 import { RED } from '@/assets/constant'
+import subsystemDefaultGraph from '@/assets/subsystemDefaultGraph.json'
 import {
   sourceMarkerAttrs,
   targetMarkerAttrs,
   formalLinkAttrs,
   previewLinkAttrs,
 } from '@/assets/x6Model'
+import { editAnnotationNode } from '@/services/annotation-service'
+import { getAntdMessage } from '@/services/antd-message-service'
+import { UPDATE_BLOCK_PARAMS } from '@/services/block-param-service'
 import { createCommonService } from '@/services/common-service'
-import { setRightEdgeDragging } from '@/services/graph-service'
+import { createDomService } from '@/services/dom-service'
+import {
+  canInsertNodeOnEdge,
+  clearEdgeInsertionPreview,
+  commitEdgeInsertion,
+  updateEdgeInsertionPreview,
+} from '@/services/edge-insertion-service'
+import { selectImageForNode } from '@/services/image-node-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
   fallbackEdgeToManhattan,
   isCompleteNodeEdge,
+  isRoutingNode,
   routeAllEdges,
 } from '@/services/routing-service'
-import { ensureLabelUnique } from '@/services/stencil-service'
-import { hasSubsystemMask } from '@/services/subsystem-service'
+import {
+  hasSubsystemMask,
+  invalidateSubsystemSnapshot,
+  isIONode,
+  syncParentSubsystemPorts,
+  syncParentSubsystemSnapshot,
+} from '@/services/subsystem-service'
 import {
   activeToolEdgeId,
+  currentNode,
+  isTransforming,
   setActiveToolEdgeId,
+  setCurrentNode,
+  setIsTransforming,
   setIsSelectionByKey,
   setPasteTarget,
 } from '@/store/flags'
+import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
-import { useSubGraphStore } from '@/store/subGraphStore'
+import {
+  type HistoryParamBlock,
+  useHistoryParamNoticeStore,
+} from '@/store/historyParamNoticeStore'
+import { useSimulationStore } from '@/store/simulationStore'
+import {
+  getSubGraphHistory,
+  restoreSubGraphHistory,
+  useSubGraphStore,
+} from '@/store/subGraphStore'
 import { useSubSystemTabStore } from '@/store/subSystemTabStore'
+import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
+import { useDomListener } from '@/utils/hooks/useDomListener'
+import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
+import {
+  getHoverEdgeToolId,
+  setHoverEdgeToolsVisible,
+} from '@/utils/plugin/edgeToolVisibility'
 import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
 import type {
   Cell,
@@ -33,17 +71,15 @@ import type {
   EdgeView,
   EventArgs,
   Graph,
-  History,
   Node,
   Scroller,
 } from '@antv/x6'
+import type { GraphJSON } from '~/types'
 
 const commonService = createCommonService()
 const interactiveService = createInteractiveService()
-
-// 当前鼠标所在节点和是否正在变换 用于 Transform 工具显示控制
-let currentNode: Node | null = null
-let isTransforming = false
+const domService = createDomService()
+const EDGE_INSERTION_PREVIEW = 'edgeInsertionPreview'
 
 /**
  * 图形编辑器事件监听 hook
@@ -56,6 +92,12 @@ function useGraphListener() {
   )
 
   const graph = useGraphStore((s) => s.graph)
+  const setRightEdgeDragEvent = useDomListener(
+    graph,
+    __mouseMove,
+    cancel__mouseMove,
+  )
+
   // ── 副作用：注册事件 ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!graph) return
@@ -63,9 +105,13 @@ function useGraphListener() {
       // TODO 任务调度Emit 顺序分离
       // ── Node ──────────────────────────────────────────────────────
       registerNodeEditListeners(graph),
+      registerCellSelectionListeners(graph),
+      registerScopeListeners(graph),
+      registerEdgeInsertionListeners(graph),
       registerNodeRouteListeners(graph),
       // ── Edge ──────────────────────────────────────────────────────
-      registerEdgeBranchListeners(graph),
+      registerEdgeMarkerListeners(graph),
+      registerEdgeBranchListeners(graph, setRightEdgeDragEvent),
       registerEdgeToolListeners(graph),
       // ── 子系统 ──────────────────────────────────────────────────────
       registerSubsystemListeners(graph),
@@ -79,21 +125,45 @@ function useGraphListener() {
       registerScrollerSyncListener(graph),
       // ── Label 唯一性与可编辑 ──────────────────────────────────────
       registerLabelUniqueListeners(graph),
+      registerSubsystemPortSyncListeners(graph),
       registerEditableLabelListeners(graph),
-      // ── 右键拖拽复制 ──────────────────────────────────────────────
-      registerRightClickDragListeners(graph),
     ]
 
-    // ── #5 鼠标移动（X6未注册 DOM 原生事件，节流）──────────────────────────────
-    const container = graph.container
-    container.addEventListener('mousemove', __mouseMove)
-
     return () => {
-      cancel__mouseMove()
-      container.removeEventListener('mousemove', __mouseMove)
       cleanups.forEach((fn) => fn())
     }
-  }, [graph, __mouseMove, cancel__mouseMove])
+  }, [graph, setRightEdgeDragEvent])
+}
+
+function registerScopeListeners(graph: Graph) {
+  function nodeDblClickHandler({ node, view, e }: EventArgs['node:dblclick']) {
+    // 过滤 非 Scope 双击
+    const blockType = String(node.getData()?.blockType ?? '').toLowerCase()
+    if (blockType !== 'scope') return
+    // Scope 双击文本 → 不打开仿真窗口
+    // body 内文字仍属于模块本体，只有 selector 为 label 的底部名称走文本分支
+    const target = e.target as Element
+    if (commonService.isDblClickOnLabel(view, target)) return
+    if (focusOrRestoreFloatingWindow(`scope:${node.id}`)) return
+    useSimulationStore.getState().openScope(node.id)
+  }
+
+  return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])
+}
+
+// ── Cell 交互：按下即选中 ───────────────────────────────────────────────
+function registerCellSelectionListeners(graph: Graph) {
+  function cellMouseDownHandler({ cell, e }: EventArgs['cell:mousedown']) {
+    // 点击 Port 时不选中 cell
+    if (e.target.closest('.x6-port')) return
+    if (cell.getData()?.blockType === 'Annotation')
+      interactiveService.addOutline(cell)
+    graph.resetSelection([cell])
+  }
+
+  return registerListeners(graph, [
+    ['cell:mousedown', withDeviceGuard('desktop', cellMouseDownHandler)],
+  ])
 }
 
 /**
@@ -101,10 +171,12 @@ function useGraphListener() {
  */
 // ── 子系统 ──────────────────────────────────────────────────────────
 function registerSubsystemListeners(graph: Graph) {
-  function dblclickHandler({ node }: EventArgs['node:dblclick']) {
+  function dblclickHandler({ node, e }: EventArgs['node:dblclick']) {
+    if ((e.target as Element).closest('foreignObject')) return
+
     if (hasSubsystemMask(node)) {
-      // 已封装 → 打开子系统参数弹窗
-      interactiveService.openNodeModal(node)
+      // 已封装 → 打开子系统参数悬浮窗口
+      interactiveService.openNodeParamWindow(node)
     } else {
       // 未封装 → 进入子系统
       useSubSystemTabStore.getState().navigateWithin(node.id)
@@ -117,24 +189,64 @@ function registerSubsystemListeners(graph: Graph) {
       useSubSystemTabStore.getState().navigateWithin(node.id)
     }
   }
-  function syncAddSubsystemHandler({ node }: EventArgs['node:added']) {
-    useSubGraphStore.getState().syncSubGraph(node, 'add')
+  function syncAddSubsystemHandler({ node, options }: EventArgs['node:added']) {
+    const { syncSubGraph, syncGraph } = useSubGraphStore.getState()
+    const subGraphHistory = getSubGraphHistory(options)
+    if (subGraphHistory?.items[node.id]) {
+      restoreSubGraphHistory(subGraphHistory)
+      syncGraph(graph.toJSON())
+      return
+    }
+    const initialGraphJson = options.stencil
+      ? (subsystemDefaultGraph as unknown as GraphJSON)
+      : undefined
+    if (!syncSubGraph(node, 'add', initialGraphJson)) return
+
+    syncGraph(graph.toJSON())
+    const graphJson = useSubGraphStore.getState().subGraphs[node.id].graphJson
+    void syncParentSubsystemSnapshot(node.id, graphJson, graph).catch(
+      (error: unknown) => {
+        console.error(error)
+        getAntdMessage().error('子系统缩略图生成失败')
+      },
+    )
   }
-  function syncRemoveSubsystemHandler({ node }: EventArgs['node:removed']) {
-    useSubGraphStore.getState().syncSubGraph(node, 'delete')
+  function syncRemoveSubsystemHandler({
+    node,
+    options,
+  }: EventArgs['node:removed']) {
+    if (options.ignore) return
+    const { subGraphs, syncSubGraph } = useSubGraphStore.getState()
+    const removedIds: string[] = []
+    function collectRemovedIds(subGraphId: string) {
+      const subGraph = subGraphs[subGraphId]
+      if (!subGraph) return
+      removedIds.push(subGraphId)
+      subGraph.childrenIds.forEach(collectRemovedIds)
+    }
+    collectRemovedIds(node.id)
+    removedIds.forEach(invalidateSubsystemSnapshot)
+    if (!syncSubGraph(node, 'delete')) return
+    useSubSystemTabStore.getState().removeHistory(removedIds)
+  }
+  function syncSubsystemNameHandler({ node }: EventArgs['node:change:attrs']) {
+    useSubGraphStore
+      .getState()
+      .syncSubGraphName(node.id, node.attr<string>('label/text') ?? '')
   }
   return registerListeners(graph, [
     ['node:dblclick', withNodeGuard('subsystem', dblclickHandler)],
     ['node:click', withNodeGuard('subsystem', maskClickHandler)],
     ['node:added', withNodeGuard('subsystem', syncAddSubsystemHandler)],
     ['node:removed', withNodeGuard('subsystem', syncRemoveSubsystemHandler)],
+    ['node:change:attrs', withNodeGuard('subsystem', syncSubsystemNameHandler)],
   ])
 }
 
 // ── 空白双击 → 添加模块 ──────────────────────────────────────────────
 function registerBlankPaperListeners(graph: Graph) {
   function blankDblClickHandler({ x, y, e }: EventArgs['blank:dblclick']) {
-    interactiveService.openAddBlockModal(x, y, e.clientX, e.clientY)
+    interactiveService.openAddBlockCommand(x, y, e.clientX, e.clientY)
   }
   return registerListeners(graph, [['blank:dblclick', blankDblClickHandler]])
 }
@@ -166,11 +278,8 @@ function registerPasteTargetListeners(graph: Graph) {
   ])
 }
 
-// ──  Click+Ctrl 拉线 ──────────────────────────────────────────────────────
-function registerEdgeBranchListeners(graph: Graph) {
-  /** 右键拉线后短暂置 true，抑制紧随的 contextmenu */
-  let suppressEdgeContextMenu = false
-  // 根据连接状态 修改 source tgt 的 Marker
+// ── Edge 基础状态：连接归一、marker、路由 ───────────────────────────────
+function registerEdgeMarkerListeners(graph: Graph) {
   function applyEdgeMarkerState(edge: Edge) {
     const source = edge.getSource()
     const target = edge.getTarget()
@@ -197,7 +306,7 @@ function registerEdgeBranchListeners(graph: Graph) {
     })
   }
 
-  function isReverseConnection(edge: Edge): boolean {
+  function isReverseConnection(edge: Edge) {
     const srcCell = edge.getSourceCell() as Node | Edge | null
     const tgtCell = edge.getTargetCell() as Node | null
     if (!srcCell?.isNode() || !tgtCell?.isNode()) return false
@@ -211,51 +320,6 @@ function registerEdgeBranchListeners(graph: Graph) {
     return srcGroup === 'in' && tgtGroup === 'out'
   }
 
-  /**
-   * @param evt EventArgs ['edge:mousedown']
-   * @description: 事件委托，将临时线行为交给X6管理
-   */
-  function edgeMousedownHandler({ edge, e }: EventArgs['edge:mousedown']) {
-    // Ctrl+Click 或 右键均可触发拉线
-    if (!e.ctrlKey && !e.metaKey && e.button !== 2) return
-    // TODO: 临时线的Link拉线及连接时逻辑
-    if (edge.getAttrs()?.line?.stroke === RED) return
-
-    const graph = useGraphStore.getState().graph
-    const edgeView = graph.findViewByCell(edge) as EdgeView
-    if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
-
-    // 右键拉线后需抑制 contextmenu
-    if (e.button === 2) suppressEdgeContextMenu = true
-
-    e.stopPropagation()
-    e.preventDefault()
-    // 将 sourceEdge Tool 删除
-    edge.removeTools({ undo: false })
-    const startPos = graph.pageToLocal(e.pageX, e.pageY)
-    const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
-
-    const tempEdge = graph.addEdge({
-      source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
-      target: { x: startPos.x, y: startPos.y },
-      ...previewLinkAttrs,
-    })
-    // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
-    const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
-    tempEdgeView.setEventData(
-      e,
-      tempEdgeView.prepareArrowheadDragging('target', {
-        x: startPos.x,
-        y: startPos.y,
-        isNewEdge: true,
-      }),
-    )
-    setTimeout(() => {
-      const key = `__${graph.view.cid}__`
-      if (e.data?.[key]) e.data[key].currentView = tempEdgeView
-    }, 0)
-  }
-  // 连接成功 → formal，若反接（in→out）则自动交换 source/target
   function edgeConnectedHandler({
     edge,
     currentCell,
@@ -263,7 +327,6 @@ function registerEdgeBranchListeners(graph: Graph) {
     if (!currentCell) return
     if (!edge.getSourceCell() || !edge.getTargetCell()) return
 
-    // 反接：source 是 in 口、target 是 out 口 → 交换 source/target
     if (isReverseConnection(edge)) {
       const source = edge.getSource()
       const target = edge.getTarget()
@@ -274,14 +337,15 @@ function registerEdgeBranchListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  // 实时检测断联：change:source / change:target 在拖拽中立即触发
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
     if (!cell.isEdge()) return
+    if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
     handleEdgeTerminalChanged(cell)
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
     if (!cell.isEdge()) return
+    if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
     handleEdgeTerminalChanged(cell)
   }
@@ -300,89 +364,161 @@ function registerEdgeBranchListeners(graph: Graph) {
     fallbackEdgeToManhattan(edge)
   }
 
-  const unregister = registerListeners(graph, [
-    ['edge:mousedown', edgeMousedownHandler],
+  return registerListeners(graph, [
     ['edge:connected', edgeConnectedHandler],
     ['cell:change:source', edgeSourceChangedHandler],
     ['cell:change:target', edgeTargetChangedHandler],
   ])
-
-  // ── 覆写 X6 guard：允许右键 mousedown 到达 edge（触发拉线）──────────
-  // X6 默认 guard 忽略 button===2 的 mousedown，这里放行 edge 上的右键
-  const graphView = graph.view
-  const originalGuard = graphView.guard.bind(graphView)
-  graphView.guard = (e, view) => {
-    if (e.type === 'mousedown' && e.button === 2 && view?.cell?.isEdge?.())
-      return false
-    return originalGuard(e, view)
-  }
-
-  // 捕获阶段 mousedown：在 X6 处理前设置标志位，使 interacting 放行 edgeMovable
-  const onNativeMouseDown = (e: MouseEvent) => {
-    if (e.button !== 2) return
-    const view = graph.findViewByElem(e.target as Element)
-    if (view?.cell?.isEdge?.()) setRightEdgeDragging(true)
-  }
-  graph.container.addEventListener('mousedown', onNativeMouseDown, true)
-
-  // 右键释放时复位标志位
-  const onNativeMouseUp = () => {
-    setRightEdgeDragging(false)
-  }
-  document.addEventListener('mouseup', onNativeMouseUp)
-
-  // 捕获阶段抑制右键拉线后的 contextmenu
-  const onContextMenu = (e: MouseEvent) => {
-    if (!suppressEdgeContextMenu) return
-    e.preventDefault()
-    e.stopPropagation()
-    suppressEdgeContextMenu = false
-  }
-  graph.container.addEventListener('contextmenu', onContextMenu, true)
-
-  return () => {
-    unregister()
-    graphView.guard = originalGuard
-    graph.container.removeEventListener('mousedown', onNativeMouseDown, true)
-    document.removeEventListener('mouseup', onNativeMouseUp)
-    graph.container.removeEventListener('contextmenu', onContextMenu, true)
-    setRightEdgeDragging(false)
-  }
 }
 
 // ── Edge 工具栏 ───────────────────────────────────────────────────────────
 function registerEdgeToolListeners(graph: Graph) {
-  function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
-    if (activeToolEdgeId) return
+  let hideTimer: number | null = null
+
+  function showEdgeTools(edge: Edge) {
+    if (hideTimer != null) {
+      window.clearTimeout(hideTimer)
+      hideTimer = null
+    }
+    if (activeToolEdgeId && activeToolEdgeId !== edge.id) {
+      setHoverEdgeToolsVisible(graph, activeToolEdgeId, false)
+    }
     setActiveToolEdgeId(edge.id)
-    interactiveService.addEdgeTools(edge)
+    setHoverEdgeToolsVisible(graph, edge.id, true)
+  }
+
+  function scheduleHideEdgeTools(edge: Edge) {
+    if (hideTimer != null) window.clearTimeout(hideTimer)
+    hideTimer = window.setTimeout(() => {
+      hideTimer = null
+      if (activeToolEdgeId !== edge.id) return
+      setHoverEdgeToolsVisible(graph, edge.id, false)
+      setActiveToolEdgeId(null)
+    })
+  }
+
+  function edgeAddedHandler({ edge }: EventArgs['edge:added']) {
+    // 插入模块时生成的内部预览线会立即销毁，不需要编辑工具。
+    if (edge.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
+    addEdgeEditTool(edge)
+    interactiveService.initializeEdgeTools(edge)
+  }
+  function edgeConnectedHandler({ edge }: EventArgs['edge:connected']) {
+    addEdgeEditTool(edge)
+    interactiveService.initializeEdgeTools(edge)
+  }
+  function edgeMouseenterHandler({ edge }: EventArgs['edge:mouseenter']) {
+    showEdgeTools(edge)
   }
   function edgeMouseleaveHandler({ edge, e }: EventArgs['edge:mouseleave']) {
-    // 鼠标按键按住中（正在拖拽），不移除工具
+    // 鼠标按键按住中（正在拖拽），不隐藏工具
     if (e.buttons !== 0) return
-    setActiveToolEdgeId(null)
-    edge.removeTools({ undo: false })
+    scheduleHideEdgeTools(edge)
   }
-  return registerListeners(graph, [
-    ['edge:added', () => {}],
-    ['edge:mouseenter', edgeMouseenterHandler],
-    ['edge:mouseleave', edgeMouseleaveHandler],
+
+  function hoverToolMouseoverHandler(event: MouseEvent) {
+    const edgeId = getHoverEdgeToolId(event.target)
+    if (!edgeId) return
+    const edge = graph.getCellById(edgeId)
+    if (edge?.isEdge()) showEdgeTools(edge)
+  }
+
+  function hoverToolMouseoutHandler(event: MouseEvent) {
+    if (event.buttons !== 0) return
+    const edgeId = getHoverEdgeToolId(event.target)
+    if (!edgeId) return
+    const edge = graph.getCellById(edgeId)
+    if (edge?.isEdge()) scheduleHideEdgeTools(edge)
+  }
+
+  graph.container.addEventListener('mouseover', hoverToolMouseoverHandler)
+  graph.container.addEventListener('mouseout', hoverToolMouseoutHandler)
+  const unregisterGraphListeners = registerListeners(graph, [
+    ['edge:added', edgeAddedHandler],
+    ['edge:connected', edgeConnectedHandler],
+    ['edge:mouseenter', withDeviceGuard('desktop', edgeMouseenterHandler)],
+    ['edge:mouseleave', withDeviceGuard('desktop', edgeMouseleaveHandler)],
   ])
+  return () => {
+    unregisterGraphListeners()
+    graph.container.removeEventListener('mouseover', hoverToolMouseoverHandler)
+    graph.container.removeEventListener('mouseout', hoverToolMouseoutHandler)
+    if (hideTimer != null) window.clearTimeout(hideTimer)
+  }
+}
+
+// ── 拖放模块到 Edge：预览并拆分连接 ────────────────────────────────────────
+function registerEdgeInsertionListeners(graph: Graph) {
+  let movingRoutingNodeId: string | null = null
+
+  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    if (!isRoutingNode(node)) return
+    if (!movingRoutingNodeId) {
+      movingRoutingNodeId = node.id
+      graph.startBatch('move-routing-node')
+    }
+    updateEdgeInsertionPreview(graph, node)
+  }
+
+  async function nodeMovedHandler({ node }: EventArgs['node:moved']) {
+    if (!isRoutingNode(node)) return
+    try {
+      const committed = await commitEdgeInsertion(graph, node)
+      if (!committed) await routeAllEdges(graph)
+    } finally {
+      if (movingRoutingNodeId === node.id) {
+        movingRoutingNodeId = null
+        graph.stopBatch('move-routing-node')
+      }
+    }
+  }
+
+  async function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
+    if (!options.stencil || !isRoutingNode(node)) return
+    const committed = await commitEdgeInsertion(graph, node)
+    if (!committed) await routeAllEdges(graph)
+  }
+
+  const unregister = registerListeners(graph, [
+    ['node:moving', nodeMovingHandler],
+    ['node:moved', nodeMovedHandler],
+    ['node:added', nodeAddedHandler],
+  ])
+  return () => {
+    unregister()
+    clearEdgeInsertionPreview(graph)
+    if (movingRoutingNodeId) {
+      movingRoutingNodeId = null
+      graph.stopBatch('move-routing-node')
+    }
+  }
 }
 
 // ── Node 移动时重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
-  function nodeMovingHandler(_args: EventArgs['node:moving']) {
+  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
+    if (!isRoutingNode(node)) return
+    // 未连接的单输入单输出模块可能要插入 Edge。拖动期间必须保持正式
+    // Edge 原路线不动，否则全局避障会先把 Edge 绕开，永远无法进入吸附范围。
+    // 命中后仅由 insertion service 触发预览 Edge 的 Avoid 路由。
+    if (canInsertNodeOnEdge(graph, node)) return
     void routeAllEdges(graph)
   }
 
-  function nodeResizedHandler(_args: EventArgs['node:resized']) {
+  function nodeResizedHandler({ node }: EventArgs['node:resized']) {
+    if (!isRoutingNode(node)) return
+    void routeAllEdges(graph)
+  }
+
+  function nodeAngleChangedHandler({ node }: EventArgs['node:change:angle']) {
+    if (!isRoutingNode(node)) return
     void routeAllEdges(graph)
   }
 
   return registerListeners(graph, [
     ['node:moving', nodeMovingHandler],
     ['node:resized', nodeResizedHandler],
+    ['node:change:angle', nodeAngleChangedHandler],
   ])
 }
 
@@ -390,10 +526,10 @@ function registerNodeRouteListeners(graph: Graph) {
 function registerTransformListeners(graph: Graph) {
   // 更新 resize 标志位
   function nodeResizeHandler(_args: EventArgs['node:resize']) {
-    isTransforming = true
+    setIsTransforming(true)
   }
   function nodeResizedHandler(_args: EventArgs['node:resized']) {
-    isTransforming = false
+    setIsTransforming(false)
   }
   function nodeMouseEnterHandler({ node }: EventArgs['node:mouseenter']) {
     const graph = useGraphStore.getState().graph
@@ -402,7 +538,7 @@ function registerTransformListeners(graph: Graph) {
   return registerListeners(graph, [
     ['node:resize', nodeResizeHandler],
     ['node:resized', nodeResizedHandler],
-    ['node:mouseenter', nodeMouseEnterHandler],
+    ['node:mouseenter', withDeviceGuard('desktop', nodeMouseEnterHandler)],
   ])
 }
 
@@ -419,90 +555,84 @@ function onMouseMoveHandler(e: MouseEvent) {
   )
     return
   graph.clearTransformWidgets()
-  currentNode = null
+  setCurrentNode(null)
   const node = commonService.getNodeAtPoint(e)
   if (node) {
-    currentNode = node
+    setCurrentNode(node)
     graph.createTransformWidget(node)
   }
 }
 
-// ── Outline ───────────────────────────────────────────────────────────────
+// ── Outline 同步（框选/选择态） ────────────────────────────────────────
 function registerOutlineListeners(graph: Graph) {
-  let stopBlockingWheel: (() => void) | null = null
-
-  function startBlockingWheel() {
-    if (stopBlockingWheel) return
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    document.addEventListener('wheel', onWheel, {
-      passive: false,
-      capture: true,
-    })
-    stopBlockingWheel = () => {
-      document.removeEventListener('wheel', onWheel, { capture: true })
-      stopBlockingWheel = null
-    }
-  }
-
-  function stopBlockingWheelIfNeeded() {
-    stopBlockingWheel?.()
-  }
+  const wheelBlocker = domService.createPageWheelBlocker()
+  let prevCells = new Set<Cell>()
 
   function mouseMoveHandler() {
-    let prevCells = new Set<Cell>()
     return ({ nodes, edges }: EventArgs['box:mousemove']) => {
       const curr = new Set<Cell>([...nodes, ...edges])
-      curr.forEach((c) => {
-        if (!prevCells.has(c)) interactiveService.addOutline(c)
+      curr.forEach((cell) => {
+        if (!prevCells.has(cell)) interactiveService.addOutline(cell)
       })
-      prevCells.forEach((c) => {
-        if (!curr.has(c)) interactiveService.removeOutline(c)
+      prevCells.forEach((cell) => {
+        if (!curr.has(cell)) interactiveService.removeOutline(cell)
       })
       prevCells = curr
     }
   }
+
   function cellSelectedHandler({ cell }: EventArgs['cell:selected']) {
     interactiveService.addOutline(cell)
   }
+
   function cellUnselectedHandler({ cell }: EventArgs['cell:unselected']) {
     interactiveService.removeOutline(cell)
   }
+
   const unregister = registerListeners(graph, [
-    ['box:mousedown', startBlockingWheel],
+    ['box:mousedown', wheelBlocker.blockPageWheel],
     ['box:mousemove', mouseMoveHandler()],
-    ['box:mouseup', stopBlockingWheelIfNeeded],
+    ['box:mouseup', wheelBlocker.releasePageWheel],
     ['cell:selected', cellSelectedHandler],
     ['cell:unselected', cellUnselectedHandler],
   ])
 
   return () => {
-    stopBlockingWheelIfNeeded()
+    wheelBlocker.releasePageWheel()
     unregister()
   }
 }
 
 // ── Node 双击编辑 ──────────────────────────────────────────────────────────
 function registerNodeEditListeners(graph: Graph) {
-  function nodeDblClickHandler({ node, e }: EventArgs['node:dblclick']) {
+  async function nodeDblClickHandler({
+    node,
+    view,
+    e,
+  }: EventArgs['node:dblclick']) {
+    if (node.getData()?.blockType === 'Annotation') {
+      editAnnotationNode(node, graph, e.clientX, e.clientY)
+      return
+    }
+    if (node.getData()?.blockType === 'ImageNode') {
+      await selectImageForNode(node, graph)
+      return
+    }
     // 特殊 GUARD_BLOCK_TYPES 跳过
     if (GUARD_BLOCK_TYPES.includes(node.getData()?.blockType)) return
 
     const target = e.target as Element
     // 判断双击目标是否为文本元素（兼容 SVG text / foreignObject）
-    const textEl = target.closest('text') ?? target.closest('foreignObject')
-
-    if (textEl) {
+    // 仅匹配 markup 中 selector 为 label 的底部名称，排除模块 body 内的文字图标
+    if (commonService.isDblClickOnLabel(view, target)) {
       // 文本双击 → 就地编辑 label
-      interactiveService.openLabelEditor(node, textEl)
+      interactiveService.openLabelEditor(node, view._getSelectors()['label'])
       return
     }
-    // 默认：打开参数设置弹窗
-    interactiveService.openNodeModal(node)
+    if (String(node.getData()?.blockType ?? '').toLowerCase() === 'scope')
+      return
+    // 默认：打开参数设置悬浮窗口
+    interactiveService.openNodeParamWindow(node)
   }
 
   return registerListeners(graph, [['node:dblclick', nodeDblClickHandler]])
@@ -510,12 +640,106 @@ function registerNodeEditListeners(graph: Graph) {
 
 // ── 历史 ──────────────────────────────────────────────────────────────────
 function registerHistoryListeners(graph: Graph) {
-  function historyChangeHandler() {
-    const history = useGraphStore.getState().graph.getPlugin<History>('history')
-    if (!history) return
-    console.log(history['undoStack'])
+  function getParamValues(data: unknown): Record<string, string> | null {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    const paramValues = (data as { paramValues?: unknown }).paramValues
+    if (
+      !paramValues ||
+      typeof paramValues !== 'object' ||
+      Array.isArray(paramValues)
+    ) {
+      return null
+    }
+    return paramValues as Record<string, string>
   }
-  return registerListeners(graph, [['history:change', historyChangeHandler]])
+
+  function showParamNotice(
+    cmds: EventArgs['history:undo']['cmds'],
+    action: 'undo' | 'redo',
+  ) {
+    const blocks: HistoryParamBlock[] = []
+    for (const cmd of cmds) {
+      if (cmd.options?.historyAction !== UPDATE_BLOCK_PARAMS) continue
+      if (!('key' in cmd.data) || cmd.data.key !== 'data') continue
+
+      const previousParams = getParamValues(cmd.data.prev.data)
+      const nextParams = getParamValues(cmd.data.next.data)
+      if (!previousParams || !nextParams || !cmd.data.id) continue
+
+      const node = graph.getCellById(cmd.data.id)
+      if (!node?.isNode()) continue
+      const currentParams = getParamValues(node.getData())
+      if (!currentParams) continue
+
+      const changedNames = new Set([
+        ...Object.keys(previousParams),
+        ...Object.keys(nextParams),
+      ])
+      const params = [...changedNames]
+        .filter((name) => previousParams[name] !== nextParams[name])
+        .map((name) => {
+          const value = currentParams[name]
+          if (typeof value !== 'string') {
+            throw new Error(`Parameter ${name} must be a string`)
+          }
+          return { name, value }
+        })
+      if (params.length === 0) continue
+
+      const label = node.attr<string>('label/text')
+      if (!label) throw new Error(`Node ${node.id} label is required`)
+      blocks.push({ label, params })
+    }
+
+    if (blocks.length > 0) {
+      useHistoryParamNoticeStore.getState().showNotice(action, blocks)
+    }
+  }
+
+  function historyChangeHandler({
+    cmds,
+    options,
+  }: EventArgs['history:change']) {
+    if (!cmds?.length) return
+
+    console.log('[undo] history:change', {
+      commands: cmds.map((cmd) => ({
+        event: cmd.event,
+        id: cmd.data.id,
+        key: 'key' in cmd.data ? cmd.data.key : undefined,
+        batch: cmd.batch,
+      })),
+      options,
+      undoStackSize: graph.getUndoStackSize(),
+    })
+
+    const { syncGraph, recomputeDirty } = useSubGraphStore.getState()
+    syncGraph(graph.toJSON())
+    recomputeDirty()
+  }
+
+  function historyUndoHandler({ cmds }: EventArgs['history:undo']) {
+    const cellsById = new Map<string, Cell>()
+    cmds.forEach((cmd) => {
+      const id = cmd.data.id
+      if (!id) return
+      const cell = graph.getCellById(id)
+      if (cell) cellsById.set(id, cell)
+    })
+    const undoCells = [...cellsById.values()]
+
+    if (undoCells.length > 0) graph.resetSelection(undoCells)
+    showParamNotice(cmds, 'undo')
+  }
+
+  function historyRedoHandler({ cmds }: EventArgs['history:redo']) {
+    showParamNotice(cmds, 'redo')
+  }
+  return registerListeners(graph, [
+    ['history:change', historyChangeHandler],
+    ['history:undo', historyUndoHandler],
+    ['history:redo', historyRedoHandler],
+  ])
 }
 
 // ── Scroller 区域同步 ──────────────────────────────────────────────────────
@@ -544,13 +768,98 @@ function registerScrollerSyncListener(graph: Graph) {
   return registerListeners(graph, [['node:added', nodeAddedHandler]])
 }
 
-// ── Label 唯一性（node:added 统一处理）─────────────────────────────────
+// ── Label 唯一性（node:added 自动递增，IO 改名重复时恢复）───────────────
 function registerLabelUniqueListeners(graph: Graph) {
-  function nodeAddedHandler({ node }: EventArgs['node:added']) {
-    ensureLabelUnique(graph, node)
+  function getCurrentIOLabels(): string[] {
+    return graph
+      .getNodes()
+      .filter((node) => isIONode(node))
+      .map((node) => node.attr<string>('label/text'))
+      .filter((label): label is string => typeof label === 'string')
   }
 
-  return registerListeners(graph, [['node:added', nodeAddedHandler]])
+  function nodeAddedHandler({ node }: EventArgs['node:added']) {
+    if (!graph.isHistoryEnabled()) return
+    if (node.getData()?.blockType === 'Annotation') return
+    const rawLabel = node.attr<string>('label/text') ?? ''
+    const ioNode = isIONode(node)
+    if (!rawLabel && !ioNode) return
+
+    const { currentGraphId, syncGraph } = useSubGraphStore.getState()
+    if (ioNode) {
+      const label = rawLabel.trim() ? rawLabel : node.getData().blockType
+      node.attr(
+        'label/text',
+        commonService.getUniqueLabel(label, getCurrentIOLabels(), true),
+      )
+      syncGraph(graph.toJSON())
+      return
+    }
+
+    syncGraph(graph.toJSON())
+    node.attr(
+      'label/text',
+      commonService.ensureLabelUnique(rawLabel, currentGraphId),
+    )
+    syncGraph(graph.toJSON())
+  }
+
+  function IONodeChangeAttrsHandler({
+    node,
+    previous,
+  }: EventArgs['node:change:attrs']) {
+    const rawLabel = node.attr<string>('label/text') ?? ''
+    if (!isIONode(node)) return
+
+    const previousLabel = previous?.label?.text
+    const invalidMessage = !rawLabel.trim()
+      ? 'In/Out 节点 label 不能为空'
+      : getCurrentIOLabels().filter((label) => label === rawLabel).length > 1
+        ? `IO节点不允许重名：${rawLabel}`
+        : null
+    if (!invalidMessage) {
+      useSubGraphStore.getState().syncGraph(graph.toJSON())
+      return
+    }
+    if (typeof previousLabel !== 'string' || !previousLabel.trim()) {
+      throw new Error(`IO node ${node.id} previous label is required`)
+    }
+
+    getAntdMessage().error(invalidMessage)
+    node.attr('label/text', previousLabel, { ignore: true })
+    const { syncGraph } = useSubGraphStore.getState()
+    syncGraph(graph.toJSON())
+  }
+
+  return registerListeners(graph, [
+    ['node:added', nodeAddedHandler],
+    ['node:change:attrs', IONodeChangeAttrsHandler],
+  ])
+}
+
+// ── 子系统端口同步：内部 In/Out 节点变化 → 父级 Subsystem port ─────────────
+function registerSubsystemPortSyncListeners(graph: Graph) {
+  let timer: number | null = null
+
+  function scheduleSync({ node }: { node: Node }) {
+    if (!isIONode(node)) return
+    if (timer != null) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = null
+      syncParentSubsystemPorts(graph)
+    }, 0)
+  }
+
+  const unregister = registerListeners(graph, [
+    ['node:added', scheduleSync],
+    ['node:removed', scheduleSync],
+    ['node:change:attrs', scheduleSync],
+  ])
+
+  return () => {
+    if (timer != null) window.clearTimeout(timer)
+    unregister()
+  }
 }
 
 // ── 可编辑 Label（text-block subsystem，mouseenter 惰性设置）──────────────
@@ -581,135 +890,82 @@ function registerEditableLabelListeners(graph: Graph) {
     })
   }
 
-  return registerListeners(graph, [['node:mouseenter', nodeMouseEnterHandler]])
+  return registerListeners(graph, [
+    ['node:mouseenter', withDeviceGuard('desktop', nodeMouseEnterHandler)],
+  ])
 }
+// ── Ctrl+Click 拉线 ──────────────────────────────────────────────────────
+type RightEdgeDragEventSetter = (
+  edge: Edge,
+  edgeView: EdgeView,
+  e: EventArgs['edge:mousedown']['e'],
+) => void
 
-// ── 右键拖拽复制──────────────────────────────────────────
-// X6 guard 会忽略 button===2 的 mousedown，因此使用原生 DOM 事件监听。
-// 通过移动距离阈值区分"右键菜单"与"右键拖拽"：超过阈值即复制节点。
-function registerRightClickDragListeners(graph: Graph) {
-  /** 拖拽阈值（像素），超过此距离才判定为拖拽而非右键菜单 */
-  const DRAG_THRESHOLD = 5
+function registerEdgeBranchListeners(
+  graph: Graph,
+  setRightEdgeDragEvent: RightEdgeDragEventSetter,
+) {
+  function edgeMousedownHandler({ edge, e }: EventArgs['edge:mousedown']) {
+    if (edge.getAttrs()?.line?.stroke === RED) return
 
-  let dragState: {
-    sourceNode: Node
-    startX: number
-    startY: number
-    isDragging: boolean
-    ghostEl: HTMLDivElement | null
-  } | null = null
-  /** mouseup 后短暂置 true，抑制紧随其后的 contextmenu 事件 */
-  let suppressContextMenu = false
-
-  // ── 预览幽灵元素 ──────────────────────────────────────────────────────
-  function createGhost(node: Node, clientX: number, clientY: number) {
-    const zoom = graph.zoom()
-    const { width, height } = node.getSize()
-    const el = document.createElement('div')
-    Object.assign(el.style, {
-      position: 'fixed',
-      width: `${width * zoom}px`,
-      height: `${height * zoom}px`,
-      border: '2px dashed #1890ff',
-      backgroundColor: 'rgba(24, 144, 255, 0.1)',
-      borderRadius: '4px',
-      pointerEvents: 'none',
-      zIndex: '1000',
-      left: `${clientX}px`,
-      top: `${clientY}px`,
-      transform: 'translate(-50%, -50%)',
-    })
-    return el
-  }
-
-  // ── 原生事件：右键按下 → 记录起点与源节点 ───────────────────────────────
-  function onMouseDown(e: MouseEvent) {
-    if (e.button !== 2) return
-
-    const node = commonService.getNodeAtPoint(e)
-    if (!node) return
-
-    dragState = {
-      sourceNode: node,
-      startX: e.clientX,
-      startY: e.clientY,
-      isDragging: false,
-      ghostEl: null,
+    const edgeView = graph.findViewByCell(edge) as EdgeView
+    if (edgeView?.getEventData(e)?.action === 'drag-arrowhead') return
+    if (e.button === 2) {
+      setRightEdgeDragEvent(edge, edgeView, e)
+      return
     }
-  }
+    if (!e[commonService.getPrimaryModifeierByDevice()]) return
 
-  // ── 原生事件：右键拖拽中 → 超过阈值后创建幽灵预览并跟随光标 ─────────────
-  function onMouseMove(e: MouseEvent) {
-    if (!dragState || e.buttons !== 2) return
-
-    if (!dragState.isDragging) {
-      const dx = e.clientX - dragState.startX
-      const dy = e.clientY - dragState.startY
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-
-      dragState.isDragging = true
-      const ghost = createGhost(dragState.sourceNode, e.clientX, e.clientY)
-      document.body.appendChild(ghost)
-      dragState.ghostEl = ghost
-      graph.container.style.cursor = 'copy'
-    }
-
-    if (dragState.ghostEl) {
-      dragState.ghostEl.style.left = `${e.clientX}px`
-      dragState.ghostEl.style.top = `${e.clientY}px`
-    }
-  }
-
-  // ── 原生事件：右键释放 → 拖拽则克隆节点到释放位置，并抑制右键菜单 ───────
-  function onMouseUp(e: MouseEvent) {
-    if (e.button !== 2 || !dragState) return
-
-    const state = dragState
-    dragState = null
-    if (!state.isDragging) return
-
-    // 标记抑制 contextmenu（mouseup 后浏览器会紧随触发 contextmenu）
-    suppressContextMenu = true
-    state.ghostEl?.remove()
-    graph.container.style.cursor = ''
-
-    // 克隆源节点；port id 保留业务语义，唯一性由 cell + port 确定
-    const clone = state.sourceNode.clone()
-
-    // 定位到释放点（居中于光标）
-    const pos = graph.pageToLocal(e.pageX, e.pageY)
-    const size = clone.getSize()
-    clone.position(pos.x - size.width / 2, pos.y - size.height / 2)
-
-    // 添加到画布（触发 node:added → ensureLabelUnique、syncSubGraph）
-    graph.addNode(clone)
-  }
-
-  // ── 捕获阶段拦截：拖拽后阻止右键菜单弹出 ───────────────────────────────
-  function onContextMenu(e: MouseEvent) {
-    if (!suppressContextMenu) return
-    e.preventDefault()
     e.stopPropagation()
-    suppressContextMenu = false
+    e.preventDefault()
+    // 拉出 Branch 时只隐藏箭头和 ratio anchor，常驻 EdgeEdit/label 保持不变。
+    setHoverEdgeToolsVisible(graph, edge.id, false)
+    const startPos = graph.pageToLocal(e.pageX, e.pageY)
+    const ratio: number = edgeView?.getClosestPointRatio(startPos) ?? 0.5
+
+    graph.startBatch('add-edge')
+    const tempEdge = graph.addEdge({
+      source: { cell: edge.id, anchor: { name: 'ratio', args: { ratio } } },
+      target: { x: startPos.x, y: startPos.y },
+      ...previewLinkAttrs,
+    })
+    graph.resetSelection([edge, tempEdge])
+    // 不建议修改以下代码，除非清楚X6的事件系统和拖拽机制
+    const tempEdgeView = graph.findViewByCell(tempEdge) as EdgeView
+    tempEdgeView.setEventData(
+      e,
+      tempEdgeView.prepareArrowheadDragging('target', {
+        x: startPos.x,
+        y: startPos.y,
+        isNewEdge: true,
+        fallbackAction: 'remove',
+      }),
+    )
+    document.addEventListener(
+      'mouseup',
+      () => {
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              if (graph.hasCell(tempEdge)) await routeAllEdges(graph)
+            } finally {
+              graph.stopBatch('add-edge')
+            }
+          })()
+        }, 0)
+      },
+      { once: true, capture: true },
+    )
+    setTimeout(() => {
+      const key = `__${graph.view.cid}__`
+      if (e.data?.[key]) e.data[key].currentView = tempEdgeView
+    }, 0)
   }
 
-  const container = graph.container
-  container.addEventListener('mousedown', onMouseDown)
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
-  container.addEventListener('contextmenu', onContextMenu, true)
-
-  return () => {
-    container.removeEventListener('mousedown', onMouseDown)
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
-    container.removeEventListener('contextmenu', onContextMenu, true)
-    dragState?.ghostEl?.remove()
-    graph.container.style.cursor = ''
-    dragState = null
-  }
+  return registerListeners(graph, [
+    ['edge:mousedown', withDeviceGuard('desktop', edgeMousedownHandler)],
+  ])
 }
-
 // ── 事件注册工具 ──────────────────────────────────────────────────────────
 type ListenerEntry = {
   [K in keyof EventArgs]: [event: K, handler: (args: EventArgs[K]) => void]

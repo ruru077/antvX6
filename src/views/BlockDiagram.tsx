@@ -1,109 +1,79 @@
-import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useContextMenu } from '@hooks/useContextMenu'
 import { useGraphListener } from '@hooks/useGraphListener'
 import { useScrollListener } from '@hooks/useScrollListener'
-import { ConfigProvider, Splitter } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import {
-  CanvasLeftToolbar,
-  CanvasToolbars,
-  ContextMenu,
-  PaperToolbar,
+  AgentPanel,
+  DiagramCanvas,
+  PanelSplitter,
+  ScopeWindow,
   StencilLayout,
-  SubsystemNavBar,
-  SubsystemTabBar,
 } from '@/components'
+import { bindAntdMessage } from '@/services/antd-message-service'
 import { useGraphStore } from '@/store/graphStore'
+import { useTouchAdapter } from '@/touch/useTouchAdapter'
+import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import '@styles/BlockDiagram.scss'
+
+const SPLITTER_THEME = {
+  token: {
+    colorPrimary: '#1890ff',
+  },
+  components: {
+    Splitter: {
+      splitBarSize: 4,
+      splitTriggerSize: 12,
+      splitBarDraggableSize: 80,
+    },
+  },
+}
 
 /**
  * @description 图编辑入口
  * @returns
  */
-function BlockDiagram({ modelName }: { modelName?: string }) {
+function DiagramWorkspace() {
+  const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
-  const [toolbarsVisible, setToolbarsVisible] = useState(true)
-  const [navPanelVisible, setNavPanelVisible] = useState(true)
+
+  bindAntdMessage(message)
   useGraphListener()
-  useContextMenu()
+  useTouchAdapter()
+  useScrollListener(paperContainerRef)
+
   useEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
     initGraph(paperContainerRef.current)
-
-    return () => {
-      destroyGraph()
-    }
+    return destroyGraph
   }, [])
-  useScrollListener(paperContainerRef)
+
+  return (
+    <PanelSplitter
+      variant="workspace"
+      stencil={<StencilLayout />}
+      canvas={
+        <>
+          {/* 画布区域 */}
+          <DiagramCanvas paperContainerRef={paperContainerRef} />
+          <ScopeWindow />
+        </>
+      }
+      agent={<AgentPanel />}
+    />
+  )
+}
+
+function BlockDiagram(_props: { modelName?: string }) {
+  const touchTerminal = useTouchTerminal()
+
   return (
     <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#1890ff',
-          fontFamily:
-            "'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif",
-        },
-        components: {
-          Splitter: {
-            splitBarSize: 4,
-            splitTriggerSize: 12,
-            splitBarDraggableSize: 80,
-          },
-        },
-      }}
+      theme={SPLITTER_THEME}
+      tooltip={{ trigger: touchTerminal ? [] : 'hover' }}
     >
-      <Splitter
-        className="diagram-wrapper"
-        classNames={{ dragger: 'diagram-splitter-dragger' }}
-        collapsible={{
-          icon: { start: <LeftOutlined />, end: <RightOutlined /> },
-        }}
-      >
-        <Splitter.Panel
-          defaultSize={'20%'}
-          min={'10%'}
-          max={'50%'}
-          collapsible={{ start: true, end: true, showCollapsibleIcon: 'auto' }}
-        >
-          <StencilLayout />
-        </Splitter.Panel>
-        <Splitter.Panel>
-          {/* 画布区域 */}
-          <div className="diagram-canvas-area">
-            <div className="paper-toolbar">
-              {/* PaperToolbar */}
-              <PaperToolbar />
-            </div>
-            {/* 选项卡导航栏：占满画布区域宽度 */}
-            <SubsystemTabBar />
-            <div className="diagram-body">
-              {/* 左侧工具栏 */}
-              <CanvasLeftToolbar
-                navPanelVisible={navPanelVisible}
-                onToggleNavPanel={() => setNavPanelVisible((v) => !v)}
-                toolbarsVisible={toolbarsVisible}
-                onToggleToolbars={() => setToolbarsVisible((v) => !v)}
-              />
-              <div className="diagram-canvas-right">
-                {/* 子系统导航栏 */}
-                {navPanelVisible && (
-                  <SubsystemNavBar modelName={'实验二-系统稳态误差分析'} />
-                )}
-                <ContextMenu
-                  toolbarsVisible={toolbarsVisible}
-                  onToggleToolbars={() => setToolbarsVisible((v) => !v)}
-                >
-                  <div className="paper-container">
-                    <div ref={paperContainerRef} className="paper"></div>
-                    {/* 悬浮工具栏 */}
-                    <CanvasToolbars visible={toolbarsVisible} />
-                  </div>
-                </ContextMenu>
-              </div>
-            </div>
-          </div>
-        </Splitter.Panel>
-      </Splitter>
+      <AntdApp component={false}>
+        <DiagramWorkspace />
+      </AntdApp>
     </ConfigProvider>
   )
 }

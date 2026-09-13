@@ -1,24 +1,5 @@
 allowBuilds:
   '@parcel/watcher': true
   react-intl-universal: true
-catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.1
-  vite-plus: '0.2.1'
 minimumReleaseAgeExclude:
-  - '@voidzero-dev/vite-plus-core@0.2.1'
-  - '@voidzero-dev/vite-plus-darwin-arm64@0.2.1'
-  - '@voidzero-dev/vite-plus-darwin-x64@0.2.1'
-  - '@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.1'
-  - '@voidzero-dev/vite-plus-linux-arm64-musl@0.2.1'
-  - '@voidzero-dev/vite-plus-linux-x64-gnu@0.2.1'
-  - '@voidzero-dev/vite-plus-linux-x64-musl@0.2.1'
-  - '@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.1'
-  - '@voidzero-dev/vite-plus-win32-x64-msvc@0.2.1'
-  - vite-plus@0.2.1
-overrides:
-  vite: 'catalog:'
-peerDependencyRules:
-  allowAny:
-    - vite
-  allowedVersions:
-    vite: '*'
+  - react-simple-keyboard@3.8.261

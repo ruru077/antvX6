@@ -1,14 +1,19 @@
 import {
   CellView,
+  Dom,
   FunctionExt,
   Node,
   NodeView,
   Scroller,
   Shape,
 } from '@antv/x6'
+import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { isRoutingNode, routeAllEdges } from '@/services/routing-service'
+import type { Cell, Edge, EdgeView, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
+import type { Selection } from '@antv/x6/lib/plugin/selection'
 
 const commonService = createCommonService()
 
@@ -27,6 +32,281 @@ CellView.prototype._getSelectors = function () {
 }
 
 const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
+
+const selectionProto = SelectionImpl.prototype as unknown as Record<string, any>
+const RUBBERBAND_SELECTION_RECT_KEY = '_rubberbandSelectionRect'
+
+/**
+ * X6 框选结束后默认用已选节点的包围盒重算选择外框。
+ * 保留 mousedown 到 mouseup 形成的框选区域，并在整体移动时同步该区域。
+ */
+if (!selectionProto._preserveRubberbandPatched) {
+  for (const methodName of ['select', 'unselect', 'reset', 'clean']) {
+    const original = selectionProto[methodName]
+    selectionProto[methodName] = function (this: any, ...args: any[]) {
+      this[RUBBERBAND_SELECTION_RECT_KEY] = null
+      return original.apply(this, args)
+    }
+  }
+
+  const originalStopSelecting = selectionProto.stopSelecting
+  selectionProto.stopSelecting = function (this: any, evt: any) {
+    const eventData = this.getEventData(evt)
+    const selectingRect =
+      eventData?.action === 'selecting' ? this.getSelectingRect() : null
+
+    const result = originalStopSelecting.call(this, evt)
+    if (selectingRect && this.length > 0) {
+      this[RUBBERBAND_SELECTION_RECT_KEY] = selectingRect
+      this.updateContainer()
+    }
+    return result
+  }
+
+  const originalUpdateContainer = selectionProto.updateContainer
+  selectionProto.updateContainer = function (this: any) {
+    const result = originalUpdateContainer.call(this)
+    const localRect = this[RUBBERBAND_SELECTION_RECT_KEY]
+    if (!localRect) {
+      Dom.css(this.selectionContainer, { display: 'none' })
+      return result
+    }
+    const graphRect = this.graph.localToGraph(localRect)
+    Dom.css(this.selectionContainer, {
+      display: 'block',
+      left: graphRect.x,
+      top: graphRect.y,
+      width: graphRect.width,
+      height: graphRect.height,
+    })
+    return result
+  }
+
+  const originalApplyDraggingPreview = selectionProto.applyDraggingPreview
+  selectionProto.applyDraggingPreview = function (
+    this: any,
+    offset: { dx: number; dy: number },
+  ) {
+    if (this.options.following) {
+      this[RUBBERBAND_SELECTION_RECT_KEY]?.translate(offset.dx, offset.dy)
+    }
+    return originalApplyDraggingPreview.call(this, offset)
+  }
+
+  selectionProto._preserveRubberbandPatched = true
+}
+
+/** 获取最近一次有效框选所形成的画布逻辑坐标区域。 */
+export function getRubberbandSelectionRect(graph: Graph): Rectangle | null {
+  const selection = graph.getPlugin<Selection>('selection') as unknown as
+    | { selectionImpl?: Record<string, unknown> }
+    | undefined
+  const rect = selection?.selectionImpl?.[RUBBERBAND_SELECTION_RECT_KEY] as
+    | Rectangle
+    | undefined
+  return rect?.clone() ?? null
+}
+
+interface SelectionAreaState {
+  graph: Graph
+  options: {
+    rubberEdge?: boolean
+    strict?: boolean
+  }
+}
+
+/**
+ * X6 默认使用整条 Edge 的 BBox 判断框选命中。折线路径跨度较大时，
+ * BBox 内没有线段的空白区域也会误选 Edge。
+ *
+ * Node 保留 X6 原有的 BBox 判断；Edge 改用 EdgeView 中的最终渲染路径，
+ * 以覆盖 Avoid 等只反映在 View Path 中的路由结果。
+ */
+if (!selectionProto._preciseRubberEdgePatched) {
+  const originalGetCellViewsInArea = selectionProto.getCellViewsInArea as (
+    this: SelectionAreaState,
+    rect: Rectangle,
+  ) => CellView[]
+
+  selectionProto.getCellViewsInArea = function (
+    this: SelectionAreaState,
+    rect: Rectangle,
+  ) {
+    const originalViews = originalGetCellViewsInArea.call(this, rect)
+    if (!this.options.rubberEdge) return originalViews
+
+    // Node 继续使用 X6 原有结果；丢弃其中通过 BBox 命中的 Edge。
+    const nodeViews = originalViews.filter((view) => !view.cell.isEdge())
+    const rectBoundary = [
+      rect.topLine,
+      rect.rightLine,
+      rect.bottomLine,
+      rect.leftLine,
+    ]
+
+    const edgeViews = this.graph
+      .getEdges()
+      .map((edge) => this.graph.findViewByCell(edge) as EdgeView | null)
+      .filter((view): view is EdgeView => {
+        const path = view?.getConnection()
+        if (!view || !path) return false
+
+        const polylines = path.toPolylines({
+          segmentSubdivisions: view.getConnectionSubdivisions(),
+        })
+        if (!polylines?.length) return false
+
+        if (this.options.strict) {
+          return polylines.every((polyline) =>
+            polyline.points.every((point) => rect.containsPoint(point)),
+          )
+        }
+
+        return polylines.some(
+          (polyline) =>
+            polyline.points.some((point) => rect.containsPoint(point)) ||
+            rectBoundary.some(
+              (boundary) => polyline.intersectsWithLine(boundary) !== null,
+            ),
+        )
+      })
+
+    return nodeViews.concat(edgeViews)
+  }
+
+  selectionProto._preciseRubberEdgePatched = true
+}
+
+interface SelectionTranslationState {
+  graph: Graph
+  collection: {
+    toArray(): Cell[]
+  }
+  translatingCache: {
+    nodeIdSet: Set<string>
+    edgesToTranslate: Edge[]
+  } | null
+}
+
+interface FixedEdgeTerminal {
+  edge: Edge
+  source?: { horizontal: boolean; x: number; y: number }
+  target?: { horizontal: boolean; x: number; y: number }
+}
+
+/**
+ * Selection 整体平移 Edge vertices 时，引用未选中 Node 的端点不会移动，
+ * 首尾线段因此会倾斜。平移后在同一帧校正固定端旁的 vertex：内部 Edge
+ * 保持相对位置不变，边界 Edge 保持正交连接，全程不触发 Avoid。
+ */
+if (!selectionProto._fixedTerminalVertexPatched) {
+  const originalTranslateSelectedNodes =
+    selectionProto.translateSelectedNodes as (
+      this: SelectionTranslationState,
+      dx: number,
+      dy: number,
+      exclude?: Cell,
+      otherOptions?: Record<string, unknown>,
+    ) => void
+
+  selectionProto.translateSelectedNodes = function (
+    this: SelectionTranslationState,
+    dx: number,
+    dy: number,
+    exclude?: Cell,
+    otherOptions?: Record<string, unknown>,
+  ) {
+    const movingNodeIds = this.translatingCache?.nodeIdSet ?? new Set<string>()
+    const fixedTerminals =
+      this.translatingCache?.edgesToTranslate
+        .map((edge) => {
+          const vertices = edge.getVertices()
+          if (vertices.length === 0) return null
+
+          const view = this.graph.findViewByCell(edge) as EdgeView | null
+          if (!view) return null
+
+          const item: FixedEdgeTerminal = { edge }
+          const sourceId = edge.getSourceCellId()
+          const targetId = edge.getTargetCellId()
+          const firstVertex = vertices[0]
+          const lastVertex = vertices[vertices.length - 1]
+
+          if (sourceId && !movingNodeIds.has(sourceId)) {
+            item.source = {
+              horizontal:
+                Math.abs(view.sourcePoint.x - firstVertex.x) >=
+                Math.abs(view.sourcePoint.y - firstVertex.y),
+              x: view.sourcePoint.x,
+              y: view.sourcePoint.y,
+            }
+          }
+          if (targetId && !movingNodeIds.has(targetId)) {
+            item.target = {
+              horizontal:
+                Math.abs(view.targetPoint.x - lastVertex.x) >=
+                Math.abs(view.targetPoint.y - lastVertex.y),
+              x: view.targetPoint.x,
+              y: view.targetPoint.y,
+            }
+          }
+
+          return item.source || item.target ? item : null
+        })
+        .filter((item): item is FixedEdgeTerminal => item !== null) ?? []
+
+    originalTranslateSelectedNodes.call(this, dx, dy, exclude, otherOptions)
+
+    fixedTerminals.forEach(({ edge, source, target }) => {
+      const vertices = edge.getVertices().map((point) => ({ ...point }))
+      if (vertices.length === 0) return
+
+      if (source) {
+        if (source.horizontal) vertices[0].y = source.y
+        else vertices[0].x = source.x
+      }
+      if (target) {
+        const lastVertex = vertices[vertices.length - 1]
+        if (target.horizontal) lastVertex.y = target.y
+        else lastVertex.x = target.x
+      }
+
+      edge.setVertices(vertices, { ui: true })
+    })
+  }
+
+  selectionProto._fixedTerminalVertexPatched = true
+}
+
+/**
+ * 一个模块和 Edge 一起移动时，整体平移可能让路线穿过其他模块。
+ * 必须等 Selection 在当前帧提交节点和 vertices 后，再按最新坐标执行 Avoid。
+ * 多个模块一起移动时不寻路，保持组内 Cell 的相对位置不变。
+ */
+if (!selectionProto._routeSingleNodeSelectionPatched) {
+  const originalApplyDraggingPreview = selectionProto.applyDraggingPreview as (
+    this: SelectionTranslationState,
+    offset: { dx: number; dy: number },
+  ) => void
+
+  selectionProto.applyDraggingPreview = function (
+    this: SelectionTranslationState,
+    offset: { dx: number; dy: number },
+  ) {
+    const result = originalApplyDraggingPreview.call(this, offset)
+    const selectedCells = this.collection.toArray()
+    const selectedNodeCount = selectedCells.filter(
+      (cell) => cell.isNode() && isRoutingNode(cell),
+    ).length
+
+    if (selectedCells.length > 1 && selectedNodeCount === 1) {
+      void routeAllEdges(this.graph)
+    }
+    return result
+  }
+
+  selectionProto._routeSingleNodeSelectionPatched = true
+}
 
 /**
  * X6 默认把 mousedown 的端口固定为 source，只拖动 target；
@@ -97,12 +377,19 @@ export function _patchScrollerOnUpdate(scroller: Scroller) {
 
   const proto = Object.getPrototypeOf(impl) as Record<string, Function>
   const originalOnUpdate = proto.onUpdate as Function
+  const previousOnUpdate = impl.onUpdate as Function & { cancel?: () => void }
+  const modelEvents = ['reseted', 'cell:added', 'cell:removed', 'cell:changed']
 
-  // 构造时 startListening() 已用 debounce 版本注册事件监听，
-  // 必须先 stopListening 解绑，再用 throttled 版本重新绑定。
-  proto.stopListening.call(impl)
+  // 只替换模型更新监听。X6 的 stopListening() 无法正确解绑带冒号的
+  // before:export/after:export，重启完整监听会导致导出后重复恢复滚动位置。
+  modelEvents.forEach((eventName) => {
+    impl.model.off(eventName, previousOnUpdate, impl)
+  })
+  previousOnUpdate.cancel?.()
   impl.onUpdate = FunctionExt.throttle(originalOnUpdate.bind(impl), 60)
-  proto.startListening.call(impl)
+  modelEvents.forEach((eventName) => {
+    impl.model.on(eventName, impl.onUpdate, impl)
+  })
 }
 
 /**

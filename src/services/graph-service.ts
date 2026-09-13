@@ -1,65 +1,42 @@
 import {
   Clipboard,
-  Edge,
   Export,
   Graph,
   History,
-  Keyboard,
-  Node,
   Scroller,
   Selection,
   Shape,
   Snapline,
   Transform,
 } from '@antv/x6'
-import { debounce } from 'lodash-es'
 import {
   EDGE_TARGET_CP_OFFSET,
   GRAPH_GRID,
-  PASTE_OFFSET,
   SNAP_RADIUS,
+  WHEEL_ZOOM_LEVELS,
 } from '@/assets/constant'
-import { createCommonService } from '@/services/common-service'
+import { previewLinkAttrs } from '@/assets/x6Model'
+import { isConnectionValid } from '@/services/connection-service'
 import { createInteractiveService } from '@/services/interactive-service'
+import { registerKeyboard } from '@/services/keyboard-service'
+import { createSettingService } from '@/services/setting-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
-import {
-  isSelectionByKey,
-  pasteTarget,
-  setIsSelectionByKey,
-  setPasteTarget,
-} from '@/store/flags'
-import { useGraphStore } from '@/store/graphStore'
+import { rightEdgeDragging } from '@/store/flags'
+import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
+import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
+import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
-import { previewLinkAttrs } from './../assets/x6Model'
-import type { Graph as GraphType } from '@antv/x6'
+import type {
+  Edge,
+  Graph as GraphType,
+  Node,
+  ValidateConnectionArgs,
+} from '@antv/x6'
 
-const commonService = createCommonService()
 const interactiveService = createInteractiveService()
-
-function isPortConnectedByOtherEdge(
-  cell: Node,
-  portId: string,
-  currentEdge?: Edge,
-): boolean {
-  const connectedEdges = cell.model?.getConnectedEdges(cell) ?? []
-  return connectedEdges.some(
-    (edge) =>
-      (!currentEdge || edge !== currentEdge) &&
-      ((edge.getSourceCell()?.id === cell.id &&
-        edge.getSourcePortId() === portId) ||
-        (edge.getTargetCell()?.id === cell.id &&
-          edge.getTargetPortId() === portId)),
-  )
-}
-
-// 右键拉线中标志位，供 interacting 回调使用（需在 X6 mousedown 前由捕获阶段设置）
-let rightEdgeDragging = false
-const WHEEL_ZOOM_LEVELS = [0.5, 0.6, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
-const setRightEdgeDragging = (val: boolean) => {
-  rightEdgeDragging = val
-}
+const settingService = createSettingService()
 
 // ── 主入口 ──────────────────────────────────────────────────────────────────
 
@@ -68,10 +45,11 @@ function createAndSetupGraph(
   onScale: (zoom: number) => void,
 ): GraphType {
   const graph = createGraph(container)
-  registerSteppedMouseWheel(graph)
+  withDeviceGuard('desktop', registerSteppedMouseWheel)(graph)
   setupDevTools(graph)
   registerPlugins(graph)
-  registerKeyBindings(graph)
+  // Keyboard 的插件安装和快捷键行为由 keyboard-service 统一维护。
+  registerKeyboard(graph)
   graph.on('scale', ({ sx }: { sx: number }) => {
     // 使用selection 插件选择多个cell 之后滚轮进行缩放，选择框错位 #3452
     const cells = graph.getSelectedCells()
@@ -81,7 +59,7 @@ function createAndSetupGraph(
     })
     onScale(Math.round(sx * 100))
   })
-  graph.getPlugin<Scroller>('scroller')!.centerPoint(500, 500)
+  graph.getPlugin<Scroller>('scroller')!.centerPoint(1500, 1000)
   openAutoPan(graph)
   return graph
 }
@@ -89,14 +67,54 @@ function createAndSetupGraph(
 // ── Graph 实例创建 ────────────────────────────────────────────────────────────
 
 function createGraph(container: HTMLElement): GraphType {
-  return new Graph({
+  const graph = new Graph({
     container,
     autoResize: true,
     connecting: {
       allowNode: false,
+      // TODO 电力系统 允许Edge连接Edge
       allowEdge: false,
-      allowMulti: true,
-      allowLoop: false,
+      // 重连时当前 edge 仍挂在旧端口，排除它后再执行 X6 的重复连接判断。
+      allowMulti({
+        edge,
+        sourceCell,
+        targetCell,
+        sourcePort,
+        targetPort,
+        type,
+      }: ValidateConnectionArgs): boolean {
+        // `type` 表示当前正在修改的是 edge 的哪一个端点：
+        // - source：正在拖动 source 端，候选端口是 sourcePort；
+        // - target：正在拖动 target 端，候选端口是 targetPort。
+        // 它表示 edge terminal 的方向，不是端口组名称（`in`/`out`）。
+        if (
+          !edge ||
+          !sourceCell ||
+          !targetCell ||
+          sourcePort == null ||
+          targetPort == null
+        ) {
+          return true
+        }
+
+        // 只查询当前待修改端所在方向的边：source 看 outgoing，target 看 incoming。
+        // 这样既保持单端口限制，也不会把无关方向的边算进来。
+        const connectedEdges = graph.getConnectedEdges(
+          type === 'source' ? sourceCell : targetCell,
+          type === 'source' ? { outgoing: true } : { incoming: true },
+        )
+        return !connectedEdges.some(
+          (connectedEdge: Edge) =>
+            // 重连中的 edge 还暂时挂在旧端口上，必须排除它自身；
+            // 这里只拦截其他 edge 的重复连接。
+            connectedEdge !== edge &&
+            connectedEdge.getSourceCell()?.id === sourceCell.id &&
+            connectedEdge.getTargetCell()?.id === targetCell.id &&
+            connectedEdge.getSourcePortId() === sourcePort &&
+            connectedEdge.getTargetPortId() === targetPort,
+        )
+      },
+      allowLoop: true,
       sourceConnectionPoint: 'anchor',
       targetConnectionPoint: {
         name: 'anchor',
@@ -108,61 +126,30 @@ function createGraph(container: HTMLElement): GraphType {
         radius: SNAP_RADIUS,
         anchor: 'bbox',
       },
-      createEdge({ sourceCell, sourceMagnet }) {
+      createEdge() {
         return new Shape.Edge(previewLinkAttrs)
       },
       highlight: true,
-      // validateConnection({
-      //   sourceCell,
-      //   targetCell,
-      //   sourcePort,
-      //   targetPort,
-      //   edge,
-      // }) {
-      //   if (!sourceCell || !targetCell || !targetPort) return true
-
-      //   // 从 edge 拉出新线：sourceCell 是 Edge，无 sourcePort
-      //   // 只需验证目标端口是 in 方向且未被占用
-      //   if (sourceCell.isEdge()) {
-      //     const tgtDir = commonService.getPortGroup(
-      //       (targetCell as Node).getPort(targetPort),
-      //     )
-      //     if (tgtDir !== 'in') return false
-      //     return !isPortConnectedByOtherEdge(
-      //       targetCell as Node,
-      //       targetPort,
-      //       edge,
-      //     )
-      //   } else if (sourceCell.isNode()) {
-      //     // 从 node 端口创建/重连：sourceCell 是 Node
-      //     if (!sourcePort || !targetPort) return true
-      //     const srcDir = commonService.getPortGroup(
-      //       (sourceCell as Node).getPort(sourcePort),
-      //     )
-      //     const tgtDir = commonService.getPortGroup(
-      //       (targetCell as Node).getPort(targetPort),
-      //     )
-      //     if (!srcDir || !tgtDir) {
-      //       console.warn(
-      //         '[validateConnection] port group 未定义，无法验证连接合法性',
-      //         { sourceCell, targetCell, sourcePort, targetPort },
-      //       )
-      //     }
-
-      //     // 允许 out → in 或 in → out，不允许同向连接
-      //     const directionValid =
-      //       (srcDir === 'out' && tgtDir === 'in') ||
-      //       (srcDir === 'in' && tgtDir === 'out')
-      //     if (!directionValid) return false
-
-      //     // 只有 in 端口限制为单连接；out 端口允许多条连接
-      //     const inCell = srcDir === 'in' ? sourceCell : targetCell
-      //     const inPort = srcDir === 'in' ? sourcePort : targetPort
-      //     return !isPortConnectedByOtherEdge(inCell as Node, inPort, edge)
-      //   }
-
-      //   return true
-      // },
+      validateConnection({
+        sourceCell,
+        targetCell,
+        sourcePort,
+        targetPort,
+        edge,
+        type,
+      }): boolean {
+        // 缺少关键参数直接拒绝
+        const candidatePort = type === 'source' ? sourcePort : targetPort
+        if (candidatePort == null) return false
+        return isConnectionValid(
+          graph,
+          sourceCell as Node | Edge | null,
+          sourcePort,
+          targetCell as Node | null,
+          targetPort,
+          edge,
+        )
+      },
     },
     highlighting: {
       // 拖拽开始时高亮所有可连接的端口
@@ -188,7 +175,12 @@ function createGraph(container: HTMLElement): GraphType {
         },
       },
     },
-    grid: { visible: true, size: GRAPH_GRID, type: 'doubleMesh' },
+    grid: {
+      visible: true,
+      size: GRAPH_GRID,
+      type: 'mesh',
+      // args: { thickness: 0.5 },
+    },
     scaling: { min: 0.5, max: 5 },
     panning: false,
     virtual: false,
@@ -199,11 +191,12 @@ function createGraph(container: HTMLElement): GraphType {
       return {}
     },
   })
-}
 
+  return graph
+}
 /**
  * 定规格监听 mouseWheel
- * @param graph 图示例
+ * @param graph 图实例
  */
 function registerSteppedMouseWheel(graph: GraphType) {
   const onWheel = (e: WheelEvent) => {
@@ -242,24 +235,29 @@ function registerSteppedMouseWheel(graph: GraphType) {
 
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 
+registerEdgeEditTool()
 registerRatioAnchorTool()
 // registerSimulinkSegmentsTool()
 
 function registerPlugins(graph: GraphType) {
   graph.use(new Snapline({ enabled: true, sharp: true }))
   graph.use(new Export())
-  graph.use(
-    new Selection({
-      enabled: true,
-      multiple: true,
-      rubberband: true,
-      rubberEdge: true,
-      showNodeSelectionBox: true,
-      showEdgeSelectionBox: false,
-      movingRouterFallback: 'orth',
-      modifiers: 'shift',
-      content(_selection, el) {
-        el.innerHTML = `
+  const selection = new Selection({
+    enabled: true,
+    // 关闭内置多选 使用 Ctrl/Command + 鼠标点击 进行模块连接
+    multiple: false,
+    // 允许在画布空白处拖出矩形框选区域
+    rubberband: true,
+    // Edge 与框选区域命中时，也将 Edge 加入 Selection
+    rubberEdge: true,
+    // 为每个选中的 Node 显示独立的 SelectionBox
+    showNodeSelectionBox: true,
+    // Edge 可以被选中，但不为其显示独立的 SelectionBox
+    showEdgeSelectionBox: false,
+    // movingRouterFallback: 'orth',
+    modifiers: 'shift',
+    content(_selection, el) {
+      el.innerHTML = `
           <div class="x6-selection-action-bar">
             <button class="x6-selection-action-bar__btn" data-action="create-subsystem" title="创建子系统">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
@@ -270,24 +268,31 @@ function registerPlugins(graph: GraphType) {
             </button>
           </div>
         `
-        const btn = el.querySelector<HTMLElement>(
-          '[data-action="create-subsystem"]',
-        )!
-        btn.addEventListener('mousedown', (e) => e.stopPropagation())
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation()
-          const cells = graph.getSelectedCells()
-          mergeToSubsystem(cells, graph)
-        })
-        return ''
-      },
-    }),
-  )
+      const btn = el.querySelector<HTMLElement>(
+        '[data-action="create-subsystem"]',
+      )!
+      const stopSelectionGesture = (e: Event) => e.stopPropagation()
+      btn.addEventListener('mousedown', stopSelectionGesture)
+      btn.addEventListener('pointerdown', stopSelectionGesture)
+      // X6 Selection 仍单独监听 touchstart，必须阻止它把按钮点击识别为框选移动。
+      btn.addEventListener('touchstart', stopSelectionGesture, {
+        passive: true,
+      })
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        const cells = graph.getSelectedCells()
+        await mergeToSubsystem(cells, graph)
+      })
+      return ''
+    },
+  })
+  graph.use(selection)
+  settingService.registerSelectionSettings(graph, selection)
   const scroller = new Scroller({
     enabled: true,
     pannable: true,
-    pageWidth: 1000,
-    pageHeight: 1000,
+    pageWidth: 3000,
+    pageHeight: 2000,
     pageBreak: false,
     pageVisible: true,
     autoResizeOptions: {
@@ -300,10 +305,10 @@ function registerPlugins(graph: GraphType) {
   const transformPlugin = new Transform({
     resizing: {
       enabled: true,
-      minWidth: 30,
-      maxWidth: 200,
-      minHeight: 30,
-      maxHeight: 150,
+      minWidth: 40,
+      maxWidth: 800,
+      minHeight: 40,
+      maxHeight: 400,
       orthogonal: false,
       restrict: false,
       preserveAspectRatio: false,
@@ -316,60 +321,14 @@ function registerPlugins(graph: GraphType) {
   graph.use(
     new History({
       enabled: true,
+      revertOptionsList: ['propertyPath', SUBGRAPH_HISTORY_OPTION],
+      applyOptionsList: ['propertyPath', SUBGRAPH_HISTORY_OPTION],
       beforeAddCommand(_event, args) {
         if (!args) return
         if ('options' in args && args.options?.undo === false) return false
       },
     }),
   )
-  graph.use(new Keyboard({ enabled: true }))
-}
-
-// ── 快捷键注册 ────────────────────────────────────────────────────────────────
-
-function registerKeyBindings(graph: GraphType) {
-  const space = createSpaceHandlers()
-
-  // 方向键合并：Space 按住时走 pan，否则走 move
-  DIRS.forEach((dir) => {
-    const move = moveKeyHandler(dir)
-    const pan = [space.panLeft, space.panRight, space.panUp, space.panDown][
-      DIRS.indexOf(dir)
-    ]
-    graph.bindKey(dir, () => {
-      if (isEditingElement()) return
-      if (spaceHeld) return pan()
-      return move()
-    })
-  })
-
-  registerKeys(graph, [
-    [['ctrl+c', 'meta+c'], copyHandler],
-    [['ctrl+v', 'meta+v'], pasteHandler],
-    [['ctrl+v', 'meta+v'], pasteUpHandler, 'keyup'],
-    [['ctrl+x', 'meta+x'], cutHandler],
-    [['delete', 'backspace'], removeHandler],
-    [['ctrl+a', 'meta+a'], selectAllHandler],
-    ['space', space.down],
-    ['space', space.up, 'keyup'],
-    ['=', space.zoomIn],
-    ['-', space.zoomOut],
-    ['0', space.zoomReset],
-    ['g', space.zoomToFit],
-    ['f', space.zoomToSelection],
-    [
-      ['ctrl+z', 'meta+z'],
-      () => {
-        graph.undo()
-      },
-    ],
-    [
-      ['ctrl+y', 'meta+y', 'meta+shift+z', 'ctrl+shift+z'],
-      () => {
-        graph.redo()
-      },
-    ],
-  ])
 }
 
 // ── 开发工具 ──────────────────────────────────────────────────────────────────
@@ -381,243 +340,4 @@ function setupDevTools(graph: GraphType) {
   window.__x6_instances__.push(graph)
 }
 
-/**
- * @description 检查当前焦点是否在可编辑元素上，若是则应跳过快捷键处理
- */
-function isEditingElement(): boolean {
-  const el = document.activeElement
-  if (!el || !(el instanceof HTMLElement)) return false
-  if (el.isContentEditable) return true
-  if (el.closest('input, textarea, select')) return true
-  return false
-}
-
-// ── 方向键辅助（纯函数） ──────────────────────────────────────────────────────
-
-type ArrowDir = 'up' | 'down' | 'left' | 'right'
-
-const DIRS: ArrowDir[] = ['left', 'right', 'up', 'down']
-
-const STEP: Record<ArrowDir, { dx: number; dy: number }> = {
-  up: { dx: 0, dy: -GRAPH_GRID },
-  down: { dx: 0, dy: GRAPH_GRID },
-  left: { dx: -GRAPH_GRID, dy: 0 },
-  right: { dx: GRAPH_GRID, dy: 0 },
-}
-
-function findNeighbor(current: Node, dir: ArrowDir): Node | null {
-  const graph = useGraphStore.getState().graph
-  const center = current.getBBox().getCenter()
-  const candidates = graph.getNodes().filter((n) => {
-    if (n === current) return false
-    const c = n.getBBox().getCenter()
-    const dx = c.x - center.x
-    const dy = c.y - center.y
-    if (dir === 'left') return dx < 0
-    if (dir === 'right') return dx > 0
-    if (dir === 'up') return dy < 0
-    if (dir === 'down') return dy > 0
-  })
-  if (!candidates.length) return null
-  return candidates.reduce((best, n) => {
-    const c = n.getBBox().getCenter()
-    const bc = best.getBBox().getCenter()
-    return Math.hypot(c.x - center.x, c.y - center.y) <
-      Math.hypot(bc.x - center.x, bc.y - center.y)
-      ? n
-      : best
-  })
-}
-
-function moveKeyHandler(dir: ArrowDir) {
-  let isBatching = false
-  const _debounce = debounce(() => {
-    useGraphStore.getState().graph.stopBatch('move')
-    isBatching = false
-  }, 700)
-  return () => {
-    // 编辑态：直接 return（不 return false），避免 Mousetrap 调 preventDefault
-    if (isEditingElement()) return
-    if (spaceHeld) return false
-    const graph = useGraphStore.getState().graph
-    if (!graph.getNodes().length) return false
-
-    const selectedNodes = graph.getSelectedCells().filter((c) => c.isNode())
-    const selectedEdges = graph.getSelectedCells().filter((c) => c.isEdge())
-    if (selectedNodes.length > 0 && !isSelectionByKey) {
-      if (!isBatching) {
-        isBatching = true
-        graph.startBatch('move')
-      }
-      selectedNodes.forEach((node) => {
-        const { x, y } = node.getPosition()
-        node.setPosition(x + STEP[dir].dx, y + STEP[dir].dy)
-      })
-      _debounce()
-    } else if (!selectedEdges.length) {
-      const nodes = graph.getNodes()
-      const current = isSelectionByKey ? selectedNodes[0] : nodes[0]
-      current.removeTool('boundary', { undo: false })
-      const neighbor = findNeighbor(current, dir) ?? current
-      setIsSelectionByKey(true)
-      graph.resetSelection([neighbor])
-      interactiveService.addOutline(neighbor)
-      interactiveService.addBoundaryTool(neighbor)
-      graph.getPlugin<Scroller>('scroller')?.scrollToCell(neighbor)
-    }
-    return false
-  }
-}
-
-// ── 行为标志位 ──────────────────────────────────────────────────────────────
-
-let firstTimePaste = true
-let spaceHeld = false
-
-// ── 快捷键 handler ──────────────────────────────────────────────────────────
-
-function copyHandler() {
-  const graph = useGraphStore.getState().graph
-  const cells = graph.getSelectedCells()
-  if (cells.length) graph.copy(cells)
-}
-
-function pasteHandler() {
-  if (!firstTimePaste) return
-  const graph = useGraphStore.getState().graph
-  if (graph.isClipboardEmpty()) return
-  let cells
-  if (pasteTarget) {
-    const clipboardCells = graph.getCellsInClipboard()
-    const nodes = clipboardCells.filter((c) => c.isNode())
-    const minX = Math.min(...nodes.map((n) => n.getPosition().x))
-    const minY = Math.min(...nodes.map((n) => n.getPosition().y))
-    cells = graph.paste({
-      offset: { dx: pasteTarget.x - minX, dy: pasteTarget.y - minY },
-    })
-    setPasteTarget(pasteTarget.x + PASTE_OFFSET, pasteTarget.y + PASTE_OFFSET)
-  } else {
-    cells = graph.paste({ offset: PASTE_OFFSET })
-  }
-  graph.resetSelection(cells)
-  firstTimePaste = false
-}
-
-function pasteUpHandler() {
-  firstTimePaste = true
-}
-
-function cutHandler() {
-  const graph = useGraphStore.getState().graph
-  const cells = graph.getSelectedCells()
-  if (cells.length) {
-    graph.cut(cells)
-    graph.resetSelection([])
-  }
-}
-
-function removeHandler() {
-  const graph = useGraphStore.getState().graph
-  const cells = graph.getSelectedCells()
-  if (cells.length) {
-    graph.removeCells(cells)
-    graph.resetSelection([])
-  }
-}
-
-function selectAllHandler() {
-  const graph = useGraphStore.getState().graph
-  const cells = graph.getCells()
-  if (cells.length) graph.resetSelection(cells)
-}
-
-function zoomToFitWithVirtual(graph: GraphType): void {
-  interactiveService.zoomToFitWithVirtual(graph, {
-    scaleGrid: 0.05,
-    padding: 20,
-  })
-}
-
-// ── Space 键闭包 ────────────────────────────────────────────────────────────
-
-function createSpaceHandlers() {
-  let comboUsed = false
-
-  function used(fn: () => void) {
-    return () => {
-      if (!spaceHeld) return false
-      comboUsed = true
-      fn()
-      return false
-    }
-  }
-
-  const panHandler = (dir: ArrowDir) =>
-    used(() => {
-      const scroller = useGraphStore
-        .getState()
-        .graph.getPlugin<Scroller>('scroller')
-      if (!scroller) return
-      const { left, top } = scroller.getScrollbarPosition()
-      scroller.setScrollbarPosition(
-        left + STEP[dir].dx * 5,
-        top + STEP[dir].dy * 5,
-      )
-    })
-
-  return {
-    down() {
-      comboUsed = false
-      spaceHeld = true
-    },
-    up() {
-      spaceHeld = false
-      if (!comboUsed) {
-        zoomToFitWithVirtual(useGraphStore.getState().graph)
-      }
-    },
-    panLeft: panHandler('left'),
-    panRight: panHandler('right'),
-    panUp: panHandler('up'),
-    panDown: panHandler('down'),
-    zoomIn: used(() => useGraphStore.getState().graph.zoom(0.1)),
-    zoomOut: used(() => useGraphStore.getState().graph.zoom(-0.1)),
-    zoomReset: used(() => useGraphStore.getState().graph.zoomTo(1)),
-    zoomToFit: used(() => zoomToFitWithVirtual(useGraphStore.getState().graph)),
-    zoomToSelection: used(() => {
-      const graph = useGraphStore.getState().graph
-      const cells =
-        graph.getPlugin<Selection>('selection')?.getSelectedCells() ?? []
-      if (cells.length > 0) {
-        graph.zoomToRect(graph.getCellsBBox(cells)!, {
-          padding: 20,
-        })
-      }
-    }),
-  }
-}
-
-// ── registerKeys ─────────────────────────────────────────────────────────────
-
-type KeyEntry = [
-  keys: string | string[],
-  handler: () => void,
-  eventType?: 'keydown' | 'keyup' | 'keypress',
-]
-
-function registerKeys(graph: GraphType, entries: KeyEntry[]) {
-  for (const [keys, handler, eventType] of entries) {
-    graph.bindKey(
-      keys,
-      function () {
-        // 编辑态：不执行 handler，不 return false（避免 Mousetrap 调 preventDefault）
-        if (isEditingElement()) return
-        handler()
-        return false
-      },
-      eventType,
-    )
-  }
-}
-
-export { createAndSetupGraph, setRightEdgeDragging }
+export { createAndSetupGraph }

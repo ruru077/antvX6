@@ -1,8 +1,13 @@
 import { StringExt } from '@antv/x6'
+import { cloneDeep, isEqual } from 'lodash-es'
 import { create } from 'zustand'
-import { arrowMarkup, maskArrowAttrs, MASK_SELECTOR } from '@/assets/x6Model'
-import { createCommonService } from '@/services/common-service'
-import type { Node } from '@antv/x6'
+import {
+  buildSubsystemMarkup,
+  DROP_SHADOW_FILTER,
+  maskArrowAttrs,
+  MASK_SELECTOR,
+} from '@/assets/x6Model'
+import type { Cell, Graph, Node } from '@antv/x6'
 import type {
   EntryGraphModel,
   GraphJSON,
@@ -14,6 +19,12 @@ import type {
  * @description 子系统全局数据 Store
  */
 interface SubGraphStore {
+  // 模型名称
+  modelName: string
+  // 当前模型是否与保存快照不同
+  isDirty: boolean
+  // 最近一次保存的模型快照
+  savedSnapshot: EntryGraphModel
   // 当前所在的Graph ID
   currentGraphId: string
   // 从根Graph到当前Graph的路径ID列表
@@ -24,10 +35,22 @@ interface SubGraphStore {
   subGraphs: SubGraphMap
   // 导出EntryGraphModel
   exportEntryGraphModel: () => EntryGraphModel
+  // 重命名模型
+  renameModel: (name: string) => void
+  // 根据保存快照重算修改状态
+  recomputeDirty: () => void
+  // 将当前模型标记为已保存
+  markSaved: () => void
   // 同步当前Layer Graph数据
   syncGraph: (graphJson: GraphJSON) => void
   // 同步新增SubGraph数据
-  syncSubGraph: (subGraphNode: Node, action: 'add' | 'delete') => void
+  syncSubGraph: (
+    subGraphNode: Node,
+    action: 'add' | 'delete',
+    initialGraphJson?: GraphJSON,
+  ) => boolean
+  // 同步子系统展示名称
+  syncSubGraphName: (subGraphId: string, name: string) => void
   // 添加 mask 工具
   addMaskToSubsystem: (node: Node) => void
 }
@@ -39,12 +62,21 @@ interface CreateSubGraphItemOptions {
   name?: string
   /** 初始子系统 id 集合，默认空集 */
   childrenIds?: string[]
+  /** Node 注册为子系统时使用的初始内部图 */
+  graphJson?: GraphJSON
 }
+
+interface SubGraphHistoryPayload {
+  items: SubGraphMap
+  parentChildrenIds: Record<string, string[]>
+}
+
+const SUBGRAPH_HISTORY_OPTION = 'subGraphHistory'
 
 /**
  * 子系统封装的Block同步函数
  * @arg subGraphNode 子系统节点
- * 框选元素合并子系统
+ * GraphJson 生成子系统
  * @arg graphJson 需要转化为子系统的Graph JSON数据
  * @param options : CreateSubGraphItemOptions
  * @returns subGraphItem
@@ -68,17 +100,24 @@ function createSubGraphItem(
     id = StringExt.uuid(),
     name = 'New Subsystem',
     childrenIds = [],
+    graphJson: initialGraphJson,
   } = options
   // Node
   if ('isNode' in arg && arg.isNode()) {
-    console.log('hel')
+    const graphJson = cloneSubGraphJson(initialGraphJson)
+    const nestedSubGraphs = collectNestedSubGraphs(graphJson, arg.id, deep + 1)
     return {
       id: arg.id,
-      name: arg.attr<string>('text/text') || 'Subsystem',
+      name: arg.attr<string>('label/text') || 'Subsystem',
       deep,
       parentId: currentGraphId,
-      childrenIds,
-      graphJson: { ...arg.getData().graphJson },
+      // Test
+      childrenIds: childrenIds.length
+        ? childrenIds
+        : Object.values(nestedSubGraphs)
+            .filter((subGraph) => subGraph.parentId === arg.id)
+            .map((subGraph) => subGraph.id),
+      graphJson,
     }
   }
   // GraphJSON
@@ -90,6 +129,103 @@ function createSubGraphItem(
     childrenIds,
     graphJson: arg,
   }
+}
+
+/**
+ * 复制子系统 graphJson，并重写内部 cell id 引用
+ * @param graphJson 原始子系统 graphJson
+ * @returns 新 id 的 graphJson
+ * @author codex
+ */
+function cloneSubGraphJson(graphJson?: GraphJSON): GraphJSON {
+  const next = JSON.parse(
+    JSON.stringify(graphJson ?? ({ cells: [] } as GraphJSON)),
+  ) as GraphJSON
+  const cells = next.cells ?? []
+  const idMap = new Map<string, string>()
+
+  cells.forEach((cell) => {
+    if (cell.id) idMap.set(cell.id, StringExt.uuid())
+  })
+
+  cells.forEach((cell) => {
+    if (cell.id) cell.id = idMap.get(cell.id) ?? cell.id
+    if (cell.parent) cell.parent = idMap.get(cell.parent) ?? cell.parent
+    if ('children' in cell && Array.isArray(cell.children)) {
+      cell.children = cell.children.map((id) => idMap.get(id) ?? id)
+    }
+    if (cell.shape === 'edge') {
+      if (typeof cell.source === 'string') {
+        cell.source = idMap.get(cell.source) ?? cell.source
+      } else if (cell.source?.cell) {
+        cell.source = {
+          ...cell.source,
+          cell: idMap.get(cell.source.cell) ?? cell.source.cell,
+        }
+      }
+
+      if (typeof cell.target === 'string') {
+        cell.target = idMap.get(cell.target) ?? cell.target
+      } else if (cell.target?.cell) {
+        cell.target = {
+          ...cell.target,
+          cell: idMap.get(cell.target.cell) ?? cell.target.cell,
+        }
+      }
+    }
+    if (cell.data?.graphJson) {
+      cell.data.graphJson = cloneSubGraphJson(cell.data.graphJson)
+    }
+  })
+
+  return next
+}
+
+/**
+ * 收集 graphJson 中直接/嵌套的子系统图层
+ * @param graphJson 待扫描的 graphJson
+ * @param parentId 当前 graphJson 所属的子系统 id
+ * @param deep 子系统深度
+ * @returns 子系统 id -> 子系统图层
+ * @author codex
+ */
+function collectNestedSubGraphs(
+  graphJson: GraphJSON,
+  parentId: string,
+  deep: number,
+): SubGraphMap {
+  const result: SubGraphMap = {}
+  const cells = graphJson.cells ?? []
+
+  cells.forEach((cell) => {
+    if (
+      cell.shape === 'edge' ||
+      cell.data?.blockType !== 'Subsystem' ||
+      !cell.id
+    )
+      return
+
+    const childGraphJson = cell.data.graphJson ?? ({ cells: [] } as GraphJSON)
+    const nestedSubGraphs = collectNestedSubGraphs(
+      childGraphJson,
+      cell.id,
+      deep + 1,
+    )
+    const text = cell.attrs?.label?.text
+    result[cell.id] = {
+      id: cell.id,
+      name: typeof text === 'string' && text ? text : 'Subsystem',
+      deep,
+      parentId,
+      childrenIds: Object.values(nestedSubGraphs)
+        .filter((subGraph) => subGraph.parentId === cell.id)
+        .map((subGraph) => subGraph.id),
+      graphJson: childGraphJson,
+    }
+    Object.assign(result, nestedSubGraphs)
+  })
+
+  return result
 }
 /**
  *
@@ -107,29 +243,122 @@ function buildPaths(subGraphs: SubGraphMap, subGraphId: string) {
   return pathIds
 }
 const ROOT_ID = 'root'
-const commonService = createCommonService()
+const DEFAULT_MODEL_NAME = '实验二-系统稳态误差分析'
+
+// 压缩 JSON
+function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
+  function zip(val: unknown): unknown {
+    if (Array.isArray(val)) return val.map(zip)
+    if (val !== null && typeof val === 'object') {
+      return Object.fromEntries(
+        Object.entries(val as Record<string, unknown>)
+          .filter(([, v]) => v !== null)
+          .map(([k, v]) => [k, zip(v)]),
+      )
+    }
+    return val
+  }
+  return zip(obj) as EntryGraphModel
+}
+
+/**
+ * 将 EntryGraphModel 中的选中 outline 恢复为未选中模型样式。
+ * Annotation 的选中蓝底同样恢复为透明运行时样式。
+ */
+function normalizeEntryGraphModel(model: EntryGraphModel): EntryGraphModel {
+  const normalized = structuredClone(model)
+
+  Object.values(normalized.subGraphs).forEach((subGraph) => {
+    subGraph.graphJson.cells.forEach((cell) => {
+      const attrs = cell.attrs as
+        | Record<
+            string,
+            {
+              fill?: unknown
+              fillOpacity?: number
+              filter?: { name?: string }
+            }
+          >
+        | undefined
+
+      if (cell.data?.blockType === 'Annotation' && attrs?.body) {
+        attrs.body.fill = '#ffffff'
+        attrs.body.fillOpacity = 0
+        delete attrs.body.filter
+      }
+
+      Object.values(attrs ?? {}).forEach((selectorAttrs) => {
+        const filterName = selectorAttrs.filter?.name
+        if (cell.shape === 'edge') {
+          if (filterName === 'outline') delete selectorAttrs.filter
+          return
+        }
+
+        if (filterName === 'outline' || filterName === 'dropShadow') {
+          selectorAttrs.filter = structuredClone(DROP_SHADOW_FILTER)
+        }
+      })
+    })
+  })
+
+  return normalized
+}
+
+const initialSubGraphs: SubGraphMap = {
+  [ROOT_ID]: {
+    id: ROOT_ID,
+    name: 'root',
+    deep: 0,
+    parentId: null,
+    childrenIds: [],
+    graphJson: { cells: [] },
+  },
+}
+
+const initialSavedSnapshot = normalizeEntryGraphModel(
+  zipGraphModelJson({
+    modelName: DEFAULT_MODEL_NAME,
+    currentGraphId: ROOT_ID,
+    rootId: ROOT_ID,
+    subGraphs: initialSubGraphs,
+  }),
+)
 // ─── store ───────────────────────────────────────────────────────────────────
 const useSubGraphStore = create<SubGraphStore>((set, get) => ({
+  modelName: DEFAULT_MODEL_NAME,
+  isDirty: false,
+  savedSnapshot: initialSavedSnapshot,
   currentGraphId: ROOT_ID,
   currentPathIds: [ROOT_ID],
   rootId: ROOT_ID,
-  subGraphs: {
-    [ROOT_ID]: {
-      id: ROOT_ID,
-      name: 'root',
-      deep: 0,
-      parentId: null,
-      childrenIds: [],
-      graphJson: { cells: [] },
-    },
-  },
+  subGraphs: structuredClone(initialSubGraphs),
 
   exportEntryGraphModel: () => {
-    const { currentGraphId, rootId, subGraphs } = get()
-    return commonService.zipGraphModelJson({
-      currentGraphId,
-      rootId,
-      subGraphs,
+    const { modelName, currentGraphId, rootId, subGraphs } = get()
+    return normalizeEntryGraphModel(
+      zipGraphModelJson({
+        modelName,
+        currentGraphId,
+        rootId,
+        subGraphs,
+      }),
+    )
+  },
+  renameModel: (name) => {
+    const trimmed = name.trim()
+    if (!trimmed || trimmed === get().modelName) return
+
+    set({ modelName: trimmed })
+    get().recomputeDirty()
+  },
+  recomputeDirty: () => {
+    const { exportEntryGraphModel, savedSnapshot } = get()
+    set({ isDirty: !isEqual(exportEntryGraphModel(), savedSnapshot) })
+  },
+  markSaved: () => {
+    set({
+      savedSnapshot: get().exportEntryGraphModel(),
+      isDirty: false,
     })
   },
   syncGraph: (graphJson) => {
@@ -144,12 +373,23 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
       },
     })
   },
-  syncSubGraph: (subGraphNode, action: 'add' | 'delete') => {
+  syncSubGraph: (subGraphNode, action, initialGraphJson) => {
     const { currentGraphId, subGraphs } = get()
 
     if (action === 'add') {
+      // 如果已经存在，则不重复添加
+      if (subGraphs[subGraphNode.id]) return false
+
       // subGraph 加入当前Layer
       const currentSubGraphItem = subGraphs[currentGraphId]
+      const subGraphItem = createSubGraphItem(subGraphNode, {
+        graphJson: initialGraphJson,
+      })
+      const nestedSubGraphs = collectNestedSubGraphs(
+        subGraphItem.graphJson,
+        subGraphItem.id,
+        subGraphItem.deep + 1,
+      )
       set({
         subGraphs: {
           ...subGraphs,
@@ -157,13 +397,21 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
             ...currentSubGraphItem,
             childrenIds: [...currentSubGraphItem.childrenIds, subGraphNode.id],
           },
-          [subGraphNode.id]: createSubGraphItem(subGraphNode),
+          [subGraphNode.id]: subGraphItem,
+          ...nestedSubGraphs,
         },
       })
+      return true
     } else if (action === 'delete') {
       const nextSubGraphs = { ...subGraphs }
-      delete nextSubGraphs[subGraphNode.id]
       const parentId = subGraphs[subGraphNode.id].parentId!
+      function removeSubGraphTree(subGraphId: string) {
+        const subGraph = nextSubGraphs[subGraphId]
+        if (!subGraph) return
+        subGraph.childrenIds.forEach(removeSubGraphTree)
+        delete nextSubGraphs[subGraphId]
+      }
+      removeSubGraphTree(subGraphNode.id)
 
       set({
         subGraphs: {
@@ -176,20 +424,114 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
           },
         },
       })
+      return true
     }
+    return false
+  },
+  syncSubGraphName: (subGraphId, name) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    const { subGraphs } = get()
+    const subGraph = subGraphs[subGraphId]
+    if (!subGraph || subGraph.name === trimmed) return
+
+    set({
+      subGraphs: {
+        ...subGraphs,
+        [subGraphId]: {
+          ...subGraph,
+          name: trimmed,
+        },
+      },
+    })
   },
   addMaskToSubsystem: (node) => {
-    const raw = node.getMarkup()
-    // 暂不使用 XML 作为 markup
-    if (typeof raw === 'string') return
-    const markup = Array.isArray(raw) ? raw : [raw]
-    // 已有则跳过
-    if (markup.some((m) => m.selector === MASK_SELECTOR)) return
+    if (node.getData()?.blockType !== 'Subsystem') return
 
-    node.setMarkup([...markup, ...arrowMarkup])
+    const markup = node.getMarkup()
+    if (typeof markup === 'string') return
+
+    const markupItems = Array.isArray(markup) ? markup : [markup]
+    const alreadyHasMask = markupItems.some(
+      (item) => item.selector === MASK_SELECTOR,
+    )
+    if (alreadyHasMask) return
+
+    node.setMarkup(buildSubsystemMarkup(true))
     node.attr(maskArrowAttrs)
   },
 }))
 
-export type { EntryGraphModel, SubGraphItem, GraphJSON }
-export { useSubGraphStore, createSubGraphItem, buildPaths }
+function captureSubGraphHistory(
+  cells: Cell[],
+): SubGraphHistoryPayload | undefined {
+  const { subGraphs } = useSubGraphStore.getState()
+  const rootIds = cells
+    .map((cell) => cell.id)
+    .filter((id) => subGraphs[id] !== undefined)
+  if (!rootIds.length) return
+
+  const items: SubGraphMap = {}
+  const parentChildrenIds: Record<string, string[]> = {}
+  function collectSubGraphTree(subGraphId: string) {
+    const subGraph = subGraphs[subGraphId]
+    items[subGraphId] = cloneDeep(subGraph)
+    subGraph.childrenIds.forEach(collectSubGraphTree)
+  }
+
+  rootIds.forEach((rootId) => {
+    const parentId = subGraphs[rootId].parentId!
+    parentChildrenIds[parentId] = [...subGraphs[parentId].childrenIds]
+    collectSubGraphTree(rootId)
+  })
+
+  return { items, parentChildrenIds }
+}
+
+function restoreSubGraphHistory(payload: SubGraphHistoryPayload) {
+  const { subGraphs } = useSubGraphStore.getState()
+  const nextSubGraphs = {
+    ...subGraphs,
+    ...cloneDeep(payload.items),
+  }
+
+  Object.entries(payload.parentChildrenIds).forEach(
+    ([parentId, childrenIds]) => {
+      nextSubGraphs[parentId] = {
+        ...nextSubGraphs[parentId],
+        childrenIds: [...childrenIds],
+      }
+    },
+  )
+  useSubGraphStore.setState({ subGraphs: nextSubGraphs })
+}
+
+function getSubGraphHistory(options: unknown) {
+  return (options as Record<string, SubGraphHistoryPayload | undefined>)?.[
+    SUBGRAPH_HISTORY_OPTION
+  ]
+}
+
+function saveEntryGraphModel(graph: Graph) {
+  const { syncGraph, exportEntryGraphModel, markSaved } =
+    useSubGraphStore.getState()
+  syncGraph(graph.toJSON())
+  const model = exportEntryGraphModel()
+  console.log(JSON.stringify(model, null, 2))
+  markSaved()
+  return model
+}
+
+export type { EntryGraphModel, SubGraphItem, GraphJSON, SubGraphHistoryPayload }
+export {
+  useSubGraphStore,
+  saveEntryGraphModel,
+  createSubGraphItem,
+  buildPaths,
+  normalizeEntryGraphModel,
+  SUBGRAPH_HISTORY_OPTION,
+  captureSubGraphHistory,
+  restoreSubGraphHistory,
+  getSubGraphHistory,
+}

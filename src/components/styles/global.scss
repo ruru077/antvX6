@@ -7,20 +7,13 @@
   // padding: 0;
 }
 
-@font-face {
-  font-family: 'OPPO Sans';
-  src: local('OPPO Sans'), local('OPPOSans');
-  font-style: normal;
-  font-display: swap;
-}
-
 html,
 body {
   height: 100%;
   font-weight: 500;
   font-size: 16px;
   line-height: 24px;
-  font-family: var(--font-family-sans);
+  font-family: var(--font-sans);
 }
 
 button,
@@ -32,7 +25,7 @@ select {
 
 .x6-graph svg text,
 .x6-graph svg tspan {
-  font-family: var(--font-family-sans) !important;
+  font-family: var(--font-sans) !important;
 }
 
 .x6-graph foreignObject ::selection {
@@ -52,16 +45,12 @@ select {
 }
 
 /* 防止缩放时 SVG 描边产生亚像素抗锯齿光晕 */
-.x6-edge>path {
+.x6-edge > path {
   vector-effect: non-scaling-stroke;
   shape-rendering: crispEdges;
 }
 
 :root {
-  /* Font */
-  --font-family-sans:
-    'OPPO Sans', 'OPPOSans', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue',
-    Arial, sans-serif;
   --font-size-base: 14px;
   /* 默认最小字号 */
   --line-height-base: 22px;
@@ -191,7 +180,7 @@ select {
   padding: 0;
 }
 
-.x6-widget-transform>div {
+.x6-widget-transform > div {
   width: 10px;
   height: 10px;
   border: 1px solid rgb(140, 140, 140);
@@ -221,4 +210,15 @@ select {
 .x6-graph-scroller.x6-graph-scroller-pannable,
 .x6-graph-scroller.x6-graph-scroller-panning {
   cursor: default !important;
+}
+
+// Edge hover 工具只切换显隐，避免 addTools/removeTools 重建常驻 EdgeEdit。
+.edge-hover-tool {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.edge-hover-tool.edge-hover-tool-visible {
+  visibility: visible;
+  pointer-events: auto;
 }

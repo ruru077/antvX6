@@ -1,72 +1,134 @@
 import { Export, Graph } from '@antv/x6'
+import { EDGE_TARGET_CP_OFFSET } from '@/assets/constant'
 import type { ExportToImageOptions } from '@antv/x6/lib/plugin/export/type'
 import type { GraphJSON } from '~/types'
 import '@antv/x6/lib/plugin/export/api'
+
+const SNAPSHOT_WIDTH = 800
+const SNAPSHOT_HEIGHT = 600
+const SNAPSHOT_PADDING = 8
+
+type SnapshotSize = {
+  width: number
+  height: number
+}
+
+type SnapshotViewBox = SnapshotSize & {
+  x: number
+  y: number
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+}
+
+function applySnapshotSimpleView(container: HTMLElement) {
+  const hiddenSelectors = [
+    '.x6-node text',
+    '.x6-node image',
+    '.x6-node foreignObject',
+    '.x6-edge text',
+    '.x6-edge foreignObject',
+    '.x6-port-label',
+  ]
+
+  container
+    .querySelectorAll<Element>(hiddenSelectors.join(','))
+    .forEach((elem) => elem.setAttribute('display', 'none'))
+}
+
+function getSnapshotViewBox(contentArea: SnapshotViewBox): SnapshotViewBox {
+  return {
+    x: contentArea.x - SNAPSHOT_PADDING,
+    y: contentArea.y - SNAPSHOT_PADDING,
+    width: Math.max(1, contentArea.width + SNAPSHOT_PADDING * 2),
+    height: Math.max(1, contentArea.height + SNAPSHOT_PADDING * 2),
+  }
+}
+
+function getExportSize(viewBox: SnapshotSize): SnapshotSize {
+  const ratio = viewBox.width / viewBox.height
+  return ratio >= 1
+    ? {
+        width: SNAPSHOT_WIDTH,
+        height: Math.max(1, Math.round(SNAPSHOT_WIDTH / ratio)),
+      }
+    : {
+        width: Math.max(1, Math.round(SNAPSHOT_HEIGHT * ratio)),
+        height: SNAPSHOT_HEIGHT,
+      }
+}
+
+function decorateSnapshot(svg: SVGSVGElement) {
+  svg
+    .querySelectorAll<SVGElement>(
+      '.x6-node [data-selector="body"], .x6-node [data-selector="portBody"]',
+    )
+    .forEach((element) => {
+      element.setAttribute('stroke', '#777777')
+      element.setAttribute('stroke-width', '1')
+    })
+}
 
 /**
  * 离屏渲染 graphJson，返回 PNG data URL
  * 用于子系统 Block 的缩略图预览
  */
-export async function snapshotToDataURL(graphJson: GraphJSON): Promise<string> {
+export async function snapshotToDataURL(
+  graphJson: GraphJSON,
+  _targetSize: SnapshotSize,
+): Promise<string> {
   const container = document.createElement('div')
-  container.style.cssText =
-    'position:fixed;left:0;top:0;width:800px;height:600px;pointer-events:none;opacity:1;z-index:-9999;'
+  container.style.cssText = `position:fixed;left:-10000px;top:-10000px;width:${SNAPSHOT_WIDTH}px;height:${SNAPSHOT_HEIGHT}px;pointer-events:none;z-index:-1;`
   document.body.appendChild(container)
 
-  const graph = new Graph({ container, width: 800, height: 600 })
+  const graph = new Graph({
+    container,
+    width: SNAPSHOT_WIDTH,
+    height: SNAPSHOT_HEIGHT,
+    interacting: false,
+    connecting: {
+      allowNode: false,
+      allowEdge: false,
+      allowMulti: 'withPort',
+      allowLoop: true,
+      sourceConnectionPoint: 'anchor',
+      targetConnectionPoint: {
+        name: 'anchor',
+        args: {
+          offset: EDGE_TARGET_CP_OFFSET,
+        },
+      },
+    },
+  })
   graph.use(new Export())
 
   try {
     graph.fromJSON(graphJson)
-  } catch (e) {
-    graph.dispose()
-    document.body.removeChild(container)
-    throw e
-  }
 
-  // 等待一帧：fromJSON 后 cell views 需要一次 rAF 才挂载到 SVG DOM
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    // fromJSON 后 cell views 需要等 DOM 挂载和 foreignObject 文本落位。
+    await nextFrame()
+    await nextFrame()
+    applySnapshotSimpleView(container)
 
-  // 从 cell 数据算 viewBox（照抄 CanvasToolbars 的 getExportViewBox 逻辑）
-  type CellLike = {
-    shape?: string
-    position?: { x: number; y: number }
-    size?: { width: number; height: number }
-  }
-  const nodeCells = (graphJson.cells as CellLike[]).filter(
-    (c) => c.shape !== 'edge',
-  )
-  const xs = nodeCells.map((c) => c.position?.x ?? 0)
-  const ys = nodeCells.map((c) => c.position?.y ?? 0)
-  const x2s = nodeCells.map((c) => (c.position?.x ?? 0) + (c.size?.width ?? 0))
-  const y2s = nodeCells.map((c) => (c.position?.y ?? 0) + (c.size?.height ?? 0))
-  const viewBox = {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...x2s) - Math.min(...xs),
-    height: Math.max(...y2s) - Math.min(...ys),
-  }
+    const viewBox = getSnapshotViewBox(graph.getContentBBox())
+    const exportSize = getExportSize(viewBox)
 
-  const options: ExportToImageOptions = {
-    padding: 30,
-    backgroundColor: '#ffffff',
-    copyStyles: false,
-    preserveDimensions: true,
-    viewBox,
-  }
+    const options: ExportToImageOptions = {
+      ...exportSize,
+      backgroundColor: 'transparent',
+      copyStyles: false,
+      viewBox,
+      beforeSerialize(svg) {
+        decorateSnapshot(svg)
+      },
+    }
 
-  try {
-    const dataUrl = await graph.toPNGAsync(options)
-
-    // 调试：下载 PNG 查看内容
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `subsystem-snapshot-${Date.now()}.png`
-    a.click()
-
-    return dataUrl
+    return graph.toPNGAsync(options)
   } finally {
     graph.dispose()
-    document.body.removeChild(container)
+    container.remove()
   }
 }
+
+export type { SnapshotSize }

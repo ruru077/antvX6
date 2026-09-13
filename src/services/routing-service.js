@@ -2,17 +2,17 @@ import { AvoidLib } from 'libavoid-js'
 import { GAP_SIZE, GRAPH_GRID, RED } from '@/assets/constant'
 // 参数配置
 const ROUTE_OPTIONS = {
-  edgeToNodeGap: 40,
+  edgeToNodeGap: 20,
   edgeToEdgeGap: 10,
-  stubSize: 0,
+  stubSize: 20,
   segmentPenalty: 80,
   anglePenalty: 100,
-  crossingPenalty: 1000,
+  crossingPenalty: 1500,
   reverseDirectionPenalty: 200,
   portDirectionPenalty: 100,
   gridSize: 0,
   gapSize: GAP_SIZE,
-  cornerRadius: 1,
+  cornerRadius: 0,
 }
 let routeRequestId = 0
 let activeRoutePromise = null
@@ -22,7 +22,11 @@ const AVOID_CONN_DIR_UP = 1
 const AVOID_CONN_DIR_DOWN = 2
 const AVOID_CONN_DIR_LEFT = 4
 const AVOID_CONN_DIR_RIGHT = 8
-const AVOID_CONN_DIR_ALL = 15
+const INSERT_PREVIEW = 'edgeInsertionPreview'
+const INSERT_PREVIEW_TERMINALS = 'edgeInsertionPreviewTerminals'
+function isRoutingNode(node) {
+  return node.getPorts().length > 0
+}
 async function routeAllEdges(graph) {
   pendingRouteGraph = graph
   if (activeRoutePromise) return activeRoutePromise
@@ -53,6 +57,7 @@ async function routeAllEdgesNow(graph) {
     applyRoutes(routes)
   } catch (error) {
     // console.error('[avoid-route] routing failed', error)
+    throw error
   }
 }
 function getRoutableEdges(graph) {
@@ -60,6 +65,7 @@ function getRoutableEdges(graph) {
     .getEdges()
     .map((edge) => {
       if (isPreviewEdge(edge)) return null
+      if (edge.attr('line/visibility') === 'hidden') return null
       const source = getTerminalInfo(graph, edge, 'source')
       const target = getTerminalInfo(graph, edge, 'target')
       if (!source || !target) return null
@@ -85,11 +91,43 @@ function alignBranchDirections(source, target) {
   }
 }
 function getTerminalInfo(graph, edge, terminal) {
+  const terminalConfig = getTerminalConfig(edge, terminal)
   const nodeId =
     terminal === 'source' ? edge.getSourceCellId() : edge.getTargetCellId()
   const portId =
     terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
-  if (!nodeId) return null
+  if (!nodeId) {
+    const previewTerminal =
+      edge.getData()?.[INSERT_PREVIEW_TERMINALS]?.[terminal]
+    if (
+      !previewTerminal ||
+      typeof terminalConfig?.x !== 'number' ||
+      typeof terminalConfig?.y !== 'number'
+    ) {
+      return null
+    }
+    const routeNodeId = `__preview_node__:${previewTerminal.nodeId}`
+    const point = { x: terminalConfig.x, y: terminalConfig.y }
+    const stubPoint = offsetByVector(
+      point,
+      previewTerminal.normal,
+      ROUTE_OPTIONS.stubSize,
+    )
+    return {
+      kind: 'virtualNode',
+      nodeId: routeNodeId,
+      portId: previewTerminal.portId,
+      routeNodeId,
+      routePortId: `${routeNodeId}:${previewTerminal.portId}`,
+      point,
+      normal: previewTerminal.normal,
+      direction: previewTerminal.direction,
+      stubPoint,
+      checkpoint: stubPoint,
+      hasStub: true,
+      bbox: previewTerminal.bbox,
+    }
+  }
   const cell = graph.getCellById(nodeId)
   if (!cell) return null
   if (cell.isEdge()) {
@@ -103,11 +141,13 @@ function getTerminalInfo(graph, edge, terminal) {
       routePortId: `__branch_port__:${edge.id}:${terminal}`,
       point,
       direction: getBranchDirection(graph, cell, edge, terminal, point),
+      checkpoint: point,
+      hasStub: false,
     }
   }
-  if (!cell.isNode() || !portId) return null
-  const point = getPortPoint(cell, portId)
-  if (!point) return null
+  if (!cell.isNode() || !isRoutingNode(cell) || !portId) return null
+  const geometry = getPortRouteGeometry(cell, portId)
+  if (!geometry) return null
   return {
     kind: 'node',
     node: cell,
@@ -115,8 +155,8 @@ function getTerminalInfo(graph, edge, terminal) {
     portId,
     routeNodeId: nodeId,
     routePortId: `${nodeId}:${portId}`,
-    point,
-    direction: getPortDirection(cell, portId, point),
+    ...geometry,
+    hasStub: true,
   }
 }
 async function routeWithAvoid(graph, routableEdges) {
@@ -126,35 +166,58 @@ async function routeWithAvoid(graph, routableEdges) {
   try {
     configureAvoidRouter(avoid, router)
     const shapes = new Map()
-    const pins = new Map()
-    graph.getNodes().forEach((node) => {
-      const shapeRef = createAvoidShape(avoid, router, node)
-      shapes.set(node.id, shapeRef)
-      node.getPorts().forEach((port, index) => {
-        if (!port.id) return
-        const point = getPortPoint(node, port.id)
-        if (!point) return
-        const pinClass = index + 2
-        const proportion = getPortProportion(node, point)
-        const direction = getPortDirection(node, port.id, point)
+    graph
+      .getNodes()
+      .filter(isRoutingNode)
+      .forEach((node) => {
+        const shapeRef = createAvoidShape(avoid, router, node)
+        shapes.set(node.id, shapeRef)
+      })
+    const endpointShapes = new Map()
+    const endpointPins = new Map()
+    routableEdges.forEach(({ source, target }) => {
+      for (const terminal of [source, target]) {
+        if (
+          terminal.kind === 'virtualNode' &&
+          !shapes.has(terminal.routeNodeId)
+        ) {
+          const bbox = terminal.bbox
+          shapes.set(
+            terminal.routeNodeId,
+            new avoid.ShapeRef(
+              router,
+              new avoid.Rectangle(
+                new avoid.Point(bbox.x, bbox.y),
+                new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height),
+              ),
+            ),
+          )
+        }
+        if (endpointShapes.has(terminal.routePortId)) continue
+        const endpointPoint = terminal.hasStub
+          ? terminal.stubPoint
+          : terminal.point
+        const shapeRef = createAvoidEndpointShape(avoid, router, endpointPoint)
+        const pinClass = 2
         const pin = new avoid.ShapeConnectionPin(
           shapeRef,
           pinClass,
-          proportion.x,
-          proportion.y,
+          0.5,
+          0.5,
           true,
           0,
-          toAvoidDirection(direction),
+          toAvoidDirection(terminal.direction),
         )
         pin.setExclusive(false)
-        pins.set(`${node.id}:${port.id}`, pinClass)
-      })
+        endpointShapes.set(terminal.routePortId, shapeRef)
+        endpointPins.set(terminal.routePortId, pinClass)
+      }
     })
     const connectors = routableEdges.map((routeEdge) => {
-      const sourceShape = shapes.get(routeEdge.source.nodeId)
-      const targetShape = shapes.get(routeEdge.target.nodeId)
-      const sourcePin = pins.get(routeEdge.source.routePortId)
-      const targetPin = pins.get(routeEdge.target.routePortId)
+      const sourceShape = endpointShapes.get(routeEdge.source.routePortId)
+      const targetShape = endpointShapes.get(routeEdge.target.routePortId)
+      const sourcePin = endpointPins.get(routeEdge.source.routePortId)
+      const targetPin = endpointPins.get(routeEdge.target.routePortId)
       if (!sourceShape || !targetShape || !sourcePin || !targetPin) {
         throw new Error(
           `[avoid-route] Avoid endpoint missing shape or pin for edge "${routeEdge.edge.id}"`,
@@ -165,21 +228,17 @@ async function routeWithAvoid(graph, routableEdges) {
       const conn = new avoid.ConnRef(router, sourceEnd, targetEnd)
       conn.setRoutingType(avoid.ConnType.ConnType_Orthogonal.value)
       conn.setHateCrossings(ROUTE_OPTIONS.crossingPenalty > 0)
-      const checkpoints = createAvoidCheckpoints(
-        avoid,
-        routeEdge,
-        ROUTE_OPTIONS.stubSize,
-      )
-      if (checkpoints) conn.setRoutingCheckpoints(checkpoints)
       return { conn, routeEdge }
     })
     router.processTransaction()
     const routes = connectors.map(({ conn, routeEdge }) => {
       const points = avoidRouteToPoints(conn.displayRoute())
       assertOrthogonalRoute(routeEdge.edge, points)
+      const terminalPoints = applyTerminalGeometry(routeEdge, points)
+      assertTerminalStubRoute(routeEdge, terminalPoints)
       return {
         edge: routeEdge.edge,
-        points,
+        points: terminalPoints,
         source: routeEdge.source,
         target: routeEdge.target,
       }
@@ -245,7 +304,7 @@ function configureAvoidRouter(avoid, router) {
   )
 }
 function createAvoidShape(avoid, router, node) {
-  const bbox = node.getBBox()
+  const bbox = getRotatedNodeBBox(node)
   return new avoid.ShapeRef(
     router,
     new avoid.Rectangle(
@@ -254,34 +313,42 @@ function createAvoidShape(avoid, router, node) {
     ),
   )
 }
-function createAvoidCheckpoints(avoid, routeEdge, stubSize) {
-  if (stubSize <= 0) return null
-  const checkpoints = new avoid.CheckpointVector()
-  const sourceStub = offsetByDirection(
-    routeEdge.source.point,
-    routeEdge.source.direction,
-    stubSize,
-  )
-  checkpoints.push_back(
-    new avoid.Checkpoint(
-      new avoid.Point(sourceStub.x, sourceStub.y),
-      toAvoidDirection(routeEdge.source.direction),
-      AVOID_CONN_DIR_ALL,
+function createAvoidEndpointShape(avoid, router, point) {
+  return new avoid.ShapeRef(
+    router,
+    new avoid.Rectangle(
+      new avoid.Point(point.x - 0.5, point.y - 0.5),
+      new avoid.Point(point.x + 0.5, point.y + 0.5),
     ),
   )
-  const targetStub = offsetByDirection(
-    routeEdge.target.point,
-    routeEdge.target.direction,
-    stubSize,
-  )
-  checkpoints.push_back(
-    new avoid.Checkpoint(
-      new avoid.Point(targetStub.x, targetStub.y),
-      toAvoidDirection(routeEdge.target.direction),
-      toAvoidDirection(oppositeDirection(routeEdge.target.direction)),
-    ),
-  )
-  return checkpoints
+}
+function applyTerminalGeometry(routeEdge, points) {
+  if (!points.length) {
+    throw new Error(`[avoid-route] Empty route for edge "${routeEdge.edge.id}"`)
+  }
+  const sourceEndpoint = routeEdge.source.hasStub
+    ? routeEdge.source.stubPoint
+    : routeEdge.source.point
+  const targetEndpoint = routeEdge.target.hasStub
+    ? routeEdge.target.stubPoint
+    : routeEdge.target.point
+  if (!samePoint(points[0], sourceEndpoint)) {
+    throw new Error(
+      `[avoid-route] Source endpoint mismatch for edge "${routeEdge.edge.id}"`,
+    )
+  }
+  if (!samePoint(points[points.length - 1], targetEndpoint)) {
+    throw new Error(
+      `[avoid-route] Target endpoint mismatch for edge "${routeEdge.edge.id}"`,
+    )
+  }
+  const sourcePoints = routeEdge.source.hasStub
+    ? [routeEdge.source.point, routeEdge.source.stubPoint]
+    : []
+  const targetPoints = routeEdge.target.hasStub
+    ? [routeEdge.target.stubPoint, routeEdge.target.point]
+    : []
+  return dedupePoints([...sourcePoints, ...points, ...targetPoints])
 }
 function avoidRouteToPoints(polyline) {
   const points = []
@@ -303,18 +370,6 @@ function toAvoidDirection(direction) {
       return AVOID_CONN_DIR_DOWN
   }
 }
-function oppositeDirection(direction) {
-  switch (direction) {
-    case 'left':
-      return 'right'
-    case 'right':
-      return 'left'
-    case 'top':
-      return 'bottom'
-    case 'bottom':
-      return 'top'
-  }
-}
 function assertOrthogonalRoute(edge, points) {
   for (let index = 1; index < points.length; index++) {
     const previous = points[index - 1]
@@ -325,6 +380,31 @@ function assertOrthogonalRoute(edge, points) {
     ) {
       throw new Error(
         `[avoid-route] Avoid produced a non-orthogonal segment for edge "${edge.id}"`,
+      )
+    }
+  }
+}
+function assertTerminalStubRoute(routeEdge, points) {
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1]
+    const current = points[index]
+    const diagonal =
+      Math.abs(previous.x - current.x) >= 0.5 &&
+      Math.abs(previous.y - current.y) >= 0.5
+    if (!diagonal) continue
+    const isSourceStub =
+      index === 1 &&
+      routeEdge.source.hasStub &&
+      samePoint(previous, routeEdge.source.point) &&
+      samePoint(current, routeEdge.source.stubPoint)
+    const isTargetStub =
+      index === points.length - 1 &&
+      routeEdge.target.hasStub &&
+      samePoint(previous, routeEdge.target.stubPoint) &&
+      samePoint(current, routeEdge.target.point)
+    if (!isSourceStub && !isTargetStub) {
+      throw new Error(
+        `[avoid-route] Non-terminal diagonal segment for edge "${routeEdge.edge.id}"`,
       )
     }
   }
@@ -344,11 +424,15 @@ function applyRoutes(routes) {
     const vertices = normalized.slice(1, -1)
     edge.removeRouter({ ui: true, ignore: true })
     edge.setVertices(vertices, { ui: true, ignore: true })
-    edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+    if (edge.attr('line/visibility') !== 'hidden') {
+      edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+    }
     setJumpoverConnector(edge)
   })
 }
 function fallbackEdgeToManhattan(edge, sourceDirection, targetDirection) {
+  sourceDirection ??= getAttachedPortDirection(edge, 'source')
+  targetDirection ??= getAttachedPortDirection(edge, 'target')
   const args = {
     step: GRAPH_GRID,
   }
@@ -358,6 +442,14 @@ function fallbackEdgeToManhattan(edge, sourceDirection, targetDirection) {
   edge.setRouter('manhattan', args, { ui: true, ignore: true })
   edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
   setJumpoverConnector(edge)
+}
+function getAttachedPortDirection(edge, terminal) {
+  const cell =
+    terminal === 'source' ? edge.getSourceCell() : edge.getTargetCell()
+  const portId =
+    terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
+  if (!cell?.isNode() || !portId) return null
+  return getPortRouteGeometry(cell, portId)?.direction ?? null
 }
 function setJumpoverConnector(edge) {
   edge.setConnector(
@@ -445,34 +537,107 @@ function getPortPoint(node, portId) {
   const layout = node.getPortsPosition(port.group)[portId]
   if (!layout) return null
   const position = node.getPosition()
-  return {
+  const point = {
     x: position.x + layout.position.x,
     y: position.y + layout.position.y,
   }
+  const angle = node.getAngle()
+  if (!angle) return point
+  return rotatePoint(point, node.getBBox().getCenter(), angle)
 }
-function getPortDirection(node, portId, point) {
+function getPortRouteGeometry(node, portId) {
+  const point = getPortPoint(node, portId)
+  if (!point) return null
   const port = node.getPort(portId)
-  const groupPosition = normalizePortDirection(
-    getPortGroupPosition(node, port?.group),
-  )
-  if (groupPosition) return groupPosition
-  const semanticDirection = inferPortDirectionFromName(portId, port?.group)
-  if (semanticDirection) return semanticDirection
-  const bbox = node.getBBox()
-  const distances = [
-    { direction: 'left', value: Math.abs(point.x - bbox.x) },
-    {
-      direction: 'right',
-      value: Math.abs(point.x - (bbox.x + bbox.width)),
-    },
-    { direction: 'top', value: Math.abs(point.y - bbox.y) },
-    {
-      direction: 'bottom',
-      value: Math.abs(point.y - (bbox.y + bbox.height)),
-    },
-  ]
-  distances.sort((a, b) => a.value - b.value)
-  return distances[0].direction
+  const groupPosition = getPortGroupPosition(node, port?.group)
+  const cardinalDirection = normalizePortDirection(groupPosition)
+  let normal
+  if (cardinalDirection) {
+    normal = rotateVector(directionToVector(cardinalDirection), node.getAngle())
+  } else if (isEllipsePosition(groupPosition)) {
+    normal = getEllipsePortNormal(node, portId)
+  }
+  if (!normal) {
+    const semanticDirection = inferPortDirectionFromName(portId, port?.group)
+    if (semanticDirection) {
+      normal = rotateVector(
+        directionToVector(semanticDirection),
+        node.getAngle(),
+      )
+    }
+  }
+  if (!normal) {
+    const bbox = getRotatedNodeBBox(node)
+    const distances = [
+      { direction: 'left', value: Math.abs(point.x - bbox.x) },
+      {
+        direction: 'right',
+        value: Math.abs(point.x - (bbox.x + bbox.width)),
+      },
+      { direction: 'top', value: Math.abs(point.y - bbox.y) },
+      {
+        direction: 'bottom',
+        value: Math.abs(point.y - (bbox.y + bbox.height)),
+      },
+    ]
+    distances.sort((a, b) => a.value - b.value)
+    normal = directionToVector(distances[0].direction)
+  }
+  const direction = quantizeDirection(normal)
+  const stubPoint = offsetByVector(point, normal, ROUTE_OPTIONS.stubSize)
+  return {
+    point,
+    normal,
+    direction,
+    stubPoint,
+    checkpoint: stubPoint,
+  }
+}
+function isEllipsePosition(position) {
+  const name = typeof position === 'string' ? position : position?.name
+  return name === 'ellipse' || name === 'ellipseSpread'
+}
+function getEllipsePortNormal(node, portId) {
+  const port = node.getPort(portId)
+  const layout = node.getPortsPosition(port.group)[portId]
+  if (!layout) return null
+  const size = node.getSize()
+  const rx = size.width / 2
+  const ry = size.height / 2
+  const dx = layout.position.x - rx
+  const dy = layout.position.y - ry
+  const localNormal = normalizeVector({
+    x: dx / (rx * rx),
+    y: dy / (ry * ry),
+  })
+  if (!localNormal) return null
+  return rotateVector(localNormal, node.getAngle())
+}
+function directionToVector(direction) {
+  switch (direction) {
+    case 'left':
+      return { x: -1, y: 0 }
+    case 'right':
+      return { x: 1, y: 0 }
+    case 'top':
+      return { x: 0, y: -1 }
+    case 'bottom':
+      return { x: 0, y: 1 }
+  }
+}
+function quantizeDirection(vector) {
+  if (Math.abs(vector.x) >= Math.abs(vector.y)) {
+    return vector.x >= 0 ? 'right' : 'left'
+  }
+  return vector.y >= 0 ? 'bottom' : 'top'
+}
+function normalizeVector(vector) {
+  const length = Math.hypot(vector.x, vector.y)
+  if (!length) return null
+  return { x: vector.x / length, y: vector.y / length }
+}
+function rotateVector(vector, angle) {
+  return rotatePoint(vector, { x: 0, y: 0 }, angle)
 }
 function getPortGroupPosition(node, groupName) {
   if (!groupName) return null
@@ -496,23 +661,24 @@ function inferPortDirectionFromName(portId, groupName) {
   if (/(^|:)in|(^|:)i\d|insys|ine/.test(key)) return 'left'
   return null
 }
-function getPortProportion(node, point) {
-  const bbox = node.getBBox()
+function getRotatedNodeBBox(node) {
+  return node.getBBox().bbox(node.getAngle())
+}
+function rotatePoint(point, center, angle) {
+  const radians = (angle * Math.PI) / 180
+  const cosine = Math.cos(radians)
+  const sine = Math.sin(radians)
+  const dx = point.x - center.x
+  const dy = point.y - center.y
   return {
-    x: clamp((point.x - bbox.x) / bbox.width, 0, 1),
-    y: clamp((point.y - bbox.y) / bbox.height, 0, 1),
+    x: center.x + dx * cosine - dy * sine,
+    y: center.y + dx * sine + dy * cosine,
   }
 }
-function offsetByDirection(point, direction, distance) {
-  switch (direction) {
-    case 'left':
-      return { x: point.x - distance, y: point.y }
-    case 'right':
-      return { x: point.x + distance, y: point.y }
-    case 'top':
-      return { x: point.x, y: point.y - distance }
-    case 'bottom':
-      return { x: point.x, y: point.y + distance }
+function offsetByVector(point, vector, distance) {
+  return {
+    x: point.x + vector.x * distance,
+    y: point.y + vector.y * distance,
   }
 }
 function dedupePoints(points) {
@@ -530,11 +696,11 @@ function snapPoint(point, gridSize) {
     y: Math.round(point.y / gridSize) * gridSize,
   }
 }
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value))
-}
 function isPreviewEdge(edge) {
-  return edge.getAttrs()?.line?.stroke === RED
+  return (
+    edge.getAttrs()?.line?.stroke === RED &&
+    edge.getData()?.[INSERT_PREVIEW] !== true
+  )
 }
 function isCompleteNodeEdge(edge) {
   return (
@@ -544,4 +710,10 @@ function isCompleteNodeEdge(edge) {
     !!edge.getTargetPortId()
   )
 }
-export { fallbackEdgeToManhattan, isCompleteNodeEdge, routeAllEdges }
+export {
+  fallbackEdgeToManhattan,
+  getPortRouteGeometry,
+  isCompleteNodeEdge,
+  isRoutingNode,
+  routeAllEdges,
+}

@@ -1,17 +1,29 @@
 import { Input } from 'antd'
 import { createRoot } from 'react-dom/client'
 import {
+  HOVER_EDGE_TOOL_CLASS,
   RED,
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,
 } from '@/assets/constant'
-import { AddBlockModal } from '@/components/AddBlockModal'
-import { BlockParamModal, SubsystemParamModal } from '@/components/Modal'
+import sourceAnchorCursor from '@/assets/source-anchor-cursor.png'
+import { DROP_SHADOW_FILTER, OUTLINE_COLOR } from '@/assets/x6Model'
+import { AddBlockCommand } from '@/components/AddBlockCommand'
+import {
+  BlockParamWindow,
+  SubsystemParamWindow,
+} from '@/components/NodeParamWindow'
 import { hasSubsystemMask } from '@/services/subsystem-service'
+import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
-import type { Cell, Edge, EdgeView, Graph, Node } from '@antv/x6'
+import { useSubGraphStore } from '@/store/subGraphStore'
+import { getGraphInteractionAdapter } from '@/touch/service/graph-interaction-adapter-service'
+import type { NodeParamWindowTarget } from '@/components/NodeParamWindow'
+import type { Cell, Edge, Graph, Node, NodeProperties } from '@antv/x6'
 import type { ScaleContentToFitOptions } from '@antv/x6'
 import type { Block } from '~/types/vo/block'
+
+let activeAddBlockCommandDestroy: (() => void) | null = null
 
 // ── Label 就地编辑器（antd Input 浮层）──────────────────────────────────────
 
@@ -73,27 +85,45 @@ function createInteractiveService() {
 
   function addOutline(cell: Cell) {
     if (cell.isNode()) {
+      if (cell.getData()?.blockType === 'Annotation') {
+        cell.attr(
+          {
+            body: {
+              fill: OUTLINE_COLOR,
+              fillOpacity: 1,
+              filter: null,
+            },
+          },
+          { undo: false },
+        )
+        return
+      }
       cell.attr('body/filter', null, { undo: false })
       cell.attr(
         'body/filter',
         {
           name: 'outline',
           args: {
-            color: 'rgb(102,194,255)',
-            width: getFilterWidth(4),
+            color: OUTLINE_COLOR,
+            width: Math.min(getFilterWidth(4), 4),
             margin: 0,
           },
         },
         { undo: false },
       )
     } else if (cell.isEdge()) {
+      const adapter = getGraphInteractionAdapter()
+      if (adapter) {
+        adapter.addEdgeOutline(cell, { getFilterWidth })
+        return
+      }
       cell.attr(
         'line/filter',
         {
           name: 'outline',
           args: {
-            color: 'rgb(102,194,255)',
-            width: getFilterWidth(3),
+            color: OUTLINE_COLOR,
+            width: Math.min(getFilterWidth(3), 3),
             margin: 0,
           },
           attrs: {
@@ -113,22 +143,27 @@ function createInteractiveService() {
    * @param cell 处理的 Cell
    */
   function removeOutline(cell: Cell) {
-    if (cell.isNode())
+    if (cell.isNode() && cell.getData()?.blockType === 'Annotation') {
       cell.attr(
-        'body/filter',
         {
-          name: 'dropShadow',
-          args: {
-            dx: 2.5,
-            dy: 2.5,
-            blur: 1.25,
-            color: 'black',
-            opacity: 0.55,
+          body: {
+            fill: '#ffffff',
+            fillOpacity: 0,
+            filter: null,
           },
         },
         { undo: false },
       )
-    else if (cell.isEdge()) cell.attr('line/filter', null, { undo: false })
+    } else if (cell.isNode())
+      cell.attr('body/filter', DROP_SHADOW_FILTER, { undo: false })
+    else if (cell.isEdge()) {
+      const adapter = getGraphInteractionAdapter()
+      if (adapter) {
+        adapter.removeEdgeOutline(cell)
+        return
+      }
+      cell.attr('line/filter', null, { undo: false })
+    }
   }
 
   /**
@@ -153,25 +188,48 @@ function createInteractiveService() {
     )
   }
 
-  function addEdgeTools(edge: Edge) {
+  function initializeEdgeTools(edge: Edge) {
     const graph = useGraphStore.getState().graph
     const isPreview = edge.getAttrs()?.line?.stroke === RED
 
     const sourceCell = graph.getCellById(edge.getSourceCellId())
     const isBranchEdge = sourceCell?.isEdge()
-    const tools = []
+    const adapter = getGraphInteractionAdapter()
+    if (adapter) {
+      adapter.initializeEdgeTools(edge, { graph, isPreview, isBranchEdge })
+      return
+    }
+
+    const managedToolNames = [
+      'ratio-anchor',
+      'source-arrowhead',
+      'target-arrowhead',
+      'touch-source-arrowhead',
+      'touch-target-arrowhead',
+    ]
+    const tools = edge.getTools()
+    const persistentTools =
+      tools?.items.filter((item) => {
+        const name = typeof item === 'string' ? item : item.name
+        return !managedToolNames.includes(name)
+      }) ?? []
+    const hoverTools = []
     if (isBranchEdge) {
-      tools.push({ name: 'ratio-anchor' })
+      hoverTools.push({
+        name: 'ratio-anchor',
+        args: { className: HOVER_EDGE_TOOL_CLASS },
+      })
     } else {
-      tools.push(
+      hoverTools.push(
         {
           name: 'source-arrowhead',
           args: {
+            className: HOVER_EDGE_TOOL_CLASS,
             attrs: {
-              d: 'M -5 0 a 5 5 0 1 0 10 0 a 5 5 0 1 0 -10 0',
-              fill: 'white',
-              stroke: 'black',
-              cursor: 'move',
+              d: 'M -7.5 -7.5 H 7.5 V 7.5 H -7.5 Z',
+              fill: 'transparent',
+              stroke: 'transparent',
+              cursor: `url("${sourceAnchorCursor}") 16 16, default`,
               'stroke-width': SOURCE_ARROWHEAD_STROKE_WIDTH,
             },
           },
@@ -180,9 +238,10 @@ function createInteractiveService() {
         // { name: 'segments' },
       )
     }
-    tools.push({
+    hoverTools.push({
       name: 'target-arrowhead',
       args: {
+        className: HOVER_EDGE_TOOL_CLASS,
         // ratio: isPreview ? 1 : 1,
         attrs: {
           // 使用 d 反转箭头 防止嵌入 Block 造成预期行为错乱
@@ -194,19 +253,39 @@ function createInteractiveService() {
         },
       },
     })
-    edge.addTools(tools, { undo: false })
+    const currentNames = tools?.items.map((item) =>
+      typeof item === 'string' ? item : item.name,
+    )
+    const expectedNames = hoverTools.map((item) => item.name)
+    const alreadyInitialized =
+      currentNames?.filter((name) => managedToolNames.includes(name)).join() ===
+      expectedNames.join()
+    if (alreadyInitialized) return
+
+    edge.setTools(
+      { ...tools, items: [...persistentTools, ...hoverTools] },
+      { undo: false },
+    )
   }
 
   /**
-   * 统一节点参数弹窗入口。
-   * - 已封装子系统 → SubsystemParamModal（读取 maskParam）
-   * - 其他 block → BlockParamModal（读取 paramValues）
+   * 统一节点参数悬浮窗口入口。
+   * - 已封装子系统 → SubsystemParamWindow（读取 maskParam）
+   * - 其他 block → BlockParamWindow（读取 paramValues）
    * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
-  function openNodeModal(node: Node) {
-    const ModalComponent = hasSubsystemMask(node)
-      ? SubsystemParamModal
-      : BlockParamModal
+  function openNodeParamWindow(node: Node) {
+    const windowId = `node-param:${node.id}`
+    if (focusOrRestoreFloatingWindow(windowId)) return
+    const target: NodeParamWindowTarget = {
+      graphId: useSubGraphStore.getState().currentGraphId,
+      nodeId: node.id,
+      snapshot: node.toJSON() as NodeProperties,
+    }
+
+    const ParamWindow = hasSubsystemMask(node)
+      ? SubsystemParamWindow
+      : BlockParamWindow
 
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -219,7 +298,9 @@ function createInteractiveService() {
       })
     }
 
-    root.render(<ModalComponent node={node} onDestroy={destroy} />)
+    root.render(
+      <ParamWindow windowId={windowId} target={target} onDestroy={destroy} />,
+    )
   }
 
   /**
@@ -279,25 +360,32 @@ function createInteractiveService() {
    * @param screenX 屏幕坐标 X（用于面板定位，clientX）
    * @param screenY 屏幕坐标 Y（用于面板定位，clientY）
    */
-  function openAddBlockModal(
+  function openAddBlockCommand(
     graphX: number,
     graphY: number,
     screenX: number,
     screenY: number,
   ) {
+    activeAddBlockCommandDestroy?.()
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
 
+    let destroyed = false
     const destroy = () => {
+      if (destroyed) return
+      destroyed = true
+      if (activeAddBlockCommandDestroy === destroy)
+        activeAddBlockCommandDestroy = null
+      container.remove()
       requestAnimationFrame(() => {
         root.unmount()
-        container.remove()
       })
     }
+    activeAddBlockCommandDestroy = destroy
 
     root.render(
-      <AddBlockModal
+      <AddBlockCommand
         screenX={screenX}
         screenY={screenY}
         onDestroy={destroy}
@@ -338,10 +426,10 @@ function createInteractiveService() {
     addOutline,
     removeOutline,
     addBoundaryTool,
-    addEdgeTools,
-    openNodeModal,
+    initializeEdgeTools,
+    openNodeParamWindow,
     openLabelEditor,
-    openAddBlockModal,
+    openAddBlockCommand,
     addNodeFromBlock,
     zoomToFitWithVirtual,
   }

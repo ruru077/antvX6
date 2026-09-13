@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#3f3f46"/></pattern>
+    <linearGradient id="line" x1="0" x2="1"><stop stop-color="#737373"/><stop offset="1" stop-color="#60a5fa"/></linearGradient>
+  </defs>
+  <rect width="1600" height="900" rx="24" fill="#111113"/>
+  <rect width="1600" height="70" fill="#202024"/>
+  <circle cx="32" cy="35" r="7" fill="#737373"/><circle cx="56" cy="35" r="7" fill="#52525b"/><circle cx="80" cy="35" r="7" fill="#3f3f46"/>
+  <text x="800" y="42" text-anchor="middle" font-family="monospace" font-size="16" fill="#71717a">remote-lab.flow</text>
+  <rect y="70" width="1600" height="830" fill="url(#dots)"/>
+  <path d="M430 480 C600 480 570 280 735 280 M865 280 C1030 280 1000 480 1170 480" fill="none" stroke="url(#line)" stroke-width="4"/>
+  <g font-family="Arial" font-size="18" fill="#d4d4d8" text-anchor="middle">
+    <g><rect x="270" y="420" width="220" height="120" rx="16" fill="#202024" stroke="#52525b"/><text x="380" y="488">Sensor</text></g>
+    <g><rect x="690" y="220" width="220" height="120" rx="16" fill="#202024" stroke="#52525b"/><text x="800" y="288">Controller</text></g>
+    <g><rect x="1110" y="420" width="220" height="120" rx="16" fill="#202024" stroke="#52525b"/><text x="1220" y="488">Actuator</text></g>
+  </g>
+  <rect x="32" y="812" width="1536" height="56" rx="10" fill="#18181b" stroke="#303036"/>
+  <text x="58" y="847" font-family="monospace" font-size="15" fill="#a1a1aa">✓ 3 modules validated</text>
+</svg>
