@@ -59,7 +59,6 @@ function createAndSetupGraph(
     })
     onScale(Math.round(sx * 100))
   })
-  graph.getPlugin<Scroller>('scroller')!.centerPoint(1500, 1000)
   openAutoPan(graph)
   return graph
 }

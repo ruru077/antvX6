@@ -22,15 +22,21 @@ function useKeepAliveGraphViewport() {
 
     let firstFrame = 0
     let secondFrame = 0
-    const position = positionRef.current
-
-    if (position) {
-      firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => {
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const position = positionRef.current
+        if (position) {
           scroller.setScrollbarPosition(position.left, position.top)
-        })
+          return
+        }
+
+        const { pageWidth, pageHeight } = scroller.options
+        if (pageWidth == null || pageHeight == null) {
+          throw new Error('Scroller page size is required to center the graph')
+        }
+        scroller.centerPoint(pageWidth / 2, pageHeight / 2)
       })
-    }
+    })
 
     return () => {
       cancelAnimationFrame(firstFrame)
