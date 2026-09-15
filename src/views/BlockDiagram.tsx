@@ -11,6 +11,7 @@ import {
 import { bindAntdMessage } from '@/services/antd-message-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useTouchAdapter } from '@/touch/useTouchAdapter'
+import { useKeepAliveGraphViewport } from '@/utils/hooks/useKeepAliveGraphViewport'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import '@styles/BlockDiagram.scss'
 
@@ -39,13 +40,13 @@ function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
   useGraphListener()
   useTouchAdapter()
   useScrollListener(paperContainerRef)
-
   useEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
     initGraph(paperContainerRef.current)
     return destroyGraph
   }, [])
+  useKeepAliveGraphViewport()
 
   return (
     <PanelSplitter

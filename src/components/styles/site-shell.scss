@@ -632,6 +632,34 @@ body:has(.m2p-shell-workspace) {
   background: #f7f7fc;
 }
 
+.m2p-main.editor > .route-keep-alive-container {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.route-keep-alive-node[data-cache-key^='/playground'] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.route-keep-alive-node.inactive {
+  transform: translateX(-200vw);
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .playground-canvas-wrap {
   margin-top: 1rem;
   padding: 8px;

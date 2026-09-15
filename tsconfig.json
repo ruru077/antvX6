@@ -30,7 +30,6 @@
     "types": [
       "vite-plus/client",
       "vite-plugin-svgr/client",
-      "vitest/globals"
     ],
     "resolveJsonModule": true,
     "skipLibCheck": true,

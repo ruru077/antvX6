@@ -1,5 +1,6 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import KeepAliveRouteOutlet from 'keepalive-for-react-router'
+import { Link, NavLink, useLocation } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { SiteLanguageProvider } from '@/views/site/SiteLanguageContext'
 import '@/components/styles/site-shell.scss'
@@ -52,8 +53,9 @@ function SiteHeader() {
 
 function SiteMain() {
   const { pathname } = useLocation()
+  const isPlayground = pathname === '/playground'
   const isWorkspacePage =
-    pathname === '/playground' ||
+    isPlayground ||
     pathname === '/model' ||
     pathname === '/model2' ||
     pathname === '/model3' ||
@@ -62,7 +64,13 @@ function SiteMain() {
 
   return (
     <main className={`m2p-main ${isWorkspacePage ? 'editor' : ''}`}>
-      <Outlet />
+      <KeepAliveRouteOutlet
+        include={/^\/playground(?:\?|$)/}
+        transition={false}
+        viewTransition={false}
+        containerClassName="route-keep-alive-container"
+        cacheNodeClassName="route-keep-alive-node"
+      />
     </main>
   )
 }
