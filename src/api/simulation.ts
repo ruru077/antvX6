@@ -1,3 +1,4 @@
+import { useConfigStore } from '@/store/configStore'
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
 // 本地服务器版
@@ -43,6 +44,14 @@ const progressByMessage: Record<string, number> = {
   finished: 100,
 }
 
+function getSimulationWsUrl(): string {
+  const { localSolverDebugEnabled, localSolverPort } = useConfigStore.getState()
+  if (!localSolverDebugEnabled) return SIMULATION_WS_URL
+
+  const port = localSolverPort.trim() || '8071'
+  return `ws://localhost:${port}/NCSLabLink/websocketsimulatert`
+}
+
 function normalizeResults(value: unknown): SimulationResults | null {
   if (!value || typeof value !== 'object') return null
   const results = value as Partial<SimulationResults>
@@ -61,7 +70,8 @@ function startSimulation({
   onResults,
 }: StartSimulationOptions): Promise<SimulationResults> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(SIMULATION_WS_URL)
+    const simulationWsUrl = getSimulationWsUrl()
+    const socket = new WebSocket(simulationWsUrl)
     let completed = false
 
     const finish = (results: SimulationResults) => {
@@ -137,8 +147,7 @@ function startSimulation({
     }
 
     socket.onerror = () => {
-      if (!completed)
-        reject(new Error(`无法连接仿真服务：${SIMULATION_WS_URL}`))
+      if (!completed) reject(new Error(`无法连接仿真服务：${simulationWsUrl}`))
     }
 
     socket.onclose = (event) => {
@@ -149,5 +158,5 @@ function startSimulation({
   })
 }
 
-export { SIMULATION_WS_URL, startSimulation }
+export { getSimulationWsUrl, SIMULATION_WS_URL, startSimulation }
 export type { ScopeResult, SimulationProgress, SimulationResults }

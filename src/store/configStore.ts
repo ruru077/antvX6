@@ -18,6 +18,9 @@ interface ConfigValues {
   // 实验功能
   metaContextMenuEnabled: boolean
   betaGroupEnabled: boolean
+  // 开发者模式
+  localSolverDebugEnabled: boolean
+  localSolverPort: string
   // Stencil
   stencilDefaultExpand: boolean
   stencilPreviewEnabled: boolean
@@ -36,6 +39,8 @@ interface ConfigStore extends ConfigValues {
   setDateFormat: (fmt: string) => void
   setMetaContextMenuEnabled: (enabled: boolean) => void
   setBetaGroupEnabled: (enabled: boolean) => void
+  setLocalSolverDebugEnabled: (enabled: boolean) => void
+  setLocalSolverPort: (port: string) => void
   setStencilDefaultExpand: (enabled: boolean) => void
   setStencilPreviewEnabled: (enabled: boolean) => void
   setStencilArrangeMode: (mode: StencilArrangeMode) => void
@@ -53,6 +58,8 @@ const DEFAULT_VALUES: ConfigValues = {
   dateFormat: 'YYYY-MM-DD',
   metaContextMenuEnabled: false,
   betaGroupEnabled: false,
+  localSolverDebugEnabled: false,
+  localSolverPort: '',
   stencilDefaultExpand: false,
   stencilPreviewEnabled: false,
   stencilArrangeMode: 'default',
@@ -89,6 +96,9 @@ const useConfigStore = create<ConfigStore>()(
         setMetaContextMenuEnabled: (metaContextMenuEnabled) =>
           set({ metaContextMenuEnabled }),
         setBetaGroupEnabled: (betaGroupEnabled) => set({ betaGroupEnabled }),
+        setLocalSolverDebugEnabled: (localSolverDebugEnabled) =>
+          set({ localSolverDebugEnabled }),
+        setLocalSolverPort: (localSolverPort) => set({ localSolverPort }),
         setStencilDefaultExpand: (stencilDefaultExpand) =>
           set({ stencilDefaultExpand }),
         setStencilPreviewEnabled: (stencilPreviewEnabled) =>

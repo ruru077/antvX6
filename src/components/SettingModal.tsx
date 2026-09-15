@@ -19,6 +19,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Sidebar,
@@ -65,6 +66,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: '外观', icon: Paintbrush },
   { name: '语言', icon: Globe },
   { name: '实验功能', icon: FlaskConical },
+  { name: '开发者模式', icon: Code2 },
 ]
 
 const THEME_OPTIONS: { label: string; value: Theme }[] = [
@@ -460,6 +462,57 @@ function PerformanceContent() {
   )
 }
 
+function DeveloperContent() {
+  const {
+    localSolverDebugEnabled,
+    localSolverPort,
+    setLocalSolverDebugEnabled,
+    setLocalSolverPort,
+  } = useConfigStore(
+    useShallow((state) => ({
+      localSolverDebugEnabled: state.localSolverDebugEnabled,
+      localSolverPort: state.localSolverPort,
+      setLocalSolverDebugEnabled: state.setLocalSolverDebugEnabled,
+      setLocalSolverPort: state.setLocalSolverPort,
+    })),
+  )
+
+  return (
+    <>
+      <ToggleRow
+        item={{
+          key: 'localSolverDebugEnabled',
+          label: '打开本地 Link 求解器调试',
+          desc: '开启后连接本机 Link 求解器；关闭时使用线上求解服务。',
+          type: 'toggle',
+        }}
+        value={localSolverDebugEnabled}
+        onChange={setLocalSolverDebugEnabled}
+      />
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <Label htmlFor="localSolverPort">监听端口</Label>
+          <p className="text-xs text-muted-foreground">
+            本地 Link 求解器监听端口，未输入时默认使用 8071。
+          </p>
+        </div>
+        <Input
+          id="localSolverPort"
+          type="number"
+          min={1}
+          max={65535}
+          inputMode="numeric"
+          placeholder="8071"
+          value={localSolverPort}
+          disabled={!localSolverDebugEnabled}
+          onChange={(event) => setLocalSolverPort(event.target.value)}
+          className="w-28 shrink-0"
+        />
+      </div>
+    </>
+  )
+}
+
 function CustomModulePage({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -530,9 +583,11 @@ function SettingModal({ open, onOpenChange }: SettingModalProps) {
                 <LibraryContent onNewModule={() => setSubPage('自定义模块')} />
               )}
               {!subPage && activeNav === '性能' && <PerformanceContent />}
-              {!subPage && activeNav !== '库函数' && activeNav !== '性能' && (
-                <GenericSettings items={items} />
-              )}
+              {!subPage && activeNav === '开发者模式' && <DeveloperContent />}
+              {!subPage &&
+                activeNav !== '库函数' &&
+                activeNav !== '性能' &&
+                activeNav !== '开发者模式' && <GenericSettings items={items} />}
             </div>
           </main>
         </SidebarProvider>
