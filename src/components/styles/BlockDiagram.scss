@@ -185,6 +185,11 @@
     --paper-scrollbar-h-left: 0px;
     --paper-scrollbar-h-width: 28px;
 
+    .x6-graph-scroller {
+      opacity: 1;
+      transition: opacity 180ms ease;
+    }
+
     &::before,
     &::after {
       content: '';
@@ -229,7 +234,9 @@
       // transition 写在父元素上，驱动 --x6-thumb-alpha 变化
       // 类移除时 500ms 渐隐；类添加时立即显示
       --x6-thumb-alpha: 0;
-      transition: --x6-thumb-alpha 500ms ease;
+      transition:
+        --x6-thumb-alpha 500ms ease,
+        opacity 180ms ease;
 
       &.is-scrolling {
         --x6-thumb-alpha: 1;
@@ -290,6 +297,51 @@
     [data-slot='tabs-trigger']::after {
       bottom: 4px !important;
     }
+  }
+}
+
+.workspace-loading-boundary {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: #f7f7fc;
+}
+
+.workspace-loading-content {
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.workspace-loading-boundary[data-workspace-stage='initializing'] .workspace-loading-content {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-loading-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: #f7f7fc;
+}
+
+.workspace-loading-animation {
+  width: min(360px, 100%);
+  height: min(360px, 100%);
+  border: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-loading-content {
+    transition: none;
   }
 }
 

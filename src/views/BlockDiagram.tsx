@@ -8,6 +8,7 @@ import {
   ScopeWindow,
   StencilLayout,
 } from '@/components'
+import { WorkspaceLoadingBoundary } from '@/components/layout/WorkspaceLoadingBoundary'
 import { bindAntdMessage } from '@/services/antd-message-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useTouchAdapter } from '@/touch/useTouchAdapter'
@@ -35,6 +36,7 @@ const SPLITTER_THEME = {
 function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
+  const [stencilReady, setStencilReady] = useState(false)
 
   bindAntdMessage(message)
   useGraphListener()
@@ -46,24 +48,27 @@ function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
     initGraph(paperContainerRef.current)
     return destroyGraph
   }, [])
-  useKeepAliveGraphViewport()
+  const graphLoadingStage = useKeepAliveGraphViewport()
+  const workspaceReady = graphLoadingStage === 'ready' && stencilReady
 
   return (
-    <PanelSplitter
-      variant="workspace"
-      stencil={<StencilLayout />}
-      canvas={
-        <>
-          {/* 画布区域 */}
-          <DiagramCanvas
-            paperContainerRef={paperContainerRef}
-            showIssueLink={showIssueLink}
-          />
-          <ScopeWindow />
-        </>
-      }
-      agent={<AgentPanel />}
-    />
+    <WorkspaceLoadingBoundary ready={workspaceReady}>
+      <PanelSplitter
+        variant="workspace"
+        stencil={<StencilLayout onReady={() => setStencilReady(true)} />}
+        canvas={
+          <>
+            {/* 画布区域 */}
+            <DiagramCanvas
+              paperContainerRef={paperContainerRef}
+              showIssueLink={showIssueLink}
+            />
+            <ScopeWindow />
+          </>
+        }
+        agent={<AgentPanel />}
+      />
+    </WorkspaceLoadingBoundary>
   )
 }
 

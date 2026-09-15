@@ -1,7 +1,9 @@
 import { Scroller } from '@antv/x6'
 import { useEffectOnActive } from 'keepalive-for-react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useGraphStore } from '@/store/graphStore'
+
+type GraphLoadingStage = 'initializing' | 'ready'
 
 interface ScrollerPosition {
   left: number
@@ -14,6 +16,8 @@ interface ScrollerPosition {
  */
 function useKeepAliveGraphViewport() {
   const positionRef = useRef<ScrollerPosition | null>(null)
+  const initializedRef = useRef(false)
+  const [stage, setStage] = useState<GraphLoadingStage>('initializing')
 
   useEffectOnActive(() => {
     const graph = useGraphStore.getState().graph
@@ -35,15 +39,22 @@ function useKeepAliveGraphViewport() {
           throw new Error('Scroller page size is required to center the graph')
         }
         scroller.centerPoint(pageWidth / 2, pageHeight / 2)
+        initializedRef.current = true
+        setStage('ready')
       })
     })
 
     return () => {
       cancelAnimationFrame(firstFrame)
       cancelAnimationFrame(secondFrame)
-      positionRef.current = scroller.getScrollbarPosition()
+      if (initializedRef.current) {
+        positionRef.current = scroller.getScrollbarPosition()
+      }
     }
   }, [])
+
+  return stage
 }
 
 export { useKeepAliveGraphViewport }
+export type { GraphLoadingStage }

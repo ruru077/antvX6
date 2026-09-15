@@ -74,7 +74,7 @@ const SEARCH_RULE_ITEMS: SearchRuleItem[] = [
 const stencilService = createStencilService()
 
 // hooks ------------------------------------------------------
-function usePanelController(): StencilController {
+function usePanelController(onReady: () => void): StencilController {
   const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
   const { data: blockResources } = useRequest(fetchBlockResources, {
@@ -102,13 +102,16 @@ function usePanelController(): StencilController {
   useEffect(() => {
     const container = stencilContainerRef.current
     if (!graph || !container || !blockResources) return
+    let disposed = false
 
     void stencilService.create(container, blockResources).then((created) => {
-      if (!created) return
+      if (!created || disposed) return
       syncSearchState()
+      onReady()
     })
 
     return () => {
+      disposed = true
       stencilService.dispose()
     }
   }, [blockResources, graph])
@@ -150,8 +153,8 @@ function usePanelController(): StencilController {
 }
 
 // UI ---------------------------------------------------------
-function StencilLayout() {
-  const { actions, search, stencilContainerRef } = usePanelController()
+function StencilLayout({ onReady }: { onReady: () => void }) {
+  const { actions, search, stencilContainerRef } = usePanelController(onReady)
   const [settingsOpen, setSettingsOpen] = useState(false)
   //TODO 参考百度贴吧的 hover悬浮效果，增加用户交互体验
   return (

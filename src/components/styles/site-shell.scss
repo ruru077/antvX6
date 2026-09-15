@@ -652,9 +652,12 @@ body:has(.m2p-shell-workspace) {
   height: 100%;
   min-width: 0;
   min-height: 0;
+  transition: none;
 }
 
-.route-keep-alive-node.inactive {
+.route-keep-alive-node.inactive,
+.m2p-main:not(.editor)
+  .route-keep-alive-node[data-cache-key^='/playground'] {
   transform: translateX(-200vw);
   visibility: hidden;
   pointer-events: none;
