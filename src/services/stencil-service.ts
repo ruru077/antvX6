@@ -1,6 +1,5 @@
 import { Graph, Stencil } from '@antv/x6'
 import { debounce } from 'lodash-es'
-import { fetchBlockLibrary, fetchBlocks } from '@/api/blocks'
 import { MIN_RESIZABLE_WIDTH, STENCIL_GROUP_PADDING } from '@/assets/constant'
 import { createSubsystemBackgroundFill } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
@@ -22,6 +21,7 @@ import {
   adaptStencilBlock,
   shouldShowStencilTooltip,
 } from '@/touch/service/stencil-presentation-adapter-service'
+import type { BlockResources } from '@/api/blocks'
 import type { Node } from '@antv/x6'
 import type { TextMatchOptions } from '~/types/common/text'
 import type { Block, BlockData } from '~/types/vo/block'
@@ -745,16 +745,14 @@ function createStencilService() {
   }
 
   // 创建并挂载 Stencil，返回是否成功
-  async function create(container: HTMLElement): Promise<boolean> {
+  async function create(
+    container: HTMLElement,
+    { blocks, libraries }: BlockResources,
+  ): Promise<boolean> {
     const graph = useGraphStore.getState().graph
     if (!graph) return false
     const { betaGroupEnabled, hiddenStencilGroups, stencilDefaultExpand } =
       useConfigStore.getState()
-    const [blocks, libraries] = await Promise.all([
-      fetchBlocks(),
-      fetchBlockLibrary(),
-    ])
-
     const libraryWithBlock = new Map(
       permissionService
         .filterAccessLibraries(libraries)

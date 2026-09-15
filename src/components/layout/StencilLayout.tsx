@@ -5,6 +5,7 @@ import Icon, {
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
+import { useRequest } from 'ahooks'
 import {
   AutoComplete,
   Badge,
@@ -15,6 +16,7 @@ import {
   Tabs,
   Tooltip,
 } from 'antd'
+import { fetchBlockResources } from '@/api/blocks'
 import CollapseGroupsSvg from '@/assets/svg/stencil-collapse-groups.svg?react'
 import ExpandGroupsSvg from '@/assets/svg/stencil-expand-groups.svg?react'
 import { SettingModal } from '@/components/SettingModal'
@@ -75,6 +77,11 @@ const stencilService = createStencilService()
 function usePanelController(): StencilController {
   const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
+  const { data: blockResources } = useRequest(fetchBlockResources, {
+    cacheKey: 'version1',
+    staleTime: -1,
+    cacheTime: -1,
+  })
   // 用户搜索词
   const [keyword, setKeyword] = useState('')
   // 当前的搜索视图模式，library 是显示库分组，results 是显示搜索结果
@@ -94,9 +101,9 @@ function usePanelController(): StencilController {
    */
   useEffect(() => {
     const container = stencilContainerRef.current
-    if (!graph || !container) return
+    if (!graph || !container || !blockResources) return
 
-    void stencilService.create(container).then((created) => {
+    void stencilService.create(container, blockResources).then((created) => {
       if (!created) return
       syncSearchState()
     })
@@ -104,7 +111,7 @@ function usePanelController(): StencilController {
     return () => {
       stencilService.dispose()
     }
-  }, [graph])
+  }, [blockResources, graph])
   /**
    * SearchBar 相关的 Effect
    */

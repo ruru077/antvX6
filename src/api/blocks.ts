@@ -1,10 +1,20 @@
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
+interface BlockResource {
+  block: Block
+  libraryId: number
+}
+
+interface BlockResources {
+  blocks: BlockResource[]
+  libraries: BlockLibrary[]
+}
+
 /**
  * 获取 Stencil Block 数据
  * @returns Block NodeMeta[]
  */
-async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
+async function fetchBlocks(): Promise<BlockResource[]> {
   try {
     const response = await fetch('https://www.stencil.top/antvblocks')
     if (!response.ok) {
@@ -21,7 +31,7 @@ async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
     })
   } catch (error) {
     console.error('Failed to fetch blocks:', error)
-    return []
+    throw error
   }
 }
 
@@ -39,8 +49,17 @@ async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
     return data
   } catch (error) {
     console.error('Failed to fetch block library:', error)
-    return []
+    throw error
   }
 }
 
-export { fetchBlocks, fetchBlockLibrary }
+async function fetchBlockResources(): Promise<BlockResources> {
+  const [blocks, libraries] = await Promise.all([
+    fetchBlocks(),
+    fetchBlockLibrary(),
+  ])
+  return { blocks, libraries }
+}
+
+export { fetchBlockLibrary, fetchBlockResources, fetchBlocks }
+export type { BlockResource, BlockResources }
