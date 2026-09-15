@@ -1,10 +1,15 @@
 import { createBrowserRouter } from 'react-router'
+import DeployPage from '@/views/DeployPage'
 import RootLayout from '@/views/layout/RootLayout'
 import BlogPage from '@/views/site/BlogPage'
 import HomePage from '@/views/site/HomePage'
 import PlaygroundPage from '@/views/site/PlaygroundPage'
 
 const router = createBrowserRouter([
+  {
+    path: '/depoly',
+    Component: DeployPage,
+  },
   {
     path: '/',
     Component: RootLayout,

@@ -6,6 +6,12 @@
   inherits: true;
 }
 
+.deploy-workspace {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 // 版心
 .diagram-wrapper {
   display: flex;
@@ -102,6 +108,8 @@
   .paper-toolbar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     height: var(--toolbar-height);
     padding: 0 8px;
     margin-bottom: 8px;
@@ -110,6 +118,16 @@
     border-radius: var(--radius-md);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     flex-shrink: 0;
+  }
+
+  .paper-toolbar__issue-button {
+    flex-shrink: 0;
+    color: #404040;
+    text-decoration: none;
+
+    &:hover {
+      color: #111111;
+    }
   }
 
   // 画布区域主体（T 字型布局：左侧工具栏 + 画布列）

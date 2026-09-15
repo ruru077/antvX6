@@ -31,7 +31,7 @@ const SPLITTER_THEME = {
  * @description 图编辑入口
  * @returns
  */
-function DiagramWorkspace() {
+function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
 
@@ -54,7 +54,10 @@ function DiagramWorkspace() {
       canvas={
         <>
           {/* 画布区域 */}
-          <DiagramCanvas paperContainerRef={paperContainerRef} />
+          <DiagramCanvas
+            paperContainerRef={paperContainerRef}
+            showIssueLink={showIssueLink}
+          />
           <ScopeWindow />
         </>
       }
@@ -63,7 +66,12 @@ function DiagramWorkspace() {
   )
 }
 
-function BlockDiagram(_props: { modelName?: string }) {
+function BlockDiagram({
+  showIssueLink = false,
+}: {
+  modelName?: string
+  showIssueLink?: boolean
+}) {
   const touchTerminal = useTouchTerminal()
 
   return (
@@ -72,7 +80,7 @@ function BlockDiagram(_props: { modelName?: string }) {
       tooltip={{ trigger: touchTerminal ? [] : 'hover' }}
     >
       <AntdApp component={false}>
-        <DiagramWorkspace />
+        <DiagramWorkspace showIssueLink={showIssueLink} />
       </AntdApp>
     </ConfigProvider>
   )

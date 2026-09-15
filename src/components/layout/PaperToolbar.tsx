@@ -1,3 +1,4 @@
+import { GithubOutlined } from '@ant-design/icons'
 import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
 import {
   ArrowLeft,
@@ -34,7 +35,9 @@ import { saveEntryGraphModel, useSubGraphStore } from '@/store/subGraphStore'
 import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
-type PaperToolbarProps = Record<string, never>
+type PaperToolbarProps = {
+  showIssueLink: boolean
+}
 
 const commonService = createCommonService()
 const primaryModifierLabel =
@@ -91,7 +94,7 @@ const simulateMenuItems: MenuProps['items'] = [
   },
 ]
 
-function PaperToolbar(_: PaperToolbarProps) {
+function PaperToolbar({ showIssueLink }: PaperToolbarProps) {
   const message = getAntdMessage()
   const graph = useGraphStore((s) => s.graph)
   const syncGraph = useSubGraphStore((s) => s.syncGraph)
@@ -153,7 +156,7 @@ function PaperToolbar(_: PaperToolbarProps) {
 
   return (
     <>
-      <Space size={4} align="center" style={{ width: '100%' }}>
+      <Space size={4} align="center">
         <Tooltip title="返回" mouseEnterDelay={0.3}>
           <AntdButton
             size="small"
@@ -234,6 +237,24 @@ function PaperToolbar(_: PaperToolbarProps) {
           </AntdButton>
         </Tooltip>
       </Space>
+
+      {showIssueLink && (
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="paper-toolbar__issue-button"
+        >
+          <a
+            href="https://github.com/ruru077/antvX6"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GithubOutlined data-icon="inline-start" />
+            Submit Issue Here
+          </a>
+        </Button>
+      )}
 
       {/* 从 JSON 加载图弹窗 */}
       <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>

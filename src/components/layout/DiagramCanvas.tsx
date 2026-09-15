@@ -15,8 +15,10 @@ import type { RefObject } from 'react'
 
 function DiagramCanvas({
   paperContainerRef,
+  showIssueLink,
 }: {
   paperContainerRef: RefObject<HTMLDivElement | null>
+  showIssueLink: boolean
 }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
@@ -40,7 +42,7 @@ function DiagramCanvas({
     <div className="diagram-canvas-area">
       <div className="paper-toolbar">
         {/* PaperToolbar */}
-        <PaperToolbar />
+        <PaperToolbar showIssueLink={showIssueLink} />
       </div>
       {/* 选项卡导航栏：占满画布区域宽度 */}
       <SubsystemTabBar />
