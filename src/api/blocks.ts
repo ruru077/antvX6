@@ -1,12 +1,14 @@
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
+const API_BASE = (import.meta.env.VITE_M2PLINK_API_BASE ?? 'https://www.stencil.top').replace(/\/$/, '')
+
 /**
  * 获取 Stencil Block 数据
  * @returns Block NodeMeta[]
  */
 async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
   try {
-    const response = await fetch('https://www.stencil.top/antvblocks')
+    const response = await fetch(`${API_BASE}/antvblocks`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -31,7 +33,7 @@ async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
  */
 async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
   try {
-    const response = await fetch('https://www.stencil.top/library')
+    const response = await fetch(`${API_BASE}/library`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
