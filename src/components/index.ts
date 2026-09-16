@@ -1,5 +1,4 @@
 export { AddBlockCommand } from './AddBlockCommand'
-export { AgentPanel } from './layout/AgentPanel'
 export { PanelSplitter } from './layout/PanelSplitter'
 export { CanvasLeftToolbar } from './layout/CanvasLeftToolbar'
 export { CanvasStatusBar } from './layout/CanvasStatusBar'

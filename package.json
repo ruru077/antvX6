@@ -11,12 +11,8 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@ag-ui/client": "^0.0.57",
     "@ant-design/icons": "~6.2.5",
     "@antv/x6": "^3.1.8",
-    "@assistant-ui/react": "^0.15.14",
-    "@assistant-ui/react-ag-ui": "^0.0.54",
-    "@assistant-ui/react-markdown": "^0.14.10",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -44,7 +40,6 @@
     "react-rnd": "^10.5.3",
     "react-router": "^7.18.2",
     "react-simple-keyboard": "3.8.261",
-    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
     "tslib": "^2.8.1",

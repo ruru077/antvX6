@@ -22,7 +22,6 @@
   },
   "registries": {
     "@acme": "https://acme.com/r/{name}.json",
-    "@magicui": "https://magicui.design/r/{name}",
-    "@assistant-ui": "https://r.assistant-ui.com/{name}.json"
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }

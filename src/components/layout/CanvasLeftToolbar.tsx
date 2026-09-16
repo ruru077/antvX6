@@ -1,7 +1,6 @@
 import { LoginOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
 import {
-  BotIcon,
   ChartNoAxesCombinedIcon,
   CircleHelpIcon,
   ImageIcon,
@@ -19,7 +18,6 @@ import {
   cancelImageNodePlacement,
   startImageNodePlacement,
 } from '@/services/image-node-service'
-import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import { useGraphStore } from '@/store/graphStore'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
@@ -44,12 +42,10 @@ function CanvasLeftToolbar({
   minimapVisible,
   onToggleMinimap,
 }: CanvasLeftToolbarProps) {
-  const agentPanelVisible = useAgentPanelStore((state) => state.visible)
   const graph = useGraphStore((state) => state.graph)
   const touchTerminal = useTouchTerminal()
   const [touchPlacementMode, setTouchPlacementMode] =
     useState<TouchPlacementMode>(null)
-  const toggleAgentPanel = useAgentPanelStore((state) => state.toggle)
   const hierarchyPanelOpen = useBottomPanelStore(
     (state) => state.visible && state.activeTab === 'hierarchy',
   )
@@ -85,22 +81,6 @@ function CanvasLeftToolbar({
         </button>
       </Tooltip>
       <div className="canvas-left-toolbar__divider" />
-      <Tooltip
-        title={agentPanelVisible ? '关闭 Agent 面板' : '打开 Agent 面板'}
-        mouseEnterDelay={0.2}
-        placement="right"
-      >
-        <button
-          type="button"
-          data-active={agentPanelVisible}
-          className="canvas-left-toolbar__btn"
-          aria-label={agentPanelVisible ? '关闭 Agent 面板' : '打开 Agent 面板'}
-          onClick={toggleAgentPanel}
-        >
-          <BotIcon />
-        </button>
-      </Tooltip>
-
       <Tooltip
         title={toolbarsVisible ? '隐藏工具栏' : '显示工具栏'}
         mouseEnterDelay={0.2}

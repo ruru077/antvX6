@@ -1,6 +1,5 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { Splitter } from 'antd'
-import { useAgentPanelStore } from '@/store/agentPanelStore'
 import { useBottomPanelStore } from '@/store/bottomPanelStore'
 import type { ReactNode } from 'react'
 
@@ -9,7 +8,6 @@ type PanelSplitterProps =
       variant: 'workspace'
       stencil: ReactNode
       canvas: ReactNode
-      agent: ReactNode
     }
   | {
       variant: 'bottom'
@@ -18,24 +16,17 @@ type PanelSplitterProps =
     }
 
 const STENCIL_DEFAULT_SIZE = '20%'
-const AGENT_DEFAULT_SIZE = 360
 const BOTTOM_PANEL_DEFAULT_SIZE = '35%'
 
 function WorkspaceSplitter({
   stencil,
   canvas,
-  agent,
 }: {
   stencil: ReactNode
   canvas: ReactNode
-  agent: ReactNode
 }) {
-  const agentVisible = useAgentPanelStore((state) => state.visible)
   const [stencilSize, setStencilSize] = useState<number | string>(
     STENCIL_DEFAULT_SIZE,
-  )
-  const [agentSize, setAgentSize] = useState<number | string>(
-    AGENT_DEFAULT_SIZE,
   )
 
   return (
@@ -48,7 +39,6 @@ function WorkspaceSplitter({
       }}
       onResize={(sizes) => {
         setStencilSize(sizes[0])
-        if (agentVisible) setAgentSize(sizes[2])
       }}
     >
       <Splitter.Panel
@@ -61,18 +51,6 @@ function WorkspaceSplitter({
       </Splitter.Panel>
 
       <Splitter.Panel className="canvas-panel-host">{canvas}</Splitter.Panel>
-
-      <Splitter.Panel
-        className={
-          agentVisible ? 'agent-panel-host' : 'panel-splitter__panel--hidden'
-        }
-        size={agentVisible ? agentSize : 0}
-        min={agentVisible ? 280 : 0}
-        max="45%"
-        resizable={agentVisible}
-      >
-        {agent}
-      </Splitter.Panel>
     </Splitter>
   )
 }
@@ -117,13 +95,7 @@ function CanvasBottomSplitter({
 
 function PanelSplitter(props: PanelSplitterProps) {
   if (props.variant === 'workspace') {
-    return (
-      <WorkspaceSplitter
-        stencil={props.stencil}
-        canvas={props.canvas}
-        agent={props.agent}
-      />
-    )
+    return <WorkspaceSplitter stencil={props.stencil} canvas={props.canvas} />
   }
 
   return <CanvasBottomSplitter first={props.first} second={props.second} />
