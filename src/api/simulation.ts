@@ -1,6 +1,16 @@
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
-const SIMULATION_WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/m2plab/matlab/websocketsimulatert`
+// 本地服务器版
+// const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketsimulatert'
+// 0902 bugfix版
+// Standalone default: wss://stencil.top/NCSLabLink0902/websocketsimulatert
+// hs keeps its platform endpoint unless an explicit deployment override is supplied.
+const configuredSimulationUrl = import.meta.env.VITE_M2PLINK_SIMULATION_WS
+const SIMULATION_WS_URL = configuredSimulationUrl
+  ? new URL(configuredSimulationUrl, `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`).href
+  : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/m2plab/matlab/websocketsimulatert`
+// 本地调试版
+// const SIMULATION_WS_URL = 'ws://localhost:8071/NCSLabLink/websocketsimulatert'
 interface ScopeResult {
   uuid?: string
   path?: string

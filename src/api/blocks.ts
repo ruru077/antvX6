@@ -1,13 +1,15 @@
 import { assetUrl } from './platform'
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
+const API_BASE = import.meta.env.VITE_M2PLINK_API_BASE?.replace(/\/$/, '')
+
 /**
  * 获取 Stencil Block 数据
  * @returns Block NodeMeta[]
  */
 async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
   try {
-    const response = await fetch(assetUrl('catalog/blocks.json'))
+    const response = await fetch(API_BASE === undefined ? assetUrl('catalog/blocks.json') : `${API_BASE}/antvblocks`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -32,7 +34,7 @@ async function fetchBlocks(): Promise<{ block: Block; libraryId: number }[]> {
  */
 async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
   try {
-    const response = await fetch(assetUrl('catalog/libraries.json'))
+    const response = await fetch(API_BASE === undefined ? assetUrl('catalog/libraries.json') : `${API_BASE}/library`)
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
