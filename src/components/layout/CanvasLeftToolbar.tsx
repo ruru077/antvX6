@@ -155,14 +155,14 @@ function CanvasLeftToolbar({
         </button>
       </Tooltip>
 
-      <Tooltip title="键位指南" mouseEnterDelay={0.2} placement="right">
+      <Tooltip title="帮助指南" mouseEnterDelay={0.2} placement="right">
         <button
           type="button"
           className="canvas-left-toolbar__btn"
-          aria-label="键位指南"
+          aria-label="帮助指南"
           onClick={() =>
             window.open(
-              'https://www.douyin.com/',
+              'https://m2plab.aim.sustech.edu.cn/help/',
               '_blank',
               'noopener,noreferrer',
             )
