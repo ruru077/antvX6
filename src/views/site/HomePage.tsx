@@ -177,7 +177,7 @@ function HomePage() {
             </p>
             <div className="site-actions">
               <RainbowButton asChild size="lg" className="site-rainbow-action">
-                <Link to="/playground">
+                <Link to="/exchange">
                   {zh ? '开始搭建' : 'Start building'}
                   <ArrowRight data-icon="inline-end" />
                 </Link>
@@ -260,7 +260,7 @@ function HomePage() {
           <HeroVideoDialog
             className="site-video-dialog"
             animationStyle="from-center"
-            videoSrc="/playground"
+            videoSrc="/workspace"
             thumbnailSrc="/site-workspace-preview.svg"
             thumbnailAlt={zh ? '可视化工作区预览' : 'Visual workspace preview'}
           />
@@ -305,7 +305,7 @@ function HomePage() {
                   ? 'Lens 让复杂模型中的端口、规则与信号关系更容易被检查。'
                   : 'Lens makes ports, rules, and signal relationships easier to inspect.'
               }
-              href="/playground"
+              href="/exchange"
               cta={zh ? '进入工作区' : 'Open workspace'}
               Icon={Route}
               className="md:col-span-3"
@@ -354,8 +354,8 @@ function HomePage() {
             </p>
             <div className="site-actions">
               <RainbowButton asChild size="lg" className="site-rainbow-action">
-                <Link to="/playground">
-                  {zh ? '进入体验区' : 'Open playground'}
+                <Link to="/exchange">
+                  {zh ? '进入模型目录' : 'Open exchange'}
                   <ArrowRight data-icon="inline-end" />
                 </Link>
               </RainbowButton>
@@ -376,7 +376,7 @@ function HomePage() {
           </div>
           <nav>
             <Link to="/">Home</Link>
-            <Link to="/playground">Playground</Link>
+            <Link to="/exchange">Exchange</Link>
             <Link to="/blog">Blog</Link>
           </nav>
         </div>

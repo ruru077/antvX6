@@ -1,21 +1,22 @@
 import { GithubOutlined } from '@ant-design/icons'
+import { ConfigProvider } from 'antd'
 import KeepAliveRouteOutlet from 'keepalive-for-react-router'
-import { Link, NavLink, useLocation } from 'react-router'
+import { Link, NavLink } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { SiteLanguageProvider } from '@/views/site/SiteLanguageContext'
 import '@/components/styles/site-shell.scss'
 
+const SITE_THEME = { token: { fontFamily: 'inherit' } }
+
 function SiteHeader() {
-  const { pathname } = useLocation()
-  const isLanding = pathname === '/' || pathname === '/blog'
   const navItems = [
     { text: 'Home', path: '/' },
-    { text: 'Playground', path: '/playground' },
+    { text: 'Exchange', path: '/exchange' },
     { text: 'Blog', path: '/blog' },
   ]
 
   return (
-    <header className={`m2p-header ${isLanding ? 'landing' : ''}`}>
+    <header className="m2p-header">
       <div className="m2p-brand">
         <Link to="/" className="m2p-brand-link">
           <span className="m2p-brand-mark">LINK FOR M2PLAB</span>
@@ -35,8 +36,8 @@ function SiteHeader() {
           </NavLink>
         ))}
       </nav>
-      <div className="m2p-tools">
-        <Button asChild variant="ghost" size="sm" className="m2p-github-btn">
+      <div className="justify-self-end">
+        <Button asChild variant="ghost" size="sm">
           <a
             href="https://github.com/ruru077/antvX6"
             target="_blank"
@@ -52,20 +53,10 @@ function SiteHeader() {
 }
 
 function SiteMain() {
-  const { pathname } = useLocation()
-  const isPlayground = pathname === '/playground'
-  const isWorkspacePage =
-    isPlayground ||
-    pathname === '/model' ||
-    pathname === '/model2' ||
-    pathname === '/model3' ||
-    pathname === '/model4' ||
-    pathname === '/model5'
-
   return (
-    <main className={`m2p-main ${isWorkspacePage ? 'editor' : ''}`}>
+    <main className="m2p-main">
       <KeepAliveRouteOutlet
-        include={/^\/playground(?:\?|$)/}
+        include={/^\/workspace(?:\?|$)/}
         transition={false}
         viewTransition={false}
         containerClassName="route-keep-alive-container"
@@ -76,27 +67,14 @@ function SiteMain() {
 }
 
 function RootLayout() {
-  const { pathname } = useLocation()
-  const isLanding = pathname === '/' || pathname === '/blog'
-  const isWorkspacePage =
-    pathname === '/playground' ||
-    pathname === '/model' ||
-    pathname === '/model2' ||
-    pathname === '/model3' ||
-    pathname === '/model4' ||
-    pathname === '/model5'
-  const shellClass = isLanding
-    ? ' m2p-shell-landing'
-    : isWorkspacePage
-      ? ' m2p-shell-workspace'
-      : ' m2p-shell-site'
-
   return (
     <SiteLanguageProvider>
-      <div className={`m2p-shell${shellClass}`}>
-        <SiteHeader />
-        <SiteMain />
-      </div>
+      <ConfigProvider theme={SITE_THEME}>
+        <div className="m2p-shell">
+          <SiteHeader />
+          <SiteMain />
+        </div>
+      </ConfigProvider>
     </SiteLanguageProvider>
   )
 }

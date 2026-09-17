@@ -1,14 +1,24 @@
 import { createBrowserRouter } from 'react-router'
 import DeployPage from '@/views/DeployPage'
+import ExchangeDiagram from '@/views/exchangeDiagram'
 import RootLayout from '@/views/layout/RootLayout'
 import BlogPage from '@/views/site/BlogPage'
 import HomePage from '@/views/site/HomePage'
-import PlaygroundPage from '@/views/site/PlaygroundPage'
+import WorkspacePage from '@/views/site/WorkspacePage'
 
 const router = createBrowserRouter([
   {
-    path: '/depoly',
     Component: DeployPage,
+    children: [
+      {
+        path: '/deploy',
+        element: <ExchangeDiagram workspacePath="/deploy-workspace" />,
+      },
+      {
+        path: '/deploy-workspace',
+        element: <WorkspacePage exchangePath="/deploy" showIssueLink />,
+      },
+    ],
   },
   {
     path: '/',
@@ -20,8 +30,12 @@ const router = createBrowserRouter([
         Component: HomePage,
       },
       {
-        path: '/playground',
-        Component: PlaygroundPage,
+        path: '/exchange',
+        Component: ExchangeDiagram,
+      },
+      {
+        path: '/workspace',
+        Component: WorkspacePage,
       },
       {
         path: '/blog',

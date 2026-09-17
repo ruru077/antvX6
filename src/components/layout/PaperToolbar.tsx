@@ -9,6 +9,7 @@ import {
   PlayCircle,
   Save,
 } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import { startSimulation } from '@/api/simulation'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +37,7 @@ import type { MenuProps } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
 type PaperToolbarProps = {
+  exchangePath: string
   showIssueLink: boolean
 }
 
@@ -94,7 +96,8 @@ const simulateMenuItems: MenuProps['items'] = [
   },
 ]
 
-function PaperToolbar({ showIssueLink }: PaperToolbarProps) {
+function PaperToolbar({ exchangePath, showIssueLink }: PaperToolbarProps) {
+  const navigate = useNavigate()
   const message = getAntdMessage()
   const graph = useGraphStore((s) => s.graph)
   const syncGraph = useSubGraphStore((s) => s.syncGraph)
@@ -161,7 +164,7 @@ function PaperToolbar({ showIssueLink }: PaperToolbarProps) {
           <AntdButton
             size="small"
             icon={<ArrowLeft size={14} />}
-            onClick={() => {}}
+            onClick={() => navigate(exchangePath)}
           >
             返回
           </AntdButton>

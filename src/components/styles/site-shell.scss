@@ -23,234 +23,20 @@ body {
   min-height: 100vh;
 }
 
-html:has(.m2p-shell-workspace),
-body:has(.m2p-shell-workspace) {
+.m2p-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-}
-
-.m2p-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.m2p-shell.m2p-shell-light {
-  --m2p-bg-start: #f8fafc;
-  --m2p-bg-mid: #f1f5f9;
-  --m2p-bg-end: #eef2ff;
-  --m2p-text: #0f172a;
-  --m2p-muted: #475569;
-  --m2p-border: rgba(148, 163, 184, 0.28);
-  --m2p-card: rgba(255, 255, 255, 0.82);
-  --m2p-card-hover: rgba(255, 255, 255, 0.95);
-  --m2p-accent: #0284c7;
-  --m2p-accent-2: #06b6d4;
-  --m2p-btn: linear-gradient(90deg, #0284c7, #38bdf8);
-  --m2p-btn-soft: rgba(56, 189, 248, 0.18);
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.m2p-shell.m2p-shell-landing {
-  --m2p-bg-start: #050610;
-  --m2p-bg-mid: #0b0f25;
-  --m2p-bg-end: #111827;
-  --m2p-border: rgba(139, 92, 246, 0.24);
-  --m2p-card: rgba(12, 14, 34, 0.72);
-  --m2p-card-hover: rgba(18, 22, 52, 0.86);
-  --m2p-text: #f8fbff;
-  --m2p-muted: #a8b3cf;
-  --m2p-accent: #8b5cf6;
-  --m2p-accent-2: #22d3ee;
-  --m2p-btn: linear-gradient(100deg, #8b5cf6, #22d3ee);
-  --m2p-btn-soft: rgba(34, 211, 238, 0.12);
-  background: #050610;
-  color: #f8fbff;
-}
-
-.m2p-shell.m2p-shell-site {
-  background:
-    radial-gradient(
-      900px 460px at 16% -8%,
-      rgba(139, 92, 246, 0.18),
-      transparent 62%
-    ),
-    radial-gradient(
-      800px 520px at 88% 8%,
-      rgba(34, 211, 238, 0.12),
-      transparent 58%
-    ),
-    #050610;
-  color: #f8fbff;
-}
-
-.m2p-shell.m2p-shell-site .m2p-main {
-  padding: 0;
-  background: transparent;
-}
-
-.m2p-shell.m2p-shell-workspace {
   --m2p-text: #0f172a;
   --m2p-muted: #475569;
   --m2p-accent: #7c3aed;
   --m2p-accent-2: #0891b2;
   --m2p-border: rgba(15, 23, 42, 0.1);
-  height: 100dvh;
-  min-height: 0;
-  max-height: 100dvh;
-  overflow: hidden;
   background: #f7f7fc;
   color: #0f172a;
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-header {
-  flex-shrink: 0;
-  border-color: rgba(15, 23, 42, 0.1);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-brand-link,
-.m2p-shell.m2p-shell-workspace .m2p-brand,
-.m2p-shell.m2p-shell-workspace .m2p-tools button {
-  color: #0f172a;
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-brand-mark {
-  color: #7c3aed;
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-nav-link {
-  color: #334155;
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-nav-link:hover,
-.m2p-shell.m2p-shell-workspace .m2p-nav-link.active {
-  color: #0f172a;
-}
-
-.m2p-shell.m2p-shell-workspace .m2p-lang-btn {
-  color: #0f172a;
-  background: #ffffff;
-  border-color: rgba(15, 23, 42, 0.12);
-}
-
-.m2p-shell.m2p-shell-landing .m2p-main {
-  padding: 0;
-  overflow-x: clip;
-  overflow-y: visible;
-  background: #050610;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-header {
-  border-color: rgba(139, 92, 246, 0.24);
-  background: rgba(5, 6, 16, 0.72);
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.28);
-}
-
-.m2p-shell.m2p-shell-landing .m2p-brand-link,
-.m2p-shell.m2p-shell-landing .m2p-brand,
-.m2p-shell.m2p-shell-landing .m2p-tools button {
-  color: #f8fbff;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-brand-mark {
-  color: #22d3ee;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-nav-link {
-  color: #cbd5e1;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-nav-link:hover,
-.m2p-shell.m2p-shell-landing .m2p-nav-link.active {
-  color: #ffffff;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-lang-btn {
-  color: #f8fbff;
-  background: rgba(12, 14, 34, 0.72);
-  border-color: rgba(139, 92, 246, 0.28);
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-header {
-  border-color: rgba(15, 23, 42, 0.1);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(18px) saturate(1.12);
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-brand-link,
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-brand,
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-tools button {
-  color: #0f172a;
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-brand-mark {
-  color: #7c3aed;
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-nav-link {
-  color: #1e293b;
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-nav-link:hover,
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-nav-link.active {
-  color: #0f172a;
-}
-
-[data-site-theme='light'] .m2p-shell.m2p-shell-landing .m2p-lang-btn {
-  color: #0f172a;
-  background: #ffffff;
-  border-color: rgba(15, 23, 42, 0.1);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-}
-
-.m2p-shell.m2p-shell-light .m2p-header {
-  border-bottom: 1px solid #e5e7eb;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08);
-}
-
-.m2p-shell.m2p-shell-light .m2p-main {
-  padding: 0;
-}
-
-.m2p-shell.m2p-shell-light .m2p-brand-link,
-.m2p-shell.m2p-shell-light .m2p-brand,
-.m2p-shell.m2p-shell-light .m2p-tools button {
-  color: #0f172a;
-}
-
-.m2p-shell.m2p-shell-light .m2p-brand-mark {
-  color: #0284c7;
-}
-
-.m2p-shell.m2p-shell-light .m2p-nav-link {
-  color: #334155;
-}
-
-.m2p-shell.m2p-shell-light .m2p-nav-link:hover {
-  color: #0284c7;
-}
-
-.m2p-shell.m2p-shell-light .m2p-nav-link.active {
-  color: #0284c7;
-}
-
-.m2p-shell.m2p-shell-light .m2p-lang-btn {
-  color: #0f172a;
-  background: #ffffff;
-  border-color: #cbd5f5;
-}
-
-.m2p-shell.m2p-shell-light .m2p-lang-btn.active,
-.m2p-shell.m2p-shell-light .m2p-lang-btn:hover {
-  border-color: #0ea5e9;
-  background: #e0f2fe;
 }
 
 .m2p-header {
@@ -258,14 +44,14 @@ body:has(.m2p-shell-workspace) {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: minmax(150px, 240px) 1fr auto;
+  grid-template-columns: 1fr auto 1fr;
   gap: 12px;
   align-items: center;
   padding: 0.72rem 1rem;
-  border-bottom: 1px solid var(--m2p-border);
-  background: rgba(5, 7, 19, 0.78);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .m2p-brand-link {
@@ -273,7 +59,7 @@ body:has(.m2p-shell-workspace) {
   display: inline-flex;
   flex-direction: column;
   gap: 2px;
-  color: var(--m2p-text);
+  color: #0f172a;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -284,7 +70,7 @@ body:has(.m2p-shell-workspace) {
 }
 
 .m2p-brand-mark {
-  color: var(--m2p-accent-2);
+  color: #7c3aed;
   font-size: 0.9rem;
 }
 
@@ -301,7 +87,7 @@ body:has(.m2p-shell-workspace) {
 
 .m2p-nav-link {
   position: relative;
-  color: #d7def0;
+  color: #334155;
   text-decoration: none;
   border: 1px solid transparent;
   border-radius: 0;
@@ -331,23 +117,16 @@ body:has(.m2p-shell-workspace) {
 }
 
 .m2p-nav-link:hover {
-  color: #ffffff;
+  color: #0f172a;
 }
 
 .m2p-nav-link.active {
-  color: #ffffff;
+  color: #0f172a;
 }
 
 .m2p-nav-link:hover::after,
 .m2p-nav-link.active::after {
   transform: scaleX(1);
-}
-
-.m2p-tools {
-  display: inline-flex;
-  gap: 0.4rem;
-  flex-wrap: nowrap;
-  white-space: nowrap;
 }
 
 .m2p-lang-btn {
@@ -366,8 +145,12 @@ body:has(.m2p-shell-workspace) {
 }
 
 .m2p-main {
-  min-height: calc(100vh - 78px);
-  padding: 1.6rem 1rem 2rem;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .m2p-page {
@@ -617,13 +400,7 @@ body:has(.m2p-shell-workspace) {
   margin-top: 1.2rem;
 }
 
-.playground-layout {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.playground-workspace {
+.workspace-page {
   flex: 1;
   width: 100%;
   height: 100%;
@@ -632,10 +409,8 @@ body:has(.m2p-shell-workspace) {
   background: #f7f7fc;
 }
 
-.m2p-main.editor > .route-keep-alive-container {
+.route-keep-alive-container {
   position: relative;
-  display: flex;
-  flex: 1;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -643,42 +418,21 @@ body:has(.m2p-shell-workspace) {
   overflow: hidden;
 }
 
-.route-keep-alive-node[data-cache-key^='/playground'] {
+.route-keep-alive-node {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex: 1;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: auto;
   transition: none;
 }
 
-.route-keep-alive-node.inactive,
-.m2p-main:not(.editor)
-  .route-keep-alive-node[data-cache-key^='/playground'] {
+.route-keep-alive-node.inactive {
   transform: translateX(-200vw);
   visibility: hidden;
   pointer-events: none;
-}
-
-.playground-canvas-wrap {
-  margin-top: 1rem;
-  padding: 8px;
-  border: 1px solid var(--m2p-border);
-  border-radius: 16px;
-  background: #060816;
-  min-height: 56vh;
-}
-
-.m2p-shell .m2p-main.editor {
-  padding: 0;
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
 }
 
 .home-landing {
@@ -2670,43 +2424,6 @@ body:has(.m2p-shell-workspace) {
   }
 }
 
-/* Landing palette: editorial white canvas with one dark product surface. */
-.m2p-shell.m2p-shell-landing,
-.m2p-shell.m2p-shell-landing .m2p-main {
-  background: #ffffff;
-  color: #111111;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-header {
-  border-color: #eaeaea;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: none;
-  backdrop-filter: blur(18px) saturate(1.2);
-}
-
-.m2p-shell.m2p-shell-landing .m2p-brand-link,
-.m2p-shell.m2p-shell-landing .m2p-brand,
-.m2p-shell.m2p-shell-landing .m2p-tools button,
-.m2p-shell.m2p-shell-landing .m2p-nav-link {
-  color: #525252;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-brand-mark,
-.m2p-shell.m2p-shell-landing .m2p-nav-link:hover,
-.m2p-shell.m2p-shell-landing .m2p-nav-link.active {
-  color: #111111;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-nav-link::after {
-  background: #111111;
-}
-
-.m2p-shell.m2p-shell-landing .m2p-lang-btn {
-  color: #111111;
-  border-color: #e5e5e5;
-  background: #ffffff;
-}
-
 .site-home {
   color: #111111;
   background: #ffffff;
@@ -2887,15 +2604,6 @@ body:has(.m2p-shell-workspace) {
 
 .site-footer [data-slot='separator'] {
   background: #e5e5e5;
-}
-
-.m2p-github-btn {
-  color: #404040;
-  text-decoration: none;
-}
-
-.m2p-github-btn:hover {
-  color: #111111;
 }
 
 .site-blog-page {
