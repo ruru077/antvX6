@@ -1,13 +1,10 @@
 import Icon, {
   AppstoreOutlined,
-  DownOutlined,
-  FilterOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
 import { useRequest } from 'ahooks'
 import {
-  AutoComplete,
   Badge,
   Button,
   ConfigProvider,
@@ -26,10 +23,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
-import {
-  filterSearchHistory,
-  getSearchHistory,
-} from '@/services/search-history-service'
 import { createStencilService } from '@/services/stencil-service'
 import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
@@ -41,6 +34,7 @@ import '@styles/StencilPanel.scss'
 interface SearchRuleItem {
   key: keyof TextMatchOptions
   label: string
+  text: string
 }
 type ActionsProps = {
   collapseAll: () => void
@@ -67,9 +61,9 @@ const SEARCH_OPTIONS: TextMatchOptions = {
   wholeWord: false,
 }
 const SEARCH_RULE_ITEMS: SearchRuleItem[] = [
-  { key: 'caseSensitive', label: '匹配大小写' },
-  { key: 'wholeWord', label: '全字匹配' },
-  { key: 'regex', label: '正则匹配' },
+  { key: 'caseSensitive', label: '匹配大小写', text: 'Aa' },
+  { key: 'wholeWord', label: '全字匹配', text: 'ab' },
+  { key: 'regex', label: '正则匹配', text: '.*' },
 ]
 const stencilService = createStencilService()
 
@@ -115,6 +109,57 @@ function usePanelController(onReady: () => void): StencilController {
       stencilService.dispose()
     }
   }, [blockResources, graph])
+
+  useEffect(() => {
+    const container = stencilContainerRef.current
+    if (!container) return
+
+    const finishCollapse = (event: TransitionEvent) => {
+      if (event.propertyName !== 'height') return
+      const group = event.target
+      if (
+        !(group instanceof HTMLElement) ||
+        !group.classList.contains('x6-widget-stencil-group') ||
+        !group.classList.contains('is-collapsing')
+      )
+        return
+
+      group.classList.remove('is-collapsing')
+    }
+
+    const observer = new MutationObserver((records) => {
+      records.forEach((record) => {
+        const group = record.target
+        if (
+          !(group instanceof HTMLElement) ||
+          !group.classList.contains('x6-widget-stencil-group')
+        )
+          return
+
+        const wasCollapsed =
+          record.oldValue?.split(/\s+/).includes('collapsed') ?? false
+        if (!wasCollapsed && group.classList.contains('collapsed')) {
+          group.classList.add('is-collapsing')
+        }
+      })
+    })
+
+    observer.observe(container, {
+      attributes: true,
+      attributeFilter: ['class'],
+      attributeOldValue: true,
+      subtree: true,
+    })
+    container.addEventListener('transitionend', finishCollapse)
+    container.addEventListener('transitioncancel', finishCollapse)
+
+    return () => {
+      observer.disconnect()
+      container.removeEventListener('transitionend', finishCollapse)
+      container.removeEventListener('transitioncancel', finishCollapse)
+    }
+  }, [])
+
   /**
    * SearchBar 相关的 Effect
    */
@@ -238,99 +283,44 @@ function SearchBar(props: SearchBarProps) {
     viewMode,
   } = props
   const searchKeyword = keyword.trim()
-  const [ruleMenuOpen, setRuleMenuOpen] = useState(false)
-  const [historyMode, setHistoryMode] = useState<'closed' | 'all' | 'matches'>(
-    'closed',
-  )
   const arrangeMode = useConfigStore((state) => state.stencilArrangeMode)
   const setArrangeMode = useConfigStore((state) => state.setStencilArrangeMode)
-
-  const selectedRuleKeys = SEARCH_RULE_ITEMS.filter(
-    (item) => searchOptions[item.key],
-  ).map((item) => item.key)
-
-  const historyItems =
-    historyMode === 'all'
-      ? getSearchHistory()
-      : filterSearchHistory(searchKeyword)
-  const historyOptions = historyItems.map((value) => ({ value }))
-  const historyOpen = historyMode !== 'closed' && historyOptions.length > 0
-
-  function changeKeyword(value: string) {
-    updateKeyword(value)
-    setHistoryMode(
-      value.trim() && filterSearchHistory(value).length ? 'matches' : 'closed',
-    )
-  }
-
-  const ruleButton = (
-    <Dropdown
-      trigger={['click']}
-      placement="bottomRight"
-      open={ruleMenuOpen}
-      onOpenChange={(open, info) => {
-        if (open || info.source === 'trigger') setRuleMenuOpen(open)
-      }}
-      menu={{
-        selectable: true,
-        multiple: true,
-        selectedKeys: selectedRuleKeys,
-        items: SEARCH_RULE_ITEMS.map((item) => ({
-          key: item.key,
-          label: item.label,
-        })),
-        onClick: ({ key }) => toggleRule(key as keyof TextMatchOptions),
-      }}
-    >
-      <Button
-        size="small"
-        data-active={selectedRuleKeys.length > 0}
-        className="stencil-search-rule-trigger"
-        aria-label="匹配规则"
-        icon={<FilterOutlined />}
-      />
-    </Dropdown>
-  )
 
   return (
     <div className="stencil-search-shell">
       <div className="stencil-search-row">
-        <AutoComplete
-          className="stencil-search-autocomplete"
+        <Input
+          size="small"
+          className="stencil-search-input"
+          placeholder="BLK_NAME"
           value={keyword}
-          options={historyOptions}
-          open={historyOpen}
-          filterOption={false}
-          onChange={changeKeyword}
-          onSelect={(value) => {
-            updateKeyword(value)
-            setHistoryMode('closed')
-          }}
-          onOpenChange={(open) => {
-            if (!open) setHistoryMode('closed')
-          }}
-        >
-          <Input
-            size="small"
-            className="stencil-search-input"
-            placeholder="TO_BLOCK_NAME"
-            prefix={<SearchOutlined style={{ color: '#b6bcc2' }} />}
-            suffix={
-              <Button
-                type="text"
-                size="small"
-                className="stencil-search-history-trigger"
-                aria-label="搜索历史"
-                icon={<DownOutlined />}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() =>
-                  setHistoryMode(historyMode === 'all' ? 'closed' : 'all')
-                }
-              />
-            }
-          />
-        </AutoComplete>
-        {ruleButton}
+          onChange={(event) => updateKeyword(event.target.value)}
+          prefix={<SearchOutlined style={{ color: '#597ef7' }} />}
+          suffix={
+            <div className="stencil-search-rules">
+              {SEARCH_RULE_ITEMS.map((item) => (
+                <Tooltip
+                  key={item.key}
+                  title={item.label}
+                  mouseEnterDelay={0.3}
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    className="stencil-search-rule-trigger"
+                    data-active={searchOptions[item.key]}
+                    aria-label={item.label}
+                    aria-pressed={searchOptions[item.key]}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => toggleRule(item.key)}
+                  >
+                    <span data-rule={item.key}>{item.text}</span>
+                  </Button>
+                </Tooltip>
+              ))}
+            </div>
+          }
+        />
         <Dropdown
           trigger={['click']}
           placement="bottomRight"
