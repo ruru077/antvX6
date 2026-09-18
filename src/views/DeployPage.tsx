@@ -8,7 +8,7 @@ function DeployPage() {
     <ConfigProvider theme={DEPLOY_THEME}>
       <main className="deploy-workspace">
         <KeepAliveRouteOutlet
-          include={/^\/deploy-workspace(?:\?|$)/}
+          include={/^\/(?:deploy|deploy-workspace)(?:\?|$)/}
           transition={false}
           viewTransition={false}
           containerClassName="route-keep-alive-container"

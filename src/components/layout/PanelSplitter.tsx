@@ -15,7 +15,7 @@ type PanelSplitterProps =
       second: ReactNode
     }
 
-const STENCIL_DEFAULT_SIZE = '20%'
+const STENCIL_DEFAULT_SIZE = 260
 const BOTTOM_PANEL_DEFAULT_SIZE = '35%'
 
 function WorkspaceSplitter({
@@ -43,7 +43,7 @@ function WorkspaceSplitter({
     >
       <Splitter.Panel
         size={stencilSize}
-        min="10%"
+        min={180}
         max="50%"
         collapsible={{ start: true, end: true, showCollapsibleIcon: 'auto' }}
       >

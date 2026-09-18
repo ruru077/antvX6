@@ -9,7 +9,6 @@ import {
 } from '@/services/edge-insertion-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { createPermissionService } from '@/services/permission-service'
-import { addSearchHistory } from '@/services/search-history-service'
 import {
   createStencilLayoutService,
   type StencilContentArea,
@@ -633,7 +632,6 @@ function createStencilService() {
     dispose(): void
   } | null = null
   let currentKeyword = ''
-  let currentSearchValue = ''
   let stopEdgeInsertionPreview: (() => void) | null = null
   // 拖拽中间变量：暂存 label，拖拽时清空避免 foreignObject 裁剪，drop 时恢复
   let pendingLabelText = ''
@@ -805,7 +803,6 @@ function createStencilService() {
       notFoundText: 'NOT FOUND',
       // 拖拽预处理：增加节点阴影，调整宽高
       getDragNode(node, { draggingGraph, targetGraph }) {
-        addSearchHistory(currentSearchValue)
         pendingLabelText = ''
         const res = node.clone()
         layoutService.restoreLabelPresentation(res, node)
@@ -984,11 +981,8 @@ function createStencilService() {
     const leavingSearch = prevViewMode === 'results' && viewMode === 'library'
     prevViewMode = viewMode
 
-    currentSearchValue = keyword.trim()
     currentKeyword =
-      viewMode === 'results'
-        ? currentSearchValue || '空串默认全搜确保返回404'
-        : ''
+      viewMode === 'results' ? keyword.trim() || '空串默认全搜确保返回404' : ''
 
     if (session) {
       if (enteringSearch) {

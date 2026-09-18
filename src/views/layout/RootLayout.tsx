@@ -56,7 +56,7 @@ function SiteMain() {
   return (
     <main className="m2p-main">
       <KeepAliveRouteOutlet
-        include={/^\/workspace(?:\?|$)/}
+        include={/^\/(?:exchange|workspace)(?:\?|$)/}
         transition={false}
         viewTransition={false}
         containerClassName="route-keep-alive-container"

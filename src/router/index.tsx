@@ -1,12 +1,17 @@
 import { createBrowserRouter } from 'react-router'
 import DeployPage from '@/views/DeployPage'
-import ExchangeDiagram from '@/views/exchangeDiagram'
+import ExchangeDiagram from '@/views/exchangeDiagram.tsx'
 import RootLayout from '@/views/layout/RootLayout'
+import NcslabIframeDemo from '@/views/NcslabIframeDemo'
 import BlogPage from '@/views/site/BlogPage'
 import HomePage from '@/views/site/HomePage'
 import WorkspacePage from '@/views/site/WorkspacePage'
 
 const router = createBrowserRouter([
+  {
+    path: '/iframe-demo',
+    Component: NcslabIframeDemo,
+  },
   {
     Component: DeployPage,
     children: [

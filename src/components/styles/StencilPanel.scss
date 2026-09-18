@@ -4,8 +4,11 @@
   width: 100%;
   height: 100%;
   border: 1px solid var(--stencil-border);
-  background: #ffffff;
-  // background: rgb(250, 250, 250);
+  background-color: rgb(250, 251, 255);
+  background-image: url('../../assets/Snipaste_2026-09-17_21-14-49.png');
+  background-position: center top;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   border-radius: var(--radius-md);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
@@ -150,13 +153,9 @@
   margin: 0 2px 8px;
 }
 
-.stencil-search-autocomplete {
+.stencil-search-input {
   min-width: 0;
   flex: 1;
-}
-
-.stencil-search-input {
-  width: 100%;
   height: 32px;
 }
 
@@ -167,27 +166,33 @@
 }
 
 .stencil-search-rule-trigger {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   flex-shrink: 0;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
   transition:
     color 0.15s,
     background 0.15s;
 
-  &[data-active='true'] {
-    color: var(--ant-color-primary, #13c2c2);
-    background: rgba(19, 194, 194, 0.1);
+  &[data-active='true'],
+  &[data-active='true']:hover {
+    color: var(--ant-color-primary, #1677ff) !important;
+    background: rgba(22, 119, 255, 0.12) !important;
+  }
 
-    &:hover {
-      background: rgba(19, 194, 194, 0.16);
-    }
+  [data-rule='wholeWord'] {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 }
 
-.stencil-search-history-trigger {
-  width: 24px;
-  height: 24px;
-  margin-right: -4px;
+.stencil-search-rules {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -2px;
 }
 
 .stencil-search-nav {
@@ -203,6 +208,7 @@
   // 所有卡片边框颜色与内容区一致；translate 过渡
   .ant-tabs-tab {
     border-color: var(--stencil-border-strong) !important;
+    background: #ffffff !important;
   }
 
   .ant-tabs-tab-active {
@@ -254,7 +260,8 @@
   overflow: hidden;
   min-height: 0;
   margin: 0 4px 4px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--stencil-border-strong);
   border-top: none;
   border-radius: 0 0 6px 6px;
@@ -276,7 +283,8 @@
 
     .x6-widget-stencil-content {
       top: 0;
-      background: #ffffff;
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(8px);
 
       &::-webkit-scrollbar {
         width: 16px;
@@ -324,85 +332,67 @@
     }
 
     .x6-widget-stencil-group {
+      height: auto;
+      max-height: none;
       background: transparent;
-      margin: 0 0 6px;
-      border-radius: 0;
+      margin: 1px 0 0;
+      interpolate-size: allow-keywords;
+      transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 
-      &:not(.collapsed) {
-        box-shadow: 0 1px 0 rgba(226, 232, 238, 0.92);
+      &.collapsed {
+        height: 32px;
+        max-height: none;
+      }
+
+      &:not(.collapsed),
+      &.is-collapsing {
+        overflow: hidden;
+
+        >.x6-widget-stencil-group-title {
+          border-bottom-color: #aecab4;
+          background: #9ec8f185 !important;
+          color: #000000;
+
+          &:hover {
+            background: #9ec8f185 !important;
+            color: #000000;
+          }
+        }
+
+        >.x6-widget-stencil-group-content {
+          border: 1px solid #b7cbd3;
+          border-left: none;
+          background: #eef4f7;
+        }
       }
 
       >.x6-widget-stencil-group-title {
         height: 32px;
-        padding-left: 26px !important;
-        padding-right: 12px;
+        padding-left: 12px !important;
         border: none;
-        border-bottom: 1px solid #eceff3;
-        border-right: 3px solid transparent;
-        border-radius: 0;
+        border-bottom: 1px solid #d1e2efa1;
+        border-left: 3px solid transparent;
         background: transparent !important;
         box-shadow: none;
         color: #000000;
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 13px;
+        font-weight: normal;
         line-height: 32px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
         overflow: hidden;
         transition:
-          color 0.35s,
-          border-right-color 0.4s,
-          background 0.35s;
+          color 0.3s,
+          background 0.3s;
 
-        // 折叠箭头（chevron）
         &::before {
-          content: '';
-          position: absolute;
-          left: 9px;
-          top: 50%;
-          width: 7px;
-          height: 7px;
-          border-top: 1.5px solid currentColor;
-          border-right: 1.5px solid currentColor;
-          opacity: 0.55;
-          transform: translateY(-50%) rotate(135deg);
-          transition:
-            transform 0.22s ease,
-            opacity 0.15s,
-            color 0.15s;
-        }
-
-        // 下划线：从左向右键入动画
-        &::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 26px;
-          width: 0;
-          height: 1.5px;
-          background: var(--color-primary);
-          transition: width 0.25s ease;
+          display: none !important;
+          content: none !important;
+          background-image: none !important;
         }
 
         &:hover {
           background: #ffffff !important;
-          border-right-color: var(--color-primary);
+          border-left-color: orange;
           color: var(--stencil-text-main);
-
-          &::after {
-            width: calc(100% - 32px);
-          }
-
-          &::before {
-            color: var(--color-primary);
-            opacity: 1;
-          }
-        }
-      }
-
-      &.collapsed>.x6-widget-stencil-group-title {
-        &::before {
-          transform: translateY(-50%) rotate(45deg);
         }
       }
     }
