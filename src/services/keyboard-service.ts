@@ -1,6 +1,6 @@
 import { Keyboard, Scroller, Selection } from '@antv/x6'
 import { debounce } from 'lodash-es'
-import { GRAPH_GRID } from '@/assets/constant'
+import { GRAPH_GRID, SAVE_MODEL_EVENT } from '@/assets/constant'
 import { removeCellsWithSubGraphHistory } from '@/services/cell-removal-service'
 import {
   copySelection,
@@ -17,7 +17,6 @@ import {
   spaceComboUsed,
   spaceHeld,
 } from '@/store/flags'
-import { saveEntryGraphModel } from '@/store/subGraphStore'
 import type { Graph, Node } from '@antv/x6'
 
 const interactiveService = createInteractiveService()
@@ -223,7 +222,7 @@ function registerKeyboard(graph: Graph) {
   })
 
   bindKeys(graph, [
-    [`${primaryModifier}+s`, () => saveEntryGraphModel(graph)],
+    [`${primaryModifier}+s`, () => graph.trigger(SAVE_MODEL_EVENT)],
     [`${primaryModifier}+c`, () => copySelection(graph)],
     [
       `${primaryModifier}+v`,

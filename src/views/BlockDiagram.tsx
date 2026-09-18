@@ -2,7 +2,6 @@ import { useGraphListener } from '@hooks/useGraphListener'
 import { useScrollListener } from '@hooks/useScrollListener'
 import { App as AntdApp, ConfigProvider } from 'antd'
 import {
-  AgentPanel,
   DiagramCanvas,
   PanelSplitter,
   ScopeWindow,
@@ -10,10 +9,15 @@ import {
 } from '@/components'
 import { WorkspaceLoadingBoundary } from '@/components/layout/WorkspaceLoadingBoundary'
 import { bindAntdMessage } from '@/services/antd-message-service'
+import { loadEntryGraphModel } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
+import { useInterpreterStore } from '@/store/interpreterStore'
+import { useSubGraphStore } from '@/store/subGraphStore'
 import { useTouchAdapter } from '@/touch/useTouchAdapter'
 import { useKeepAliveGraphViewport } from '@/utils/hooks/useKeepAliveGraphViewport'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
+import type { InterpreterConfig } from '@/store/interpreterStore'
+import type { EntryGraphModel } from '~/types'
 import '@styles/BlockDiagram.scss'
 
 const SPLITTER_THEME = {
@@ -33,7 +37,21 @@ const SPLITTER_THEME = {
  * @description 图编辑入口
  * @returns
  */
-function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
+function DiagramWorkspace({
+  initialModel,
+  modelId,
+  modelName,
+  initialConfig,
+  exchangePath,
+  showIssueLink,
+}: {
+  initialModel?: EntryGraphModel
+  modelId?: number | string
+  modelName?: string
+  initialConfig?: InterpreterConfig
+  exchangePath: string
+  showIssueLink: boolean
+}) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
   const [stencilReady, setStencilReady] = useState(false)
@@ -48,11 +66,26 @@ function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
     initGraph(paperContainerRef.current)
     return destroyGraph
   }, [])
+  useEffect(() => {
+    if (!initialModel || modelId == null) return
+    const graph = useGraphStore.getState().graph
+    if (!graph) return
+
+    loadEntryGraphModel(initialModel, graph)
+    if (!modelName) throw new Error('模型详情缺少 modelName')
+    if (!initialConfig) throw new Error('模型详情缺少 config')
+    useSubGraphStore.setState({ modelName })
+    useInterpreterStore.getState().setConfig(initialConfig)
+    graph.fromJSON(
+      initialModel.subGraphs[initialModel.currentGraphId].graphJson,
+    )
+    useSubGraphStore.getState().markSaved()
+  }, [initialConfig, initialModel, modelId, modelName])
   const graphLoadingStage = useKeepAliveGraphViewport()
-  const workspaceReady = graphLoadingStage === 'ready' && stencilReady
+  const workspaceStage = stencilReady ? graphLoadingStage : 'initializing'
 
   return (
-    <WorkspaceLoadingBoundary ready={workspaceReady}>
+    <WorkspaceLoadingBoundary stage={workspaceStage}>
       <PanelSplitter
         variant="workspace"
         stencil={<StencilLayout onReady={() => setStencilReady(true)} />}
@@ -61,21 +94,31 @@ function DiagramWorkspace({ showIssueLink }: { showIssueLink: boolean }) {
             {/* 画布区域 */}
             <DiagramCanvas
               paperContainerRef={paperContainerRef}
+              exchangePath={exchangePath}
               showIssueLink={showIssueLink}
+              modelId={modelId}
             />
             <ScopeWindow />
           </>
         }
-        agent={<AgentPanel />}
       />
     </WorkspaceLoadingBoundary>
   )
 }
 
 function BlockDiagram({
+  initialModel,
+  modelId,
+  modelName,
+  initialConfig,
+  exchangePath = '/exchange',
   showIssueLink = false,
 }: {
+  initialModel?: EntryGraphModel
+  modelId?: number | string
   modelName?: string
+  initialConfig?: InterpreterConfig
+  exchangePath?: string
   showIssueLink?: boolean
 }) {
   const touchTerminal = useTouchTerminal()
@@ -86,7 +129,14 @@ function BlockDiagram({
       tooltip={{ trigger: touchTerminal ? [] : 'hover' }}
     >
       <AntdApp component={false}>
-        <DiagramWorkspace showIssueLink={showIssueLink} />
+        <DiagramWorkspace
+          initialModel={initialModel}
+          modelId={modelId}
+          modelName={modelName}
+          initialConfig={initialConfig}
+          exchangePath={exchangePath}
+          showIssueLink={showIssueLink}
+        />
       </AntdApp>
     </ConfigProvider>
   )
