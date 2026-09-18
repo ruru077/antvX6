@@ -3,6 +3,7 @@ import App from '@/App'
 import enUS from '@/assets/i18n/en-US.json'
 import zhCN from '@/assets/i18n/zh-CN.json'
 import zhTW from '@/assets/i18n/zh-TW.json'
+import { startNcslabContextBridge } from '@/services/ncslab-context-service'
 import '@/utils/plugin/X6patch'
 import '@styles/global.scss'
 import '@/index.css'
@@ -15,6 +16,8 @@ const locales = {
 }
 // 异步加载当前语言环境的文案，默认使用中文
 void intl.init({ currentLocale: 'zh-CN', locales })
+
+startNcslabContextBridge()
 
 createRoot(document.getElementById('root')!).render(
   // Dev确定后开启严格模型测试依赖
