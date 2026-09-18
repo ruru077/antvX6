@@ -242,19 +242,21 @@ function Actions({
 
       <HoverCard openDelay={10} closeDelay={100}>
         <HoverCardTrigger asChild>
-          <SButton variant="link">V0.0.1</SButton>
+          <SButton variant="link">V0.0.2-alpha</SButton>
         </HoverCardTrigger>
         <HoverCardContent className="flex w-64 flex-col gap-0.5">
           <div className="font-semibold">@ChangeLogs</div>
-          <div>(1) 发布master分支</div>
-          <div>(2) 进行master分支的回归测试</div>
+          <div>(1) perf: 对Stencil UI进行微调</div>
+          <div>(2) perf: 加入KeepAlive、缓存等机制以优化Https RunTime性能</div>
+          <div>(3) feat: M2PHelp帮助指南</div>
+          <div>(4) chore: 触控端临时适配</div>
           <a
-            href="https://github.com/ruru077/antvX6/releases/tag/v0.0.1"
+            href="https://github.com/ruru077/antvX6/releases/tag/v0.0.2-alpha"
             target="_blank"
             rel="noreferrer"
             className="mt-1 text-xs text-muted-foreground hover:underline"
           >
-            master date 08/25
+            master date 09/18
           </a>
         </HoverCardContent>
       </HoverCard>
