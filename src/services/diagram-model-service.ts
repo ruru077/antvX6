@@ -2,9 +2,7 @@ import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { EntryGraphModel } from '~/types'
 
-const MODEL_SERVER = import.meta.env.DEV
-  ? 'http://localhost:8080'
-  : 'https://www.stencil.top'
+const MODEL_SERVER = 'https://www.stencil.top'
 
 type DiagramVisibility = 'public' | 'private'
 

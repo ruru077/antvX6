@@ -25,9 +25,14 @@ type NcslabContextState = {
 
 const CONTEXT_MESSAGE = 'NCSLAB_CONTEXT_INIT'
 const READY_MESSAGE = 'NCSLAB_CONTEXT_READY'
+const LOCAL_DEBUG_CONTEXT: NcslabRuntimeContext = {
+  version: 1,
+  user: { id: 8848 },
+  plant: { id: 1 },
+}
 
 const useNcslabContextStore = create<NcslabContextState>((set) => ({
-  context: null,
+  context: import.meta.env.DEV ? LOCAL_DEBUG_CONTEXT : null,
   error: null,
   setContext: (context) => set({ context, error: null }),
   setError: (error) => set({ context: null, error }),
