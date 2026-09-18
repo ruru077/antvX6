@@ -1,47 +1,53 @@
 import { create } from 'zustand'
-import type { GraphModelDTO } from '~/types'
-
 type StepType = 'VariableStep' | 'FixedStep'
 
-type SimulationConfig = GraphModelDTO['config'] & { Step: StepType }
-type CompileConfig = Pick<GraphModelDTO['saveInfo'], 'stepTime' | 'packetSize'>
-
-interface InterpreterStore {
-  config: SimulationConfig
-  compileConfig: CompileConfig
-  setConfig: (config: SimulationConfig) => void
-  setCompileConfig: (config: CompileConfig) => void
+interface InterpreterConfig {
+  Step: StepType
+  SimFixedStep: string
+  SimSolver: string
+  StartTime: string
+  StopTime: string
+  MaxDataPoints: string
+  SimMaxStep: string
+  SimMinStep: string
+  SimInitialStep: string
+  SimRelTol: string
+  SimAbsTol: string
+  ComFixedStep: string
+  ComSolver: string
+  SystemTargetFile: string
+  PacketSize: string
 }
 
-const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
+interface InterpreterStore {
+  config: InterpreterConfig
+  setConfig: (config: InterpreterConfig) => void
+}
+
+const DEFAULT_INTERPRETER_CONFIG: InterpreterConfig = {
+  // 仿真参数
   Step: 'VariableStep',
-  FixedStep: 'auto',
-  Solver: 'auto',
+  SimFixedStep: 'auto',
+  SimSolver: 'auto',
   StartTime: '0.0',
   StopTime: '10.0',
   MaxDataPoints: '10000',
-  MaxStep: 'auto',
-  MinStep: 'auto',
-  InitialStep: 'auto',
-  RelTol: '1e-3',
-  AbsTol: 'auto',
-}
-
-const DEFAULT_COMPILE_CONFIG: CompileConfig = {
-  stepTime: 0.01,
-  packetSize: 10,
+  SimMaxStep: 'auto',
+  SimMinStep: 'auto',
+  SimInitialStep: 'auto',
+  SimRelTol: '1e-3',
+  SimAbsTol: 'auto',
+  // 编译参数
+  ComFixedStep: '0.01',
+  ComSolver: 'ode5',
+  SystemTargetFile: 'PowerSim',
+  PacketSize: '10',
 }
 
 const useInterpreterStore = create<InterpreterStore>((set) => ({
-  config: DEFAULT_SIMULATION_CONFIG,
-  compileConfig: DEFAULT_COMPILE_CONFIG,
+  config: DEFAULT_INTERPRETER_CONFIG,
   setConfig: (config) => set({ config }),
-  setCompileConfig: (compileConfig) => set({ compileConfig }),
 }))
 
-export {
-  DEFAULT_COMPILE_CONFIG,
-  DEFAULT_SIMULATION_CONFIG,
-  useInterpreterStore,
-}
-export type { CompileConfig, InterpreterStore, SimulationConfig, StepType }
+export { DEFAULT_INTERPRETER_CONFIG, useInterpreterStore }
+export type { InterpreterConfig, InterpreterStore, StepType }

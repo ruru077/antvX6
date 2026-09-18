@@ -1350,14 +1350,14 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
 
 async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
   const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
-  const { config, compileConfig } = useInterpreterStore.getState()
+  const { config } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, rootId, graph)
   const solver =
-    config.Solver === 'auto'
+    config.SimSolver === 'auto'
       ? config.Step === 'VariableStep'
         ? 'VariableStepAuto'
         : 'FixedStepAuto'
-      : config.Solver
+      : config.SimSolver
 
   return {
     userId: 0, // TODO
@@ -1367,19 +1367,19 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
     modelName: 'name', // TODO
     uuid: 0, // TODO
     modelRealName: modelName,
-    templateName: 'BlockDiagram', // TODO
+    templateName: config.SystemTargetFile, // TODO
     config: {
       Step: config.Step,
-      FixedStep: config.FixedStep,
+      FixedStep: config.SimFixedStep,
       Solver: solver, // 解释器配置 求解器类型
       StartTime: config.StartTime,
       StopTime: config.StopTime,
       MaxDataPoints: config.MaxDataPoints,
-      MaxStep: config.MaxStep,
-      MinStep: config.MinStep,
-      InitialStep: config.InitialStep,
-      RelTol: config.RelTol,
-      AbsTol: config.AbsTol,
+      MaxStep: config.SimMaxStep,
+      MinStep: config.SimMinStep,
+      InitialStep: config.SimInitialStep,
+      RelTol: config.SimRelTol,
+      AbsTol: config.SimAbsTol,
     },
     blocks,
     lines,
@@ -1389,8 +1389,8 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       userId: 0,
       modelId: 0,
       modelRealName: modelName,
-      stepTime: compileConfig.stepTime,
-      packetSize: compileConfig.packetSize,
+      stepTime: Number(config.ComFixedStep),
+      packetSize: Number(config.PacketSize),
       targetPlatform: 1, // TODO
       publicFlag: 0, // TODO
       testRig: 105,

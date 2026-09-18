@@ -1,11 +1,4 @@
-import {
-  Alert,
-  Card as AntCard,
-  Collapse,
-  Input,
-  InputNumber,
-  Select,
-} from 'antd'
+import { Alert, Card as AntCard, Collapse, Input, Select } from 'antd'
 import {
   CalculatorIcon,
   CheckCircleIcon,
@@ -25,11 +18,7 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useInterpreterStore } from '@/store/interpreterStore'
-import type {
-  CompileConfig,
-  SimulationConfig,
-  StepType,
-} from '@/store/interpreterStore'
+import type { InterpreterConfig, StepType } from '@/store/interpreterStore'
 
 type SettingsPage = 'simulation' | 'compile'
 
@@ -123,20 +112,20 @@ function SimulationSettings({
   config,
   onChange,
 }: {
-  config: SimulationConfig
-  onChange: (config: SimulationConfig) => void
+  config: InterpreterConfig
+  onChange: (config: InterpreterConfig) => void
 }) {
   function changeStepType(Step: StepType) {
     onChange({
       ...config,
       Step,
-      FixedStep:
+      SimFixedStep:
         Step === 'VariableStep'
           ? 'auto'
-          : config.FixedStep === 'auto'
+          : config.SimFixedStep === 'auto'
             ? '0.01'
-            : config.FixedStep,
-      Solver: 'auto',
+            : config.SimFixedStep,
+      SimSolver: 'auto',
     })
   }
 
@@ -155,28 +144,28 @@ function SimulationSettings({
       </SettingRow>
       <SettingRow label="固定步长">
         <Input
-          value={config.FixedStep}
+          value={config.SimFixedStep}
           disabled={config.Step === 'VariableStep'}
           onChange={(event) =>
-            onChange({ ...config, FixedStep: event.target.value })
+            onChange({ ...config, SimFixedStep: event.target.value })
           }
         />
       </SettingRow>
       <SettingRow label="求解器">
         <SolverSelect
-          value={config.Solver}
+          value={config.SimSolver}
           stepType={config.Step}
-          onChange={(Solver) => onChange({ ...config, Solver })}
+          onChange={(SimSolver) => onChange({ ...config, SimSolver })}
         />
       </SettingRow>
 
       <AntCard size="small" className="ml-[124px]">
         <div className="flex items-center gap-1.5 font-medium">
-          {SOLVER_LABELS[config.Solver]}
+          {SOLVER_LABELS[config.SimSolver]}
           <CheckCircleIcon className="size-4 text-emerald-500" />
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {SOLVER_DESCRIPTIONS[config.Solver]}
+          {SOLVER_DESCRIPTIONS[config.SimSolver]}
         </p>
         <code className="mt-2 inline-block rounded border bg-muted px-1.5 py-0.5 text-xs">
           Type:{' '}
@@ -220,41 +209,44 @@ function SimulationSettings({
               <div className="flex flex-col gap-3">
                 <SettingRow label="最大步长">
                   <Input
-                    value={config.MaxStep}
+                    value={config.SimMaxStep}
                     onChange={(event) =>
-                      onChange({ ...config, MaxStep: event.target.value })
+                      onChange({ ...config, SimMaxStep: event.target.value })
                     }
                   />
                 </SettingRow>
                 <SettingRow label="最小步长">
                   <Input
-                    value={config.MinStep}
+                    value={config.SimMinStep}
                     onChange={(event) =>
-                      onChange({ ...config, MinStep: event.target.value })
+                      onChange({ ...config, SimMinStep: event.target.value })
                     }
                   />
                 </SettingRow>
                 <SettingRow label="初始步长">
                   <Input
-                    value={config.InitialStep}
+                    value={config.SimInitialStep}
                     onChange={(event) =>
-                      onChange({ ...config, InitialStep: event.target.value })
+                      onChange({
+                        ...config,
+                        SimInitialStep: event.target.value,
+                      })
                     }
                   />
                 </SettingRow>
                 <SettingRow label="相对容差">
                   <Input
-                    value={config.RelTol}
+                    value={config.SimRelTol}
                     onChange={(event) =>
-                      onChange({ ...config, RelTol: event.target.value })
+                      onChange({ ...config, SimRelTol: event.target.value })
                     }
                   />
                 </SettingRow>
                 <SettingRow label="绝对容差">
                   <Input
-                    value={config.AbsTol}
+                    value={config.SimAbsTol}
                     onChange={(event) =>
-                      onChange({ ...config, AbsTol: event.target.value })
+                      onChange({ ...config, SimAbsTol: event.target.value })
                     }
                   />
                 </SettingRow>
@@ -270,13 +262,9 @@ function SimulationSettings({
 function CompileSettings({
   config,
   onChange,
-  solver,
-  onSolverChange,
 }: {
-  config: CompileConfig
-  onChange: (config: CompileConfig) => void
-  solver: string
-  onSolverChange: (solver: string) => void
+  config: InterpreterConfig
+  onChange: (config: InterpreterConfig) => void
 }) {
   return (
     <div className="flex flex-col gap-4 px-5 py-2">
@@ -287,34 +275,36 @@ function CompileSettings({
       />
       <SettingRow label="系统目标文件">
         <Select
-          defaultValue="PowerSim"
+          value={config.SystemTargetFile}
+          onChange={(SystemTargetFile) =>
+            onChange({ ...config, SystemTargetFile })
+          }
           options={[{ value: 'PowerSim', label: 'PowerSim' }]}
           className="w-full"
         />
       </SettingRow>
       <SettingRow label="求解器">
         <SolverSelect
-          value={solver}
+          value={config.ComSolver}
           stepType="FixedStep"
-          onChange={onSolverChange}
+          onChange={(ComSolver) => onChange({ ...config, ComSolver })}
         />
       </SettingRow>
       <SettingRow label="固定步长">
-        <InputNumber
-          value={config.stepTime}
-          onChange={(stepTime) => {
-            if (stepTime !== null) onChange({ ...config, stepTime })
-          }}
+        <Input
+          value={config.ComFixedStep}
+          onChange={(event) =>
+            onChange({ ...config, ComFixedStep: event.target.value })
+          }
           className="w-full"
         />
       </SettingRow>
       <SettingRow label="数据包大小">
-        <InputNumber
-          value={config.packetSize}
-          precision={0}
-          onChange={(packetSize) => {
-            if (packetSize !== null) onChange({ ...config, packetSize })
-          }}
+        <Input
+          value={config.PacketSize}
+          onChange={(event) =>
+            onChange({ ...config, PacketSize: event.target.value })
+          }
           className="w-full"
         />
       </SettingRow>
@@ -323,26 +313,16 @@ function CompileSettings({
 }
 
 function SolverConfigWindow({
-  appliedSimulationConfig,
-  appliedCompileConfig,
+  appliedConfig,
   onApply,
   onClose,
 }: {
-  appliedSimulationConfig: SimulationConfig
-  appliedCompileConfig: CompileConfig
-  onApply: (
-    simulationConfig: SimulationConfig,
-    compileConfig: CompileConfig,
-  ) => void
+  appliedConfig: InterpreterConfig
+  onApply: (config: InterpreterConfig) => void
   onClose: () => void
 }) {
   const [page, setPage] = useState<SettingsPage>('simulation')
-  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(
-    appliedSimulationConfig,
-  )
-  const [compileConfig, setCompileConfig] =
-    useState<CompileConfig>(appliedCompileConfig)
-  const [compileSolver, setCompileSolver] = useState('ode5')
+  const [config, setConfig] = useState<InterpreterConfig>(appliedConfig)
 
   return (
     <FloatingWindow
@@ -368,7 +348,7 @@ function SolverConfigWindow({
             type="button"
             size="xs"
             className="rounded-sm"
-            onClick={() => onApply(simulationConfig, compileConfig)}
+            onClick={() => onApply(config)}
           >
             确定
           </Button>
@@ -401,17 +381,9 @@ function SolverConfigWindow({
         </nav>
         <div className="min-w-0 flex-1">
           {page === 'simulation' ? (
-            <SimulationSettings
-              config={simulationConfig}
-              onChange={setSimulationConfig}
-            />
+            <SimulationSettings config={config} onChange={setConfig} />
           ) : (
-            <CompileSettings
-              config={compileConfig}
-              onChange={setCompileConfig}
-              solver={compileSolver}
-              onSolverChange={setCompileSolver}
-            />
+            <CompileSettings config={config} onChange={setConfig} />
           )}
         </div>
       </div>
@@ -421,12 +393,8 @@ function SolverConfigWindow({
 
 function SolverStatusBar() {
   const [windowOpen, setWindowOpen] = useState(false)
-  const simulationConfig = useInterpreterStore((state) => state.config)
-  const compileConfig = useInterpreterStore((state) => state.compileConfig)
-  const setSimulationConfig = useInterpreterStore((state) => state.setConfig)
-  const setCompileConfig = useInterpreterStore(
-    (state) => state.setCompileConfig,
-  )
+  const config = useInterpreterStore((state) => state.config)
+  const setConfig = useInterpreterStore((state) => state.setConfig)
 
   return (
     <>
@@ -455,7 +423,7 @@ function SolverStatusBar() {
                     tabIndex={0}
                     className="flex h-5 items-center gap-1 rounded-sm border bg-muted px-2 font-mono text-[11px] text-foreground"
                   >
-                    {SOLVER_LABELS[simulationConfig.Solver]}
+                    {SOLVER_LABELS[config.SimSolver]}
                     <CheckCircleIcon className="size-3 text-emerald-500" />
                   </span>
                 </TooltipTrigger>
@@ -464,12 +432,10 @@ function SolverStatusBar() {
                     <p className="font-semibold">当前求解器配置</p>
                     <p>
                       步长类型：
-                      {simulationConfig.Step === 'VariableStep'
-                        ? '可变步长'
-                        : '固定步长'}
+                      {config.Step === 'VariableStep' ? '可变步长' : '固定步长'}
                     </p>
-                    <p>求解器：{SOLVER_LABELS[simulationConfig.Solver]}</p>
-                    <p>固定步长：{simulationConfig.FixedStep}</p>
+                    <p>求解器：{SOLVER_LABELS[config.SimSolver]}</p>
+                    <p>固定步长：{config.SimFixedStep}</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -492,12 +458,10 @@ function SolverStatusBar() {
       </div>
       {windowOpen && (
         <SolverConfigWindow
-          appliedSimulationConfig={simulationConfig}
-          appliedCompileConfig={compileConfig}
+          appliedConfig={config}
           onClose={() => setWindowOpen(false)}
-          onApply={(nextSimulationConfig, nextCompileConfig) => {
-            setSimulationConfig(nextSimulationConfig)
-            setCompileConfig(nextCompileConfig)
+          onApply={(nextConfig) => {
+            setConfig(nextConfig)
             setWindowOpen(false)
           }}
         />

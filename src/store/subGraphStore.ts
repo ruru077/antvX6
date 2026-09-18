@@ -317,7 +317,6 @@ const initialSubGraphs: SubGraphMap = {
 
 const initialSavedSnapshot = normalizeEntryGraphModel(
   zipGraphModelJson({
-    modelName: DEFAULT_MODEL_NAME,
     currentGraphId: ROOT_ID,
     rootId: ROOT_ID,
     subGraphs: initialSubGraphs,
@@ -334,10 +333,9 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   subGraphs: structuredClone(initialSubGraphs),
 
   exportEntryGraphModel: () => {
-    const { modelName, currentGraphId, rootId, subGraphs } = get()
+    const { currentGraphId, rootId, subGraphs } = get()
     return normalizeEntryGraphModel(
       zipGraphModelJson({
-        modelName,
         currentGraphId,
         rootId,
         subGraphs,
@@ -514,12 +512,10 @@ function getSubGraphHistory(options: unknown) {
 }
 
 function saveEntryGraphModel(graph: Graph) {
-  const { syncGraph, exportEntryGraphModel, markSaved } =
-    useSubGraphStore.getState()
+  const { syncGraph, exportEntryGraphModel } = useSubGraphStore.getState()
   syncGraph(graph.toJSON())
   const model = exportEntryGraphModel()
   console.log(JSON.stringify(model, null, 2))
-  markSaved()
   return model
 }
 
