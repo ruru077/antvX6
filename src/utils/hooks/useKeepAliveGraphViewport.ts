@@ -1,8 +1,8 @@
 import { Scroller } from '@antv/x6'
-import { useEffectOnActive } from 'keepalive-for-react'
+import { useLayoutEffectOnActive } from 'keepalive-for-react'
 import { useGraphStore } from '@/store/graphStore'
 
-type GraphLoadingStage = 'initializing' | 'ready'
+type GraphLoadingStage = 'initializing' | 'restoring' | 'ready'
 
 interface ScrollerPosition {
   left: number
@@ -14,13 +14,13 @@ interface ScrollerPosition {
  * 记录失活前的滚动位置，并在节点重新挂回 DOM 完成布局后恢复。
  */
 function useKeepAliveGraphViewport() {
+  const graph = useGraphStore((state) => state.graph)
   const positionRef = useRef<ScrollerPosition | null>(null)
   const initializedRef = useRef(false)
   const [stage, setStage] = useState<GraphLoadingStage>('initializing')
 
   // 首次初始化属于 Graph 自身生命周期，独立部署时同样执行。
   useEffect(() => {
-    const graph = useGraphStore.getState().graph
     const scroller = graph?.getPlugin<Scroller>('scroller')
     if (!scroller) return
 
@@ -42,11 +42,10 @@ function useKeepAliveGraphViewport() {
       cancelAnimationFrame(firstFrame)
       cancelAnimationFrame(secondFrame)
     }
-  }, [])
+  }, [graph])
 
   // 仅在 KeepAlive 上下文中处理路由返回；不负责首次初始化。
-  useEffectOnActive(() => {
-    const graph = useGraphStore.getState().graph
+  useLayoutEffectOnActive(() => {
     const scroller = graph?.getPlugin<Scroller>('scroller')
     if (!scroller) return
 
@@ -54,9 +53,11 @@ function useKeepAliveGraphViewport() {
     let secondFrame = 0
     const position = positionRef.current
     if (position) {
+      setStage('restoring')
       firstFrame = requestAnimationFrame(() => {
         secondFrame = requestAnimationFrame(() => {
           scroller.setScrollbarPosition(position.left, position.top)
+          setStage('ready')
         })
       })
     }
@@ -67,8 +68,9 @@ function useKeepAliveGraphViewport() {
       if (initializedRef.current) {
         positionRef.current = scroller.getScrollbarPosition()
       }
+      setStage(initializedRef.current ? 'restoring' : 'initializing')
     }
-  }, [])
+  }, [graph])
 
   return stage
 }

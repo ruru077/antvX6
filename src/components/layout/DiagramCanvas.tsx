@@ -17,10 +17,12 @@ function DiagramCanvas({
   paperContainerRef,
   exchangePath,
   showIssueLink,
+  modelId,
 }: {
   paperContainerRef: RefObject<HTMLDivElement | null>
   exchangePath: string
   showIssueLink: boolean
+  modelId?: number | string
 }) {
   const [toolbarsVisible, setToolbarsVisible] = useState(true)
   const [navPanelVisible, setNavPanelVisible] = useState(true)
@@ -47,6 +49,7 @@ function DiagramCanvas({
         <PaperToolbar
           exchangePath={exchangePath}
           showIssueLink={showIssueLink}
+          modelId={modelId}
         />
       </div>
       {/* 选项卡导航栏：占满画布区域宽度 */}

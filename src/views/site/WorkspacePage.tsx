@@ -24,7 +24,7 @@ function WorkspacePage({
     <section className="workspace-page">
       <BlockDiagram
         initialModel={locationState?.diagramModel}
-        modelKey={locationState?.modelId}
+        modelId={locationState?.modelId}
         modelName={locationState?.modelName}
         initialConfig={locationState?.config}
         exchangePath={exchangePath}

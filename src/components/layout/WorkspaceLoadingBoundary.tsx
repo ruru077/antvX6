@@ -1,23 +1,25 @@
 import { DotLottieReact } from '@lottiefiles/dotlottie-react'
+import type { GraphLoadingStage } from '@/utils/hooks/useKeepAliveGraphViewport'
 import type { ReactNode } from 'react'
 
 export function WorkspaceLoadingBoundary({
-  ready,
+  stage,
   children,
 }: {
-  ready: boolean
+  stage: GraphLoadingStage
   children: ReactNode
 }) {
+  const ready = stage === 'ready'
   return (
     <div
       className="workspace-loading-boundary"
-      data-workspace-stage={ready ? 'ready' : 'initializing'}
+      data-workspace-stage={stage}
       aria-busy={!ready}
     >
       <div className="workspace-loading-content" inert={!ready}>
         {children}
       </div>
-      {!ready && (
+      {stage === 'initializing' && (
         <div
           className="workspace-loading-stage"
           role="status"
