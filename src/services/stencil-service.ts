@@ -916,6 +916,18 @@ function createStencilService() {
       attributes: true,
     })
 
+    const keepSearchGroupExpanded = ({ name }: { name: string }) => {
+      if (prevViewMode !== 'results') return
+
+      // X6 在 group:collapse 事件触发后才写入 collapsed class，下一微任务再恢复展开。
+      queueMicrotask(() => {
+        if (session?.stencil === stencil && prevViewMode === 'results') {
+          stencil.expandGroup(name)
+        }
+      })
+    }
+    stencil.on('group:collapse', keepSearchGroupExpanded)
+
     session = {
       container,
       stencil,
@@ -925,6 +937,7 @@ function createStencilService() {
       lastHasVerticalScrollbar,
       contentAreas,
       dispose() {
+        stencil.off('group:collapse', keepSearchGroupExpanded)
         disposeTooltip?.()
         stopEdgeInsertionPreview?.()
         syncContainerWidth.cancel()
@@ -971,6 +984,8 @@ function createStencilService() {
     session?.dispose()
     session = null
     mountedStencilGroupToggle = null
+    savedLibraryGroupStates = null
+    prevViewMode = 'library'
   }
 
   function syncSearchKeyword(
@@ -985,17 +1000,26 @@ function createStencilService() {
       viewMode === 'results' ? keyword.trim() || '空串默认全搜确保返回404' : ''
 
     if (session) {
-      if (enteringSearch) {
-        // 进入搜索模式：保存当前各分组折叠状态，然后全部展开
+      if (
+        enteringSearch ||
+        (viewMode === 'results' && !savedLibraryGroupStates)
+      ) {
+        // 进入搜索模式：保存当前各分组折叠状态
         savedLibraryGroupStates = new Map(
           Array.from(session.libraryWithBlock.keys()).map((name) => [
             name,
             session!.stencil.isGroupCollapsed(name),
           ]),
         )
+      }
+
+      session.stencil.setKeyword(currentKeyword)
+
+      if (viewMode === 'results') {
+        // 匹配结果不使用标准库的折叠状态，分组始终展开
         session.stencil.expandGroups()
       } else if (leavingSearch && savedLibraryGroupStates) {
-        // 离开搜索模式：恢复标准库保存的折叠状态
+        // 离开搜索模式：清除过滤后再恢复标准库保存的折叠状态
         for (const [name, collapsed] of savedLibraryGroupStates) {
           if (collapsed) {
             session.stencil.collapseGroup(name)
@@ -1007,7 +1031,6 @@ function createStencilService() {
       }
     }
 
-    session?.stencil.setKeyword(currentKeyword)
     fitGroupsToLayout()
   }
   /**

@@ -1391,8 +1391,8 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       modelRealName: modelName,
       stepTime: Number(config.ComFixedStep),
       packetSize: Number(config.PacketSize),
-      targetPlatform: 1, // TODO
-      publicFlag: 0, // TODO
+      targetPlatform: 1, // 编译目标平台，当前固定为1
+      publicFlag: 0, // 模型/算法公共标志，当前固定为0
       testRig: 105,
       copyNum: 0,
       description: '',

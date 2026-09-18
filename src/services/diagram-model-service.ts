@@ -41,10 +41,9 @@ async function requestDiagramModel<T>(
   init?: RequestInit,
 ): Promise<T> {
   const context = useNcslabContextStore.getState().context
-  if (!context) throw new Error('缺少 userId、plantId 上下文')
+  if (!context) throw new Error('缺少 userId 上下文')
   const url = new URL(path, MODEL_SERVER)
   url.searchParams.set('userId', String(context.user.id))
-  url.searchParams.set('plantId', String(context.plant.id))
   const response = await fetch(url, {
     ...init,
     credentials: 'omit',
@@ -67,10 +66,8 @@ async function requestDiagramModel<T>(
   return response.json() as Promise<T>
 }
 
-function listDiagramModels(plantId: number | string) {
-  return requestDiagramModel<DiagramModelList>(
-    `/diagram-models?plantId=${encodeURIComponent(plantId)}`,
-  )
+function listDiagramModels() {
+  return requestDiagramModel<DiagramModelList>('/diagram-models')
 }
 
 function getDiagramModel(id: number | string) {
@@ -80,7 +77,6 @@ function getDiagramModel(id: number | string) {
 }
 
 function createDiagramModel(input: {
-  plantId: number | string
   modelName: string
   description: string
   graphModel: EntryGraphModel

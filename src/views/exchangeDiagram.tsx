@@ -88,9 +88,8 @@ function ExchangeDiagram({
   const [dialog, setDialog] = useState<DialogState>(null)
   const [dialogLoading, setDialogLoading] = useState(false)
   const currentUser = runtimeContext?.user
-  const plantId = runtimeContext?.plant.id
   const userId = currentUser?.id
-  const currentScope = JSON.stringify([userId, plantId])
+  const currentScope = String(userId)
   const hasLoaded = loadedScope === currentScope
   const currentLoadError =
     loadError?.scope === currentScope ? loadError.message : null
@@ -105,11 +104,11 @@ function ExchangeDiagram({
 
   useEffect(() => {
     let cancelled = false
-    if (plantId == null || userId == null) return
-    const requestScope = JSON.stringify([userId, plantId])
+    if (userId == null) return
+    const requestScope = String(userId)
     const fetchModels = async () => {
       try {
-        const result = await listDiagramModels(plantId)
+        const result = await listDiagramModels()
         if (cancelled) return
         if (
           !Array.isArray(result.publicModels) ||
@@ -132,7 +131,7 @@ function ExchangeDiagram({
     return () => {
       cancelled = true
     }
-  }, [plantId, userId, reloadCount])
+  }, [userId, reloadCount])
 
   const openModel = async (model: DiagramModelSummary, sourceKey: string) => {
     setOpenTooltipKey(null)
@@ -182,14 +181,13 @@ function ExchangeDiagram({
   }
 
   const submitDialog = async () => {
-    if (!dialog || plantId == null) return
+    if (!dialog) return
     const values = await form.validateFields()
     setDialogLoading(true)
     try {
       if (dialog.type === 'create') {
         const modelName = values.modelName.trim()
         const created = await createDiagramModel({
-          plantId,
           modelName,
           description: values.description?.trim() ?? '',
           graphModel: createEmptyGraphModel(modelName),
@@ -348,7 +346,7 @@ function ExchangeDiagram({
           showIcon
           type="info"
           title="等待主应用上下文"
-          description={contextError ?? '请由主应用发送当前用户和实验对象信息。'}
+          description={contextError ?? '请由主应用发送当前用户信息。'}
         />
       </main>
     )

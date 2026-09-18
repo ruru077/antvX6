@@ -23,7 +23,7 @@ function NcslabIframeDemo() {
     return () => window.removeEventListener('message', onMessage)
   }, [])
 
-  const sendContext = (values: { userId: string; plantId: string }) => {
+  const sendContext = (values: { userId: string }) => {
     setReadyVersion(null)
     iframeRef.current?.contentWindow?.postMessage(
       {
@@ -31,9 +31,6 @@ function NcslabIframeDemo() {
         payload: {
           version: 1,
           user: { id: values.userId },
-          plant: {
-            id: values.plantId,
-          },
         },
       },
       window.location.origin,
@@ -45,17 +42,10 @@ function NcslabIframeDemo() {
       <Card title="NCSLab iframe 本地通信 Demo">
         <Form
           layout="inline"
-          initialValues={{ userId: '1', plantId: '1' }}
+          initialValues={{ userId: '1' }}
           onFinish={sendContext}
         >
           <Form.Item label="userId" name="userId" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label="plantId"
-            name="plantId"
-            rules={[{ required: true }]}
-          >
             <Input />
           </Form.Item>
           <Form.Item>

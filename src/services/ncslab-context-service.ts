@@ -5,15 +5,9 @@ type NcslabUser = {
   name?: string
 }
 
-type NcslabPlant = {
-  id: number | string
-  name?: string
-}
-
 type NcslabRuntimeContext = {
   version: 1
   user: NcslabUser
-  plant: NcslabPlant
 }
 
 type NcslabContextState = {
@@ -28,7 +22,6 @@ const READY_MESSAGE = 'NCSLAB_CONTEXT_READY'
 const LOCAL_DEBUG_CONTEXT: NcslabRuntimeContext = {
   version: 1,
   user: { id: 8848 },
-  plant: { id: 1 },
 }
 
 const useNcslabContextStore = create<NcslabContextState>((set) => ({
@@ -42,11 +35,7 @@ function isRuntimeContext(value: unknown): value is NcslabRuntimeContext {
   if (!value || typeof value !== 'object') return false
   const context = value as Partial<NcslabRuntimeContext>
   return (
-    context.version === 1 &&
-    context.user != null &&
-    context.user.id != null &&
-    context.plant != null &&
-    context.plant.id != null
+    context.version === 1 && context.user != null && context.user.id != null
   )
 }
 
@@ -73,7 +62,7 @@ function startNcslabContextBridge() {
     if (!isRuntimeContext(event.data.payload)) {
       useNcslabContextStore
         .getState()
-        .setError('主应用上下文格式无效或协议版本不受支持')
+        .setError('主应用用户上下文格式无效或协议版本不受支持')
       return
     }
 
