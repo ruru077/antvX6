@@ -1,11 +1,10 @@
 import { createBrowserRouter } from 'react-router'
 import DeployPage from '@/views/DeployPage'
-import ExchangeDiagram from '@/views/exchangeDiagram.tsx'
 import RootLayout from '@/views/layout/RootLayout'
 import NcslabIframeDemo from '@/views/NcslabIframeDemo'
 import BlogPage from '@/views/site/BlogPage'
+import ExchangeWorkspaceRoutes from '@/views/site/ExchangeWorkspaceRoutes'
 import HomePage from '@/views/site/HomePage'
-import WorkspacePage from '@/views/site/WorkspacePage'
 
 const router = createBrowserRouter([
   {
@@ -16,12 +15,17 @@ const router = createBrowserRouter([
     Component: DeployPage,
     children: [
       {
-        path: '/deploy',
-        element: <ExchangeDiagram workspacePath="/deploy-workspace" />,
-      },
-      {
-        path: '/deploy-workspace',
-        element: <WorkspacePage exchangePath="/deploy" showIssueLink />,
+        element: (
+          <ExchangeWorkspaceRoutes
+            exchangePath="/deploy"
+            workspacePath="/deploy-workspace"
+            showIssueLink
+          />
+        ),
+        children: [
+          { path: '/deploy', element: null },
+          { path: '/deploy-workspace', element: null },
+        ],
       },
     ],
   },
@@ -35,12 +39,16 @@ const router = createBrowserRouter([
         Component: HomePage,
       },
       {
-        path: '/exchange',
-        Component: ExchangeDiagram,
-      },
-      {
-        path: '/workspace',
-        Component: WorkspacePage,
+        element: (
+          <ExchangeWorkspaceRoutes
+            exchangePath="/exchange"
+            workspacePath="/workspace"
+          />
+        ),
+        children: [
+          { path: '/exchange', element: null },
+          { path: '/workspace', element: null },
+        ],
       },
       {
         path: '/blog',

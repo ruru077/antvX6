@@ -5,9 +5,11 @@ import type { ReactNode } from 'react'
 export function WorkspaceLoadingBoundary({
   stage,
   children,
+  showInitializingStage = true,
 }: {
   stage: GraphLoadingStage
   children: ReactNode
+  showInitializingStage?: boolean
 }) {
   const ready = stage === 'ready'
   return (
@@ -19,7 +21,7 @@ export function WorkspaceLoadingBoundary({
       <div className="workspace-loading-content" inert={!ready}>
         {children}
       </div>
-      {stage === 'initializing' && (
+      {showInitializingStage && stage === 'initializing' && (
         <div
           className="workspace-loading-stage"
           role="status"

@@ -1,7 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
 import { ConfigProvider } from 'antd'
 import KeepAliveRouteOutlet from 'keepalive-for-react-router'
-import { Link, NavLink } from 'react-router'
+import { Link, NavLink, useLocation } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { SiteLanguageProvider } from '@/views/site/SiteLanguageContext'
 import '@/components/styles/site-shell.scss'
@@ -53,10 +53,17 @@ function SiteHeader() {
 }
 
 function SiteMain() {
+  const { pathname } = useLocation()
+  const activeCacheKey =
+    pathname === '/exchange' || pathname === '/workspace'
+      ? 'exchange-workspace'
+      : undefined
+
   return (
     <main className="m2p-main">
       <KeepAliveRouteOutlet
-        include={/^\/(?:exchange|workspace)(?:\?|$)/}
+        activeCacheKey={activeCacheKey}
+        include="exchange-workspace"
         transition={false}
         viewTransition={false}
         containerClassName="route-keep-alive-container"

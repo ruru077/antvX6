@@ -14,12 +14,11 @@ import {
   message,
   Modal,
   Space,
-  Spin,
   Table,
   Tooltip,
 } from 'antd'
-import { useKeepAliveContext } from 'keepalive-for-react'
 import { useNavigate } from 'react-router'
+import { WorkspaceLoadingBoundary } from '@/components/layout/WorkspaceLoadingBoundary'
 import {
   createDiagramModel,
   deleteDiagramModel,
@@ -65,11 +64,14 @@ function createEmptyGraphModel(modelName: string): EntryGraphModel {
 
 function ExchangeDiagram({
   workspacePath = '/workspace',
+  active = true,
+  workspaceReady = true,
 }: {
   workspacePath?: string
+  active?: boolean
+  workspaceReady?: boolean
 }) {
   const navigate = useNavigate()
-  const { active } = useKeepAliveContext()
   const [openTooltipKey, setOpenTooltipKey] = useState<string | null>(null)
   const runtimeContext = useNcslabContextStore((state) => state.context)
   const contextError = useNcslabContextStore((state) => state.error)
@@ -92,7 +94,7 @@ function ExchangeDiagram({
   const hasLoaded = loadedScope === currentScope
   const currentLoadError =
     loadError?.scope === currentScope ? loadError.message : null
-  const loading = !hasLoaded && currentLoadError == null
+  const exchangeReady = hasLoaded || currentLoadError != null
   const [reloadCount, setReloadCount] = useState(0)
 
   const loadModels = () => {
@@ -352,9 +354,11 @@ function ExchangeDiagram({
     )
 
   return (
-    <main className="min-h-full bg-[#f0f2f5] p-6">
-      {messageHolder}
-      <Spin spinning={loading}>
+    <WorkspaceLoadingBoundary
+      stage={workspaceReady && exchangeReady ? 'ready' : 'initializing'}
+    >
+      <main className="min-h-full bg-[#f0f2f5] p-6">
+        {messageHolder}
         <div className="flex flex-col gap-4">
           {currentLoadError && (
             <Alert
@@ -420,80 +424,80 @@ function ExchangeDiagram({
             />
           </Card>
         </div>
-      </Spin>
-      <Modal
-        open={dialog != null}
-        title={dialog?.type === 'create' ? '保存图表' : '更新图表'}
-        width={600}
-        confirmLoading={dialogLoading}
-        okText={dialog?.type === 'create' ? '保存' : '更新'}
-        cancelText="取消"
-        onCancel={closeDialog}
-        onOk={() => void submitDialog()}
-        afterClose={() => form.resetFields()}
-      >
-        <Form
-          form={form}
-          layout="horizontal"
-          requiredMark={false}
-          labelCol={{ span: 6 }}
-          wrapperCol={{ span: 14 }}
+        <Modal
+          open={dialog != null}
+          title={dialog?.type === 'create' ? '保存图表' : '更新图表'}
+          width={600}
+          confirmLoading={dialogLoading}
+          okText={dialog?.type === 'create' ? '保存' : '更新'}
+          cancelText="取消"
+          onCancel={closeDialog}
+          onOk={() => void submitDialog()}
+          afterClose={() => form.resetFields()}
         >
-          <Form.Item
-            label="图表名称"
-            name="modelName"
-            rules={[
-              { required: true, whitespace: true, message: '请输入模型名称' },
-              { max: 100, message: '模型名称不能超过 100 个字符' },
-              {
-                pattern: /^[a-zA-Z0-9_-]+$/,
-                message: '仅允许英文字母、数字、下划线和短横线',
-              },
-            ]}
+          <Form
+            form={form}
+            layout="horizontal"
+            requiredMark={false}
+            labelCol={{ span: 6 }}
+            wrapperCol={{ span: 14 }}
           >
-            <Input maxLength={100} placeholder="请输入图表名称" />
-          </Form.Item>
-          <Form.Item
-            label="描述"
-            name="description"
-            rules={[{ max: 500, message: '描述不能超过 500 个字符' }]}
-          >
-            <Input.TextArea
-              maxLength={500}
-              rows={4}
-              showCount
-              placeholder="请输入图表描述"
-            />
-          </Form.Item>
-          {dialog && (
-            <div
-              style={{
-                marginTop: 20,
-                padding: 10,
-                backgroundColor: '#f0f2f5',
-                borderRadius: 4,
-                fontSize: 12,
-                color: '#666',
-              }}
+            <Form.Item
+              label="图表名称"
+              name="modelName"
+              rules={[
+                { required: true, whitespace: true, message: '请输入模型名称' },
+                { max: 100, message: '模型名称不能超过 100 个字符' },
+                {
+                  pattern: /^[a-zA-Z0-9_-]+$/,
+                  message: '仅允许英文字母、数字、下划线和短横线',
+                },
+              ]}
             >
-              <p style={{ margin: 0 }}>
-                <strong>备注:</strong>
-              </p>
-              <ul
+              <Input maxLength={100} placeholder="请输入图表名称" />
+            </Form.Item>
+            <Form.Item
+              label="描述"
+              name="description"
+              rules={[{ max: 500, message: '描述不能超过 500 个字符' }]}
+            >
+              <Input.TextArea
+                maxLength={500}
+                rows={4}
+                showCount
+                placeholder="请输入图表描述"
+              />
+            </Form.Item>
+            {dialog && (
+              <div
                 style={{
-                  margin: '5px 0 0 20px',
-                  padding: 0,
-                  listStyleType: 'disc',
+                  marginTop: 20,
+                  padding: 10,
+                  backgroundColor: '#f0f2f5',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: '#666',
                 }}
               >
-                <li>图表将保存当前的模块配置</li>
-                {dialog.type === 'update' && <li>更新将覆盖现有图表</li>}
-              </ul>
-            </div>
-          )}
-        </Form>
-      </Modal>
-    </main>
+                <p style={{ margin: 0 }}>
+                  <strong>备注:</strong>
+                </p>
+                <ul
+                  style={{
+                    margin: '5px 0 0 20px',
+                    padding: 0,
+                    listStyleType: 'disc',
+                  }}
+                >
+                  <li>图表将保存当前的模块配置</li>
+                  {dialog.type === 'update' && <li>更新将覆盖现有图表</li>}
+                </ul>
+              </div>
+            )}
+          </Form>
+        </Modal>
+      </main>
+    </WorkspaceLoadingBoundary>
   )
 }
 

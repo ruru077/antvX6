@@ -33,6 +33,16 @@ const SPLITTER_THEME = {
   },
 }
 
+type BlockDiagramProps = {
+  initialModel?: EntryGraphModel
+  modelId?: number | string
+  modelName?: string
+  initialConfig?: InterpreterConfig
+  exchangePath?: string
+  showIssueLink?: boolean
+  onReady?: () => void
+}
+
 /**
  * @description 图编辑入口
  * @returns
@@ -42,16 +52,10 @@ function DiagramWorkspace({
   modelId,
   modelName,
   initialConfig,
-  exchangePath,
-  showIssueLink,
-}: {
-  initialModel?: EntryGraphModel
-  modelId?: number | string
-  modelName?: string
-  initialConfig?: InterpreterConfig
-  exchangePath: string
-  showIssueLink: boolean
-}) {
+  exchangePath = '/exchange',
+  showIssueLink = false,
+  onReady,
+}: BlockDiagramProps) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
   const [stencilReady, setStencilReady] = useState(false)
@@ -60,13 +64,13 @@ function DiagramWorkspace({
   useGraphListener()
   useTouchAdapter()
   useScrollListener(paperContainerRef)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!paperContainerRef.current) return
     const { initGraph, destroyGraph } = useGraphStore.getState()
     initGraph(paperContainerRef.current)
     return destroyGraph
   }, [])
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!initialModel || modelId == null) return
     const graph = useGraphStore.getState().graph
     if (!graph) return
@@ -83,9 +87,15 @@ function DiagramWorkspace({
   }, [initialConfig, initialModel, modelId, modelName])
   const graphLoadingStage = useKeepAliveGraphViewport()
   const workspaceStage = stencilReady ? graphLoadingStage : 'initializing'
+  useEffect(() => {
+    if (workspaceStage === 'ready') onReady?.()
+  }, [onReady, workspaceStage])
 
   return (
-    <WorkspaceLoadingBoundary stage={workspaceStage}>
+    <WorkspaceLoadingBoundary
+      stage={workspaceStage}
+      showInitializingStage={false}
+    >
       <PanelSplitter
         variant="workspace"
         stencil={<StencilLayout onReady={() => setStencilReady(true)} />}
@@ -106,21 +116,7 @@ function DiagramWorkspace({
   )
 }
 
-function BlockDiagram({
-  initialModel,
-  modelId,
-  modelName,
-  initialConfig,
-  exchangePath = '/exchange',
-  showIssueLink = false,
-}: {
-  initialModel?: EntryGraphModel
-  modelId?: number | string
-  modelName?: string
-  initialConfig?: InterpreterConfig
-  exchangePath?: string
-  showIssueLink?: boolean
-}) {
+function BlockDiagram(props: BlockDiagramProps) {
   const touchTerminal = useTouchTerminal()
 
   return (
@@ -129,14 +125,7 @@ function BlockDiagram({
       tooltip={{ trigger: touchTerminal ? [] : 'hover' }}
     >
       <AntdApp component={false}>
-        <DiagramWorkspace
-          initialModel={initialModel}
-          modelId={modelId}
-          modelName={modelName}
-          initialConfig={initialConfig}
-          exchangePath={exchangePath}
-          showIssueLink={showIssueLink}
-        />
+        <DiagramWorkspace {...props} />
       </AntdApp>
     </ConfigProvider>
   )
