@@ -162,9 +162,31 @@ function getTerminalInfo(graph, edge, terminal) {
 async function routeWithAvoid(graph, routableEdges) {
   if (!routableEdges.length) return []
   const avoid = await ensureAvoidReady()
+  const routes = routeWithAvoidAttempt(graph, routableEdges, avoid)
+  const failed = routableEdges.filter((_, index) => !routes[index])
+  if (failed.length) {
+    const relaxed = routeWithAvoidAttempt(graph, failed, avoid, 0, 0)
+    let retryIndex = 0
+    routes.forEach((route, index) => {
+      if (!route) routes[index] = relaxed[retryIndex++]
+    })
+  }
+  return routes.map(
+    (route, index) =>
+      route ?? createOrthogonalFallback(graph, routableEdges[index]),
+  )
+}
+function routeWithAvoidAttempt(
+  graph,
+  routableEdges,
+  avoid,
+  edgeToNodeGap = ROUTE_OPTIONS.edgeToNodeGap,
+  edgeToEdgeGap = ROUTE_OPTIONS.edgeToEdgeGap,
+) {
+  if (!routableEdges.length) return []
   const router = new avoid.Router(avoid.RouterFlag.OrthogonalRouting.value)
   try {
-    configureAvoidRouter(avoid, router)
+    configureAvoidRouter(avoid, router, edgeToNodeGap, edgeToEdgeGap)
     const shapes = new Map()
     graph
       .getNodes()
@@ -230,20 +252,27 @@ async function routeWithAvoid(graph, routableEdges) {
       conn.setHateCrossings(ROUTE_OPTIONS.crossingPenalty > 0)
       return { conn, routeEdge }
     })
-    router.processTransaction()
-    const routes = connectors.map(({ conn, routeEdge }) => {
-      const points = avoidRouteToPoints(conn.displayRoute())
-      assertOrthogonalRoute(routeEdge.edge, points)
-      const terminalPoints = applyTerminalGeometry(routeEdge, points)
-      assertTerminalStubRoute(routeEdge, terminalPoints)
-      return {
-        edge: routeEdge.edge,
-        points: terminalPoints,
-        source: routeEdge.source,
-        target: routeEdge.target,
+    try {
+      router.processTransaction()
+    } catch {
+      return routableEdges.map(() => null)
+    }
+    return connectors.map(({ conn, routeEdge }) => {
+      try {
+        const points = avoidRouteToPoints(conn.displayRoute())
+        assertOrthogonalRoute(routeEdge.edge, points)
+        const terminalPoints = applyTerminalGeometry(routeEdge, points)
+        assertTerminalStubRoute(routeEdge, terminalPoints)
+        return {
+          edge: routeEdge.edge,
+          points: terminalPoints,
+          source: routeEdge.source,
+          target: routeEdge.target,
+        }
+      } catch {
+        return null
       }
     })
-    return routes
   } finally {
     router.delete?.()
   }
@@ -256,14 +285,19 @@ function ensureAvoidReady() {
   }
   return avoidInitPromise
 }
-function configureAvoidRouter(avoid, router) {
+function configureAvoidRouter(
+  avoid,
+  router,
+  edgeToNodeGap = ROUTE_OPTIONS.edgeToNodeGap,
+  edgeToEdgeGap = ROUTE_OPTIONS.edgeToEdgeGap,
+) {
   router.setRoutingParameter(
     avoid.RoutingParameter.shapeBufferDistance,
-    ROUTE_OPTIONS.edgeToNodeGap,
+    edgeToNodeGap,
   )
   router.setRoutingParameter(
     avoid.RoutingParameter.idealNudgingDistance,
-    ROUTE_OPTIONS.edgeToEdgeGap,
+    edgeToEdgeGap,
   )
   router.setRoutingParameter(
     avoid.RoutingParameter.segmentPenalty,
@@ -349,6 +383,96 @@ function applyTerminalGeometry(routeEdge, points) {
     ? [routeEdge.target.stubPoint, routeEdge.target.point]
     : []
   return dedupePoints([...sourcePoints, ...points, ...targetPoints])
+}
+function createOrthogonalFallback(graph, routeEdge) {
+  const { source, target, edge } = routeEdge
+  const sourceStub = offsetByVector(
+    source.point,
+    directionToVector(source.direction),
+    ROUTE_OPTIONS.stubSize,
+  )
+  const targetStub = offsetByVector(
+    target.point,
+    directionToVector(target.direction),
+    ROUTE_OPTIONS.stubSize,
+  )
+  const boxes = graph.getNodes().filter(isRoutingNode).map(getRotatedNodeBBox)
+  const margin = ROUTE_OPTIONS.stubSize + ROUTE_OPTIONS.edgeToNodeGap
+  const left =
+    Math.min(sourceStub.x, targetStub.x, ...boxes.map((box) => box.x)) - margin
+  const right =
+    Math.max(
+      sourceStub.x,
+      targetStub.x,
+      ...boxes.map((box) => box.x + box.width),
+    ) + margin
+  const top =
+    Math.min(sourceStub.y, targetStub.y, ...boxes.map((box) => box.y)) - margin
+  const bottom =
+    Math.max(
+      sourceStub.y,
+      targetStub.y,
+      ...boxes.map((box) => box.y + box.height),
+    ) + margin
+  const middleX = (sourceStub.x + targetStub.x) / 2
+  const middleY = (sourceStub.y + targetStub.y) / 2
+  const candidates = [
+    [sourceStub, { x: targetStub.x, y: sourceStub.y }, targetStub],
+    [sourceStub, { x: sourceStub.x, y: targetStub.y }, targetStub],
+    ...[middleX, left, right].map((x) => [
+      sourceStub,
+      { x, y: sourceStub.y },
+      { x, y: targetStub.y },
+      targetStub,
+    ]),
+    ...[middleY, top, bottom].map((y) => [
+      sourceStub,
+      { x: sourceStub.x, y },
+      { x: targetStub.x, y },
+      targetStub,
+    ]),
+  ]
+  const routes = candidates.map((candidate) =>
+    dedupePoints([source.point, ...candidate, target.point]),
+  )
+  const points = routes.reduce((best, candidate) =>
+    scoreOrthogonalFallback(candidate, boxes) <
+    scoreOrthogonalFallback(best, boxes)
+      ? candidate
+      : best,
+  )
+  assertOrthogonalRoute(edge, points)
+  return { edge, points, source, target }
+}
+function scoreOrthogonalFallback(points, boxes) {
+  let score = 0
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1]
+    const current = points[index]
+    score += Math.abs(current.x - previous.x) + Math.abs(current.y - previous.y)
+    for (const box of boxes) {
+      if (previous.y === current.y) {
+        if (previous.y <= box.y || previous.y >= box.y + box.height) continue
+        score +=
+          1000 *
+          Math.max(
+            0,
+            Math.min(Math.max(previous.x, current.x), box.x + box.width) -
+              Math.max(Math.min(previous.x, current.x), box.x),
+          )
+      } else {
+        if (previous.x <= box.x || previous.x >= box.x + box.width) continue
+        score +=
+          1000 *
+          Math.max(
+            0,
+            Math.min(Math.max(previous.y, current.y), box.y + box.height) -
+              Math.max(Math.min(previous.y, current.y), box.y),
+          )
+      }
+    }
+  }
+  return score + points.length * 5
 }
 function avoidRouteToPoints(polyline) {
   const points = []
