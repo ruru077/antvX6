@@ -1,7 +1,7 @@
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
-import { routeAllEdges } from '@/services/routing-service'
+import { ensureRoutingReady, routeAllEdges } from '@/services/routing-service'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import type { Edge, Graph, Node } from '@antv/x6'
 
@@ -101,6 +101,8 @@ async function connectAvailablePorts(
   targetNode: Node,
 ) {
   if (sourceNode.id === targetNode.id) return
+  await ensureRoutingReady()
+  if (!graph.hasCell(sourceNode) || !graph.hasCell(targetNode)) return
 
   const targetPorts = targetNode
     .getPorts()

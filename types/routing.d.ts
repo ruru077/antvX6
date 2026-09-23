@@ -14,6 +14,7 @@ declare module '@/services/routing-service' {
   }
 
   function routeAllEdges(graph: Graph): Promise<void> | null
+  function ensureRoutingReady(): Promise<void>
   function fallbackEdgeToManhattan(
     edge: Edge,
     sourceDirection?: PortDirection,
@@ -29,6 +30,7 @@ declare module '@/services/routing-service' {
   export {
     fallbackEdgeToManhattan,
     getPortRouteGeometry,
+    ensureRoutingReady,
     isCompleteNodeEdge,
     isRoutingNode,
     type PortRouteGeometry,

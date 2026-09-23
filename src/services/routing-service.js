@@ -285,6 +285,9 @@ function ensureAvoidReady() {
   }
   return avoidInitPromise
 }
+async function ensureRoutingReady() {
+  await ensureAvoidReady()
+}
 function configureAvoidRouter(
   avoid,
   router,
@@ -837,6 +840,7 @@ function isCompleteNodeEdge(edge) {
 export {
   fallbackEdgeToManhattan,
   getPortRouteGeometry,
+  ensureRoutingReady,
   isCompleteNodeEdge,
   isRoutingNode,
   routeAllEdges,
