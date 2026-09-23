@@ -496,13 +496,28 @@ function registerEdgeInsertionListeners(graph: Graph) {
 
 // ── Node 移动时重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
-  function nodeMovingHandler({ node }: EventArgs['node:moving']) {
-    if (!isRoutingNode(node)) return
+  const lastPositions = new Map<string, { x: number; y: number }>()
+
+  function nodeMoveHandler({ node }: EventArgs['node:move']) {
+    lastPositions.set(node.id, node.getPosition())
+  }
+
+  function nodeMouseMoveHandler({ node }: EventArgs['node:mousemove']) {
+    if (!lastPositions.has(node.id) || !isRoutingNode(node)) return
+    const position = node.getPosition()
+    const previous = lastPositions.get(node.id)
+    if (previous?.x === position.x && previous?.y === position.y) return
+    lastPositions.set(node.id, position)
+    // Snapline 在 node:mousemove 中调整吸附位置，路由必须读取调整后的坐标。
     // 未连接的单输入单输出模块可能要插入 Edge。拖动期间必须保持正式
     // Edge 原路线不动，否则全局避障会先把 Edge 绕开，永远无法进入吸附范围。
     // 命中后仅由 insertion service 触发预览 Edge 的 Avoid 路由。
     if (canInsertNodeOnEdge(graph, node)) return
     void routeAllEdges(graph)
+  }
+
+  function nodeMovedHandler({ node }: EventArgs['node:moved']) {
+    lastPositions.delete(node.id)
   }
 
   function nodeResizedHandler({ node }: EventArgs['node:resized']) {
@@ -516,7 +531,9 @@ function registerNodeRouteListeners(graph: Graph) {
   }
 
   return registerListeners(graph, [
-    ['node:moving', nodeMovingHandler],
+    ['node:move', nodeMoveHandler],
+    ['node:mousemove', nodeMouseMoveHandler],
+    ['node:moved', nodeMovedHandler],
     ['node:resized', nodeResizedHandler],
     ['node:change:angle', nodeAngleChangedHandler],
   ])
