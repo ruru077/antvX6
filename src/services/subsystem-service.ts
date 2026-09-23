@@ -1348,7 +1348,17 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
   }
 }
 
-async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
+interface BuildGraphModelDTOOptions {
+  purpose?: 'simulation' | 'compilation'
+  userId?: number
+  modelId?: number
+}
+
+async function buildGraphModelDTO(
+  graph: Graph,
+  options: BuildGraphModelDTOOptions = {},
+): Promise<GraphModelDTO> {
+  const { purpose = 'simulation', userId = 0, modelId = 0 } = options
   const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
   const { config } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, rootId, graph)
@@ -1360,34 +1370,43 @@ async function buildGraphModelDTO(graph: Graph): Promise<GraphModelDTO> {
       : config.SimSolver
 
   return {
-    userId: 0, // TODO
+    userId,
     testRig: 105, // TODO
     copyNum: 0, // TODO
-    modelId: 0, // TODO
+    modelId,
     modelName: 'name', // TODO
     uuid: 0, // TODO
     modelRealName: modelName,
     templateName: config.SystemTargetFile, // TODO
-    config: {
-      Step: config.Step,
-      FixedStep: config.SimFixedStep,
-      Solver: solver, // 解释器配置 求解器类型
-      StartTime: config.StartTime,
-      StopTime: config.StopTime,
-      MaxDataPoints: config.MaxDataPoints,
-      MaxStep: config.SimMaxStep,
-      MinStep: config.SimMinStep,
-      InitialStep: config.SimInitialStep,
-      RelTol: config.SimRelTol,
-      AbsTol: config.SimAbsTol,
-    },
+    config:
+      purpose === 'compilation'
+        ? {
+            FixedStep: config.ComFixedStep,
+            Solver: config.ComSolver,
+            SystemTargetFile: `${config.SystemTargetFile}.tlc`,
+            TemplateMakefile: `${config.SystemTargetFile}.tmf`,
+            PacketSize: config.PacketSize,
+          }
+        : {
+            Step: config.Step,
+            FixedStep: config.SimFixedStep,
+            Solver: solver, // 解释器配置 求解器类型
+            StartTime: config.StartTime,
+            StopTime: config.StopTime,
+            MaxDataPoints: config.MaxDataPoints,
+            MaxStep: config.SimMaxStep,
+            MinStep: config.SimMinStep,
+            InitialStep: config.SimInitialStep,
+            RelTol: config.SimRelTol,
+            AbsTol: config.SimAbsTol,
+          },
     blocks,
     lines,
     option: {},
     saveInfo: {
       uuid: 0,
-      userId: 0,
-      modelId: 0,
+      userId,
+      modelId,
       modelRealName: modelName,
       stepTime: Number(config.ComFixedStep),
       packetSize: Number(config.PacketSize),

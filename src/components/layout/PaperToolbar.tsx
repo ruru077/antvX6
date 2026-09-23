@@ -12,13 +12,16 @@ import {
 } from '@ant-design/icons'
 import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
 import { useNavigate } from 'react-router'
+import { startCompilation } from '@/api/compilation'
 import { saveModel } from '@/api/saveModel'
 import { startSimulation } from '@/api/simulation'
 import { SAVE_MODEL_EVENT } from '@/assets/constant'
 import { Button } from '@/components/ui/button'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { createCommonService } from '@/services/common-service'
+import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import { buildGraphModelDTO } from '@/services/subsystem-service'
+import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
 import { useInterpreterStore } from '@/store/interpreterStore'
 import { useSimulationStore } from '@/store/simulationStore'
@@ -47,7 +50,10 @@ function PaperToolbar({
   const markSaved = useSubGraphStore((s) => s.markSaved)
   const isDirty = useSubGraphStore((s) => s.isDirty)
   const modelName = useSubGraphStore((s) => s.modelName)
+  const ncslabContext = useNcslabContextStore((state) => state.context)
   const [saving, setSaving] = useState(false)
+  const [compiling, setCompiling] = useState(false)
+  const [compilationPercent, setCompilationPercent] = useState(0)
 
   const isSimulating = useSimulationStore((state) => state.isRunning)
   const progress = useSimulationStore((state) => state.progress)
@@ -55,6 +61,10 @@ function PaperToolbar({
 
   async function handleSave() {
     if (!canSave || !graph || modelId == null) return
+    const currentGraphJson = graph.toJSON()
+    if (useConfigStore.getState().printDtoEnabled) {
+      console.log(JSON.stringify(currentGraphJson, null, 2))
+    }
     const graphModel = saveEntryGraphModel(graph)
     const config = useInterpreterStore.getState().config
     setSaving(true)
@@ -102,7 +112,9 @@ function PaperToolbar({
     syncGraph(graph.toJSON())
     try {
       const model = await buildGraphModelDTO(graph)
-      console.log(JSON.stringify(model, null, 2))
+      if (useConfigStore.getState().printDtoEnabled) {
+        console.log(JSON.stringify(model, null, 2))
+      }
       await startSimulation({
         model,
         onProgress: simulation.setProgress,
@@ -115,6 +127,45 @@ function PaperToolbar({
       message.error(text)
     } finally {
       simulation.setRunning(false)
+    }
+  }
+
+  async function handleCompile() {
+    if (!graph || compiling) return
+    setCompiling(true)
+    setCompilationPercent(0)
+    syncGraph(graph.toJSON())
+    try {
+      if (ncslabContext?.user.id == null) throw new Error('缺少有效的 userId')
+      if (modelId == null) throw new Error('缺少有效的 modelId')
+      const numericUserId = Number(ncslabContext?.user.id)
+      const numericModelId = Number(modelId)
+      if (!Number.isInteger(numericUserId)) throw new Error('缺少有效的 userId')
+      if (!Number.isInteger(numericModelId))
+        throw new Error('缺少有效的 modelId')
+
+      const model = await buildGraphModelDTO(graph, {
+        purpose: 'compilation',
+        userId: numericUserId,
+        modelId: numericModelId,
+      })
+      if (useConfigStore.getState().printDtoEnabled) {
+        console.log(JSON.stringify(model, null, 2))
+      }
+      await startCompilation({
+        model,
+        onProgress: ({ percent }) => setCompilationPercent(percent),
+        onWarning: (warning, blocks) => {
+          message.warning(
+            blocks?.length ? `${warning}（${blocks.join(' → ')}）` : warning,
+          )
+        },
+      })
+      message.success('编译完成')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setCompiling(false)
     }
   }
 
@@ -197,8 +248,14 @@ function PaperToolbar({
             title={`编译 (${primaryModifierLabel}B)`}
             mouseEnterDelay={0.3}
           >
-            <AntdButton size="small" icon={<BuildOutlined />}>
-              编译
+            <AntdButton
+              size="small"
+              icon={<BuildOutlined />}
+              loading={compiling}
+              disabled={!graph}
+              onClick={() => void handleCompile()}
+            >
+              {compiling ? `编译 ${compilationPercent}%` : '编译'}
             </AntdButton>
           </Tooltip>
 

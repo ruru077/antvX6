@@ -78,7 +78,6 @@ function startSimulation({
       completed = true
       onResults(results)
       resolve(results)
-      socket.close(1000)
     }
 
     socket.onopen = () => {

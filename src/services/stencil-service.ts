@@ -757,7 +757,11 @@ function createStencilService() {
         .map((library) => [
           library.name.toUpperCase(),
           blocks
-            .filter((item) => item.libraryId === library.id)
+            .filter(
+              (item) =>
+                item.libraryId === library.id &&
+                permissionService.canAccessBlock(item.id, item.libraryId),
+            )
             .map((item) => adaptStencilBlock(item.block)),
         ]),
     )

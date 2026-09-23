@@ -5,7 +5,7 @@
 /**
  * 配置参数对象
  */
-interface Config {
+interface SimulationConfig {
   Step: string
   FixedStep: string
   Solver: string
@@ -17,6 +17,17 @@ interface Config {
   InitialStep: string
   RelTol: string
   AbsTol: string
+}
+
+/**
+ * 编译配置参数对象
+ */
+interface CompilationConfig {
+  FixedStep: string
+  Solver: string
+  SystemTargetFile: string
+  TemplateMakefile: string
+  PacketSize: string
 }
 
 /**
@@ -73,11 +84,17 @@ interface GraphModelDTO {
   uuid: number
   modelRealName: string
   templateName: string
-  config: Config
+  config: SimulationConfig | CompilationConfig
   blocks: BlockDTO[]
   lines: LineDTO[]
   option: Record<string, unknown>
   saveInfo: SaveInfo
 }
 
-export type { GraphModelDTO, BlockDTO, LineDTO }
+export type {
+  GraphModelDTO,
+  BlockDTO,
+  CompilationConfig,
+  LineDTO,
+  SimulationConfig,
+}

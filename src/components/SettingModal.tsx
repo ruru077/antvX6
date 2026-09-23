@@ -466,19 +466,33 @@ function DeveloperContent() {
   const {
     localSolverDebugEnabled,
     localSolverPort,
+    printDtoEnabled,
     setLocalSolverDebugEnabled,
     setLocalSolverPort,
+    setPrintDtoEnabled,
   } = useConfigStore(
     useShallow((state) => ({
       localSolverDebugEnabled: state.localSolverDebugEnabled,
       localSolverPort: state.localSolverPort,
+      printDtoEnabled: state.printDtoEnabled,
       setLocalSolverDebugEnabled: state.setLocalSolverDebugEnabled,
       setLocalSolverPort: state.setLocalSolverPort,
+      setPrintDtoEnabled: state.setPrintDtoEnabled,
     })),
   )
 
   return (
     <>
+      <ToggleRow
+        item={{
+          key: 'printDtoEnabled',
+          label: '打印 DTO',
+          desc: '开启后在运行、编译和保存时将对应数据输出到控制台。',
+          type: 'toggle',
+        }}
+        value={printDtoEnabled}
+        onChange={setPrintDtoEnabled}
+      />
       <ToggleRow
         item={{
           key: 'localSolverDebugEnabled',

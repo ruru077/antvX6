@@ -21,6 +21,7 @@ interface ConfigValues {
   // 开发者模式
   localSolverDebugEnabled: boolean
   localSolverPort: string
+  printDtoEnabled: boolean
   // Stencil
   stencilDefaultExpand: boolean
   stencilPreviewEnabled: boolean
@@ -41,6 +42,7 @@ interface ConfigStore extends ConfigValues {
   setBetaGroupEnabled: (enabled: boolean) => void
   setLocalSolverDebugEnabled: (enabled: boolean) => void
   setLocalSolverPort: (port: string) => void
+  setPrintDtoEnabled: (enabled: boolean) => void
   setStencilDefaultExpand: (enabled: boolean) => void
   setStencilPreviewEnabled: (enabled: boolean) => void
   setStencilArrangeMode: (mode: StencilArrangeMode) => void
@@ -60,6 +62,7 @@ const DEFAULT_VALUES: ConfigValues = {
   betaGroupEnabled: false,
   localSolverDebugEnabled: false,
   localSolverPort: '',
+  printDtoEnabled: false,
   stencilDefaultExpand: false,
   stencilPreviewEnabled: false,
   stencilArrangeMode: 'default',
@@ -99,6 +102,7 @@ const useConfigStore = create<ConfigStore>()(
         setLocalSolverDebugEnabled: (localSolverDebugEnabled) =>
           set({ localSolverDebugEnabled }),
         setLocalSolverPort: (localSolverPort) => set({ localSolverPort }),
+        setPrintDtoEnabled: (printDtoEnabled) => set({ printDtoEnabled }),
         setStencilDefaultExpand: (stencilDefaultExpand) =>
           set({ stencilDefaultExpand }),
         setStencilPreviewEnabled: (stencilPreviewEnabled) =>

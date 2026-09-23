@@ -1,6 +1,7 @@
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
 interface BlockResource {
+  id: number
   block: Block
   libraryId: number
 }
@@ -27,7 +28,7 @@ async function fetchBlocks(): Promise<BlockResource[]> {
       if (block.attrs.image) {
         block.attrs.image.xlinkHref = `data:image/png;base64,${item.icon ?? ''}`
       }
-      return { block, libraryId: item.libraryId }
+      return { id: item.id, block, libraryId: item.libraryId }
     })
   } catch (error) {
     console.error('Failed to fetch blocks:', error)
