@@ -87,7 +87,9 @@ function BlockParamWindow({
       const nextParamValues = Object.fromEntries(
         Object.entries(values).map(([key, value]) => [
           key,
-          String(value ?? ''),
+          key === 'Inputs' && data?.blockType === 'Sum'
+            ? String(value ?? '').trim()
+            : String(value ?? ''),
         ]),
       )
       const { graph, node } = activateTargetNode(target)
@@ -128,21 +130,29 @@ function BlockParamWindow({
     const rules =
       key !== 'Inputs'
         ? undefined
-        : data?.blockType === 'Add'
+        : data?.blockType === 'Sum'
           ? [
               {
-                pattern: /^[+-]*$/,
-                message: 'Add 模块的输入符号只能包含 + 或 -',
+                pattern: /^[+-]+$/,
+                transform: (value: unknown) => String(value ?? '').trim(),
+                message: 'Sum 模块的输入符号只能包含 + 或 -',
               },
             ]
-          : data?.blockType === 'Product'
+          : data?.blockType === 'Add'
             ? [
                 {
-                  pattern: /^[*/]*$/,
-                  message: 'Product 模块的输入符号只能包含 * 或 /',
+                  pattern: /^[+-]*$/,
+                  message: 'Add 模块的输入符号只能包含 + 或 -',
                 },
               ]
-            : undefined
+            : data?.blockType === 'Product'
+              ? [
+                  {
+                    pattern: /^[*/]*$/,
+                    message: 'Product 模块的输入符号只能包含 * 或 /',
+                  },
+                ]
+              : undefined
 
     return (
       <Form.Item key={key} label={label} name={key} colon={false} rules={rules}>
