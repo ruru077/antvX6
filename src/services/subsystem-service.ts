@@ -920,12 +920,6 @@ function ioNodeToPort(
 
 type TraceRole = 'source' | 'target'
 
-interface FlowChain {
-  edges: LineDTO[]
-  sourceNodeId: string
-  sinkNodeId: string
-}
-
 interface DTOResult {
   blocks: BlockDTO[]
   lines: LineDTO[]
@@ -934,35 +928,49 @@ interface DTOResult {
  * @param lines flatGraph 的平铺图lineDTO[]
  * @returns 模块出度edge 模块入读 有效nodes
  */
-function buildDfsData(
+function buildReachabilityData(
   lines: LineDTO[],
   subGraphs: SubGraphMap,
 ): {
   outBySource: Map<string, LineDTO[]>
+  inByTarget: Map<string, LineDTO[]>
   sources: string[]
+  sinks: string[]
+  validLines: LineDTO[]
 } {
   const outBySource = new Map<string, LineDTO[]>()
+  const inByTarget = new Map<string, LineDTO[]>()
   const nodes = new Set<string>()
+  const validLines: LineDTO[] = []
 
   for (const line of lines) {
     const from = line.fromBlockUUID
     const to = line.toBlockUUID
     if (!line.linePath || !from || !to) continue
+    validLines.push(line)
     nodes.add(from)
     nodes.add(to)
 
     const outList = outBySource.get(from)
     if (outList) outList.push(line)
     else outBySource.set(from, [line])
+    const inList = inByTarget.get(to)
+    if (inList) inList.push(line)
+    else inByTarget.set(to, [line])
   }
 
-  // 只对 source 模块 dfs
+  // 入度为0的节点是源节点
   const sources = Array.from(nodes).filter(
     (nodeId) =>
       !hasPort(nodeId, 'in', subGraphs) && hasPort(nodeId, 'out', subGraphs),
   )
+  // 出度为0的节点是汇节点
+  const sinks = Array.from(nodes).filter(
+    (nodeId) =>
+      hasPort(nodeId, 'in', subGraphs) && !hasPort(nodeId, 'out', subGraphs),
+  )
 
-  return { outBySource, sources }
+  return { outBySource, inByTarget, sources, sinks, validLines }
 }
 
 function isComputedBlock(node: NodeProperties): boolean {
@@ -1144,76 +1152,64 @@ function flatGraph(
 }
 /**
  * @description 根据边映射结果，对 source 模块进行 dfs 构建联通子图
+ * 正向从 source、反向从 sink 遍历，保留连接两侧的边，包括反馈环中的边。
  */
-function buildFlowChain(lines: LineDTO[], graph: Graph): FlowChain[] {
-  const { subGraphs } = useSubGraphStore.getState()
-  const { outBySource, sources } = buildDfsData(lines, subGraphs)
+function filterValidLines(lines: LineDTO[], subGraphs: SubGraphMap): LineDTO[] {
+  const { outBySource, inByTarget, sources, sinks, validLines } =
+    buildReachabilityData(lines, subGraphs)
+  // 没有 sink 模块
+  if (sinks.length === 0 || sources.length === 0) return []
 
-  const chains: FlowChain[] = []
-  const dfs = (sourceNodeId: string, path: LineDTO[]) => {
-    const lastEdge = path[path.length - 1]
-    const fromNodeId = lastEdge.toBlockUUID
-    const nextEdges = outBySource.get(fromNodeId) ?? []
-    const usable = nextEdges.filter(
-      (line) => !path.some((p) => p.linePath === line.linePath),
-    )
-
-    if (usable.length === 0) {
-      const sinkNodeId = lastEdge.toBlockUUID
-      // 没有 sink 模块
-      if (
-        hasPort(sinkNodeId, 'out', subGraphs) ||
-        !hasPort(sinkNodeId, 'in', subGraphs)
-      )
-        return
-      chains.push({
-        edges: path,
-        sourceNodeId,
-        sinkNodeId,
-      })
-      return
+  const collectReachable = (
+    startIds: string[],
+    adjacency: Map<string, LineDTO[]>,
+    nextEndpoint: 'fromBlockUUID' | 'toBlockUUID',
+  ): Set<string> => {
+    const visited = new Set<string>(startIds)
+    const pending = [...startIds]
+    while (pending.length > 0) {
+      const nodeId = pending.pop()!
+      for (const edge of adjacency.get(nodeId) ?? []) {
+        const nextId = edge[nextEndpoint]
+        if (visited.has(nextId)) continue
+        visited.add(nextId)
+        pending.push(nextId)
+      }
     }
-
-    for (const edge of usable) {
-      dfs(sourceNodeId, [...path, edge])
-    }
+    return visited
   }
 
-  for (const sourceNodeId of sources) {
-    const firstEdges = outBySource.get(sourceNodeId) ?? []
-    for (const firstEdge of firstEdges) {
-      dfs(sourceNodeId, [firstEdge])
-    }
-  }
+  const sourceReachable = collectReachable(sources, outBySource, 'toBlockUUID')
+  const canReachSink = collectReachable(sinks, inByTarget, 'fromBlockUUID')
 
-  return chains
+  return validLines.filter(
+    (edge) =>
+      sourceReachable.has(edge.fromBlockUUID) &&
+      canReachSink.has(edge.toBlockUUID),
+  )
 }
 
-function flowChainToDTO(
-  flowChain: FlowChain[],
-  subGraphs: SubGraphMap,
-): DTOResult {
+function linesToDTO(lines: LineDTO[], subGraphs: SubGraphMap): DTOResult {
   const blockSet = new Map<string, BlockDTO>()
   const lineSet = new Map<string, LineDTO>()
-  for (const chain of flowChain) {
-    for (const edge of chain.edges) {
-      if (edge.linePath) lineSet.set(edge.linePath, edge)
-      // ts 经过buildFlowChain后，edge.fromBlockUUID/toBlockUUID必定存在
-      const block = [
-        getCellFromSubGraphs(edge.fromBlockUUID, subGraphs)!,
-        getCellFromSubGraphs(edge.toBlockUUID, subGraphs)!,
-      ]
-      block.forEach((b) => {
-        blockSet.set(b.id!, {
-          blockType: b.data?.blockType ?? 'error',
-          srcBlock: b.data?.srcBlock ?? 'error',
-          blockName: getBlockLabel(b),
-          paramValues: isEmpty(b.data?.paramValues) ? {} : b.data?.paramValues,
-          blockPath: edge.linePath,
-          blockUUID: b.id!,
-        })
+  for (const edge of lines) {
+    if (edge.linePath) lineSet.set(edge.linePath, edge)
+    // ts 经过buildFlowChain后，edge.fromBlockUUID/toBlockUUID必定存在
+    // 现由 filterValidLines 保证端点有效，直接收集合法边的两端模块。
+    const block = [
+      getCellFromSubGraphs(edge.fromBlockUUID, subGraphs)!,
+      getCellFromSubGraphs(edge.toBlockUUID, subGraphs)!,
+    ]
+    block.forEach((b) => {
+      blockSet.set(b.id!, {
+        blockType: b.data?.blockType ?? 'error',
+        srcBlock: b.data?.srcBlock ?? 'error',
+        blockName: getBlockLabel(b),
+        paramValues: isEmpty(b.data?.paramValues) ? {} : b.data?.paramValues,
+        blockPath: edge.linePath,
+        blockUUID: b.id!,
       })
-    }
+    })
   }
   return {
     lines: Array.from(lineSet.values()),
@@ -1330,6 +1326,7 @@ function syncParentSubsystemPorts(graph: Graph): boolean {
 // ─── DTO 导出 ──────────────────────────────────────────────────────────────
 /**
  * @description 图解构输出（flatGraph -> buildFlowChain -> flowChainToDTO）
+ * 当前流程：flatGraph -> filterValidLines -> linesToDTO。
  * @param subGraphs 子系统图树
  * @param rootId 根图 id
  * @param graph X6 Graph 实例，用于 remap 边索引回溯
@@ -1339,9 +1336,10 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
   // 1) 平铺所有边到 remap 结果
   const linesDTO = flatGraph(resolvedSubGraphs, rootId, graph)
   // 2) 按连通性构造 flow chain
-  const flowChain = buildFlowChain(linesDTO, graph)
+  // 使用双向可达性筛选合法边，不再枚举 flow chain。
+  const validLines = filterValidLines(linesDTO, resolvedSubGraphs)
   // 3) 验证并去噪
-  const { lines, blocks } = flowChainToDTO(flowChain, resolvedSubGraphs)
+  const { lines, blocks } = linesToDTO(validLines, resolvedSubGraphs)
   return {
     lines,
     blocks,
@@ -1438,7 +1436,7 @@ export {
   ioNodeToPort,
   isIONode,
   flatGraph,
-  buildFlowChain,
-  flowChainToDTO,
+  filterValidLines,
+  linesToDTO,
 }
 export type { ChangeGraphViewOptions }
