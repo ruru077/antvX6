@@ -158,13 +158,14 @@ function ScopeCharts({
   fileName?: string
 }) {
   const [sampleTime, setSampleTime] = useState(0.1)
+  const [stepLine, setStepLine] = useState(false)
   const series = useMemo(
     () =>
       sources.flatMap((source) => {
         const values = getSeries(source.scope)
         return values.map((data, index) => {
           const sampled =
-            toolbar !== false
+            toolbar !== false && !stepLine
               ? sampleSignal(source.scope.time, data, sampleTime)
               : { time: source.scope.time, data }
           return {
@@ -178,7 +179,7 @@ function ScopeCharts({
           }
         })
       }),
-    [sampleTime, sources, toolbar],
+    [sampleTime, sources, stepLine, toolbar],
   )
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null)
@@ -334,6 +335,7 @@ function ScopeCharts({
             id: item.key,
             name: item.name,
             type: 'line',
+            step: stepLine ? 'end' : false,
             smooth: false,
             showSymbol: item.data.length === 1,
             symbolSize: item.data.length === 1 ? 10 : 4,
@@ -350,7 +352,7 @@ function ScopeCharts({
       },
       { replaceMerge: ['series'] },
     )
-  }, [series, showGrid, showLegend])
+  }, [series, showGrid, showLegend, stepLine])
 
   if (!hasData) {
     return (
@@ -390,6 +392,17 @@ function ScopeCharts({
     <div className="flex h-full min-h-0 flex-col gap-2">
       {toolbar !== false && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Tooltip title="离散信号使用阶梯线，在下一个采样时刻更新显示值">
+            <div className="flex items-center gap-2 text-sm">
+              <span>阶梯线</span>
+              <Switch
+                size="small"
+                checked={stepLine}
+                aria-label="阶梯线"
+                onChange={setStepLine}
+              />
+            </div>
+          </Tooltip>
           <Tooltip title="显示或隐藏图例">
             <div className="flex items-center gap-2 text-sm">
               <span>图例</span>
@@ -401,9 +414,16 @@ function ScopeCharts({
               />
             </div>
           </Tooltip>
-          <Tooltip title="设置折线显示的采样时间间隔">
+          <Tooltip
+            title={
+              stepLine
+                ? '阶梯线保留全部原始点，避免漏掉跳变'
+                : '设置折线显示的采样时间间隔'
+            }
+          >
             <InputNumber<number>
               size="small"
+              disabled={stepLine}
               min={0.001}
               step={0.01}
               precision={3}
