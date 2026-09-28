@@ -1,4 +1,4 @@
-import { Button, InputNumber, Switch, Tooltip } from 'antd'
+import { Button, InputNumber, Space, Switch, Tooltip } from 'antd'
 import { LineChart } from 'echarts/charts'
 import {
   DataZoomComponent,
@@ -421,20 +421,22 @@ function ScopeCharts({
                 : '设置折线显示的采样时间间隔'
             }
           >
-            <InputNumber<number>
-              size="small"
-              disabled={stepLine}
-              min={0.001}
-              step={0.01}
-              precision={3}
-              value={sampleTime}
-              addonBefore="采样时间"
-              addonAfter="s"
-              aria-label="采样时间"
-              onChange={(value) => {
-                if (value !== null && value > 0) setSampleTime(value)
-              }}
-            />
+            <Space.Compact size="small">
+              <span className="scope-sample-time-label">采样时间</span>
+              <InputNumber<number>
+                size="small"
+                disabled={stepLine}
+                min={0.001}
+                step={0.01}
+                precision={3}
+                value={sampleTime}
+                aria-label="采样时间"
+                onChange={(value) => {
+                  if (value !== null && value > 0) setSampleTime(value)
+                }}
+              />
+              <span className="scope-sample-time-unit">s</span>
+            </Space.Compact>
           </Tooltip>
           <div className="flex items-center gap-1">
             <ChartAction

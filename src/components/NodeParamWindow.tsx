@@ -155,26 +155,26 @@ function BlockParamWindow({
               : undefined
 
     return (
-      <Form.Item key={key} label={label} name={key} colon={false} rules={rules}>
-        {options.length > 0 ? (
-          <Select
-            options={options.map((option) => ({
-              label: option,
-              value: option,
-            }))}
-          />
-        ) : (
-          <Input
-            addonAfter={
-              actualValue === null ? undefined : (
-                <span aria-label="解析值">{actualValue}</span>
-              )
-            }
-            rootClassName={
-              actualValue === null ? undefined : 'mask-param-resolved-input'
-            }
-          />
-        )}
+      <Form.Item key={key} label={label} colon={false}>
+        <Space.Compact block>
+          <Form.Item name={key} rules={rules} noStyle>
+            {options.length > 0 ? (
+              <Select
+                options={options.map((option) => ({
+                  label: option,
+                  value: option,
+                }))}
+              />
+            ) : (
+              <Input style={{ flex: 1, minWidth: 0 }} />
+            )}
+          </Form.Item>
+          {actualValue !== null && (
+            <span className="mask-param-resolved-value" aria-label="解析值">
+              {actualValue}
+            </span>
+          )}
+        </Space.Compact>
       </Form.Item>
     )
   }
@@ -406,34 +406,39 @@ function SubsystemParamWindow({
                           style={{ width: 150 }}
                         />
                       </Form.Item>
-                      <Form.Item
-                        name={[field.name, 'value']}
-                        rules={[
-                          {
-                            validator: () =>
-                              actual.error
-                                ? Promise.reject(new Error(actual.error))
-                                : Promise.resolve(),
-                          },
-                        ]}
-                      >
-                        <Input
-                          placeholder="封装参数值"
-                          addonAfter={
-                            usesMaskParam ? (
-                              <span aria-label="解析值">{actual.value}</span>
-                            ) : undefined
-                          }
-                          status={
-                            usesMaskParam && actual.error ? 'error' : undefined
-                          }
-                          rootClassName={
-                            usesMaskParam
-                              ? 'mask-param-resolved-input'
-                              : undefined
-                          }
-                          style={{ width: usesMaskParam ? 240 : 280 }}
-                        />
+                      <Form.Item>
+                        <Space.Compact>
+                          <Form.Item
+                            name={[field.name, 'value']}
+                            rules={[
+                              {
+                                validator: () =>
+                                  actual.error
+                                    ? Promise.reject(new Error(actual.error))
+                                    : Promise.resolve(),
+                              },
+                            ]}
+                            noStyle
+                          >
+                            <Input
+                              placeholder="封装参数值"
+                              status={
+                                usesMaskParam && actual.error
+                                  ? 'error'
+                                  : undefined
+                              }
+                              style={{ width: usesMaskParam ? 184 : 280 }}
+                            />
+                          </Form.Item>
+                          {usesMaskParam && (
+                            <span
+                              className="mask-param-resolved-value"
+                              aria-label="解析值"
+                            >
+                              {actual.value}
+                            </span>
+                          )}
+                        </Space.Compact>
                       </Form.Item>
                       <CloseOutlined
                         onClick={() => remove(field.name)}

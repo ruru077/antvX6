@@ -222,10 +222,18 @@
 
 @custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
 
-.mask-param-resolved-input .ant-input-group-addon {
-  min-width: 56px;
+.mask-param-resolved-value,
+.scope-sample-time-label,
+.scope-sample-time-unit {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d9d9d9;
   padding-inline: 8px;
   background: rgb(240 240 240);
-  text-align: right;
   white-space: nowrap;
+}
+
+.mask-param-resolved-value {
+  min-width: 56px;
+  justify-content: flex-end;
 }
