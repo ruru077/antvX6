@@ -1,3 +1,4 @@
+import { RED } from '@/assets/constant'
 import type { Edge, Graph, Scroller } from '@antv/x6'
 
 /**
@@ -62,7 +63,21 @@ export function openAutoPan(graph: Graph) {
   /**
    * @description 监听 edge 拖拽轨迹，触发窗口边缘自动平移
    */
-  graph.on('edge:mousemove', ({ e, edge }) => {
+  graph.on('edge:mousemove', ({ e, edge, view }) => {
+    const dragData = view.getEventData(e) as {
+      action?: string
+      terminalType?: 'source' | 'target'
+    }
+    // 仅预览线的端点拖拽允许自动平移并同步坐标。
+    if (
+      edge.attr('line/stroke') !== RED ||
+      dragData?.action !== 'drag-arrowhead' ||
+      !dragData.terminalType
+    ) {
+      stop()
+      return
+    }
+    draggingEndpoint = dragData.terminalType
     const paperContainer = document.querySelector('.paper-container')
     if (!paperContainer) return
     autoPan.edge = edge
@@ -83,6 +98,10 @@ export function openAutoPan(graph: Graph) {
       autoPan.intervalId = setInterval(() => {
         const scroller = graph.getPlugin<Scroller>('scroller')
         if (!scroller || !autoPan.edge) return
+        if (autoPan.edge.attr('line/stroke') !== RED) {
+          stop()
+          return
+        }
         const pos = scroller.getScrollbarPosition()
         scroller.setScrollbarPosition(
           pos.left + autoPan.dx,
