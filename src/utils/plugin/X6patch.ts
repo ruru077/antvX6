@@ -1,6 +1,7 @@
 import {
   CellView,
   Dom,
+  EdgeView,
   FunctionExt,
   Node,
   NodeView,
@@ -11,11 +12,17 @@ import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { isRoutingNode, routeAllEdges } from '@/services/routing-service'
-import type { Cell, Edge, EdgeView, Graph, Rectangle } from '@antv/x6'
+import type { Cell, Edge, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
 import type { Selection } from '@antv/x6/lib/plugin/selection'
 
 const commonService = createCommonService()
+const reverseSourceDragEdges = new WeakSet<Edge>()
+const activeReverseSourceDragGraphs = new WeakSet<Graph>()
+
+export function isReverseSourceDragEdge(edge: Edge) {
+  return reverseSourceDragEdges.has(edge)
+}
 
 /**
  * EdgeView 之间转移 X6 的 mouse batch，
@@ -51,8 +58,110 @@ CellView.prototype._getSelectors = function () {
 }
 
 const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
+const edgeViewProto = EdgeView.prototype as unknown as Record<string, any>
 
 const selectionProto = SelectionImpl.prototype as unknown as Record<string, any>
+
+// 输入端反向拉线时不高亮作为候选或当前吸附点的原 Edge。
+if (!edgeViewProto._skipReverseSourceEdgeHighlightPatched) {
+  const originalHighlight = edgeViewProto.highlight as EdgeView['highlight']
+  edgeViewProto.highlight = function (
+    this: EdgeView,
+    elem?: Element | null,
+    options?: Parameters<EdgeView['highlight']>[1],
+  ) {
+    if (
+      activeReverseSourceDragGraphs.has(this.graph) &&
+      (options?.type === 'magnetAvailable' ||
+        options?.type === 'magnetAdsorbed' ||
+        options?.type === 'nodeAvailable')
+    ) {
+      return this
+    }
+    return originalHighlight.call(this, elem, options)
+  }
+  edgeViewProto._skipReverseSourceEdgeHighlightPatched = true
+}
+
+// X6 给 Edge 候选只生成 { cell }，BranchEdge 必须保留所指位置的 ratio anchor。
+if (!edgeViewProto._sourceBranchTerminalPatched) {
+  const originalGetEdgeTerminal = edgeViewProto.getEdgeTerminal as (
+    this: EdgeView,
+    magnet: Element,
+    x: number,
+    y: number,
+    edge: Edge,
+    type: 'source' | 'target',
+  ) => ReturnType<EdgeView['getEdgeTerminal']>
+  edgeViewProto.getEdgeTerminal = function (
+    this: EdgeView,
+    magnet: Element,
+    x: number,
+    y: number,
+    edge: Edge,
+    type: 'source' | 'target',
+  ) {
+    const terminal = originalGetEdgeTerminal.call(
+      this,
+      magnet,
+      x,
+      y,
+      edge,
+      type,
+    )
+    if (type !== 'source' || !edge.getTargetCell()?.isNode()) return terminal
+    const ratio = this.getClosestPointRatio({ x, y })
+    if (ratio == null) {
+      throw new Error(`Cannot locate branch anchor on Edge ${this.cell.id}`)
+    }
+    return { ...terminal, anchor: { name: 'ratio', args: { ratio } } }
+  }
+  edgeViewProto._sourceBranchTerminalPatched = true
+}
+
+// X6 对同一候选 magnet 只更新一次端点；沿 Edge 移动时继续更新 ratio 预览。
+if (!edgeViewProto._reverseSourceEdgePreviewPatched) {
+  const originalSnapArrowhead = edgeViewProto.snapArrowhead as (
+    this: EdgeView,
+    x: number,
+    y: number,
+    data: {
+      terminalType: 'source' | 'target'
+      closestView?: EdgeView | null
+      closestMagnet?: Element | null
+    },
+  ) => void
+  edgeViewProto.snapArrowhead = function (
+    this: EdgeView,
+    x: number,
+    y: number,
+    data: {
+      terminalType: 'source' | 'target'
+      closestView?: EdgeView | null
+      closestMagnet?: Element | null
+    },
+  ) {
+    originalSnapArrowhead.call(this, x, y, data)
+    if (
+      !reverseSourceDragEdges.has(this.cell) ||
+      data.terminalType !== 'source'
+    )
+      return
+    const sourceView = data.closestView
+    if (!sourceView?.cell.isEdge()) return
+    const terminal = sourceView.getEdgeTerminal(
+      data.closestMagnet ?? sourceView.container,
+      x,
+      y,
+      this.cell,
+      'source',
+    )
+    if (JSON.stringify(this.cell.getSource()) !== JSON.stringify(terminal)) {
+      this.cell.setSource(terminal, { ui: true })
+    }
+  }
+  edgeViewProto._reverseSourceEdgePreviewPatched = true
+}
 
 // NodeView 旋转包含端口与内容；只让内容反向旋转以保持文字和图像正向阅读。
 if (!nodeViewProto._keepContentUprightPatched) {
@@ -372,6 +481,7 @@ if (!nodeViewProto._startConnecttingPatched) {
 
     const edge =
       this.getDefaultEdge(this, magnet) ?? new Shape.Edge(previewLinkAttrs)
+    reverseSourceDragEdges.add(edge)
     edge.setTarget({
       ...edge.getTarget(),
       ...this.getEdgeTerminal(magnet, x, y, edge, 'target'),
@@ -384,6 +494,7 @@ if (!nodeViewProto._startConnecttingPatched) {
     edge.addTo(this.graph.model, { async: false, ui: true })
 
     const edgeView = edge.findView(this.graph)
+    activeReverseSourceDragGraphs.add(this.graph)
     edgeView.setEventData(
       e,
       edgeView.prepareArrowheadDragging('source', {
@@ -393,11 +504,48 @@ if (!nodeViewProto._startConnecttingPatched) {
         fallbackAction: 'remove',
       }),
     )
-    this.setEventData(e, { edgeView })
+    this.setEventData(e, { edgeView, reverseSourceDrag: true })
     edgeView.notifyMouseDown(e, x, y)
   }
 
   nodeViewProto._startConnecttingPatched = true
+}
+
+// 输入端口反向拉线：等 EdgeView 完成 source 吸附后再寻路，最后提交同一历史批次。
+if (!nodeViewProto._stopReverseConnecttingPatched) {
+  const originalStopMagnetDragging = nodeViewProto.stopMagnetDragging
+  nodeViewProto.stopMagnetDragging = function (
+    this: any,
+    e: any,
+    x: number,
+    y: number,
+  ) {
+    const data = this.getEventData(e)
+    if (!data.reverseSourceDrag) {
+      return originalStopMagnetDragging.call(this, e, x, y)
+    }
+    const edgeView = data.edgeView as EdgeView
+    if (!edgeView) throw new Error('Reverse source drag EdgeView is required')
+    const edge = edgeView.cell
+    const graph = this.graph as Graph
+    void (async () => {
+      try {
+        edgeView.onMouseUp(e, x, y)
+        if (
+          graph.hasCell(edge) &&
+          edge.getSourceCell() &&
+          edge.getTargetCell()
+        ) {
+          await routeAllEdges(graph)
+        }
+      } finally {
+        reverseSourceDragEdges.delete(edge)
+        activeReverseSourceDragGraphs.delete(graph)
+        graph.model.stopBatch('add-edge')
+      }
+    })()
+  }
+  nodeViewProto._stopReverseConnecttingPatched = true
 }
 
 /**

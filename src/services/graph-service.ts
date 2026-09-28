@@ -71,8 +71,14 @@ function createGraph(container: HTMLElement): GraphType {
     autoResize: true,
     connecting: {
       allowNode: false,
-      // TODO 电力系统 允许Edge连接Edge
-      allowEdge: false,
+      // 只允许从模块输入端反向拖出的 source 吸附到 Edge；target 不能接 Edge。
+      allowEdge({ type, sourceCell, targetCell }: ValidateConnectionArgs) {
+        if (type === 'target' && targetCell?.isEdge()) return false
+        if (type === 'source' && sourceCell?.isEdge()) {
+          return !!targetCell?.isNode()
+        }
+        return true
+      },
       // 重连时当前 edge 仍挂在旧端口，排除它后再执行 X6 的重复连接判断。
       allowMulti({
         edge,
@@ -137,6 +143,19 @@ function createGraph(container: HTMLElement): GraphType {
         edge,
         type,
       }): boolean {
+        if (targetCell?.isEdge()) return false
+        // Edge 作为 source 没有 port，仍要校验固定的 target 输入端口。
+        if (type === 'source' && sourceCell?.isEdge()) {
+          if (targetPort == null) return false
+          return isConnectionValid(
+            graph,
+            sourceCell,
+            null,
+            targetCell as Node | null,
+            targetPort,
+            edge,
+          )
+        }
         // 缺少关键参数直接拒绝
         const candidatePort = type === 'source' ? sourcePort : targetPort
         if (candidatePort == null) return false

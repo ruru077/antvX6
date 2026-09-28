@@ -66,6 +66,7 @@ import {
 } from '@/utils/plugin/edgeToolVisibility'
 import {
   _patchScrollerForceUpdate,
+  isReverseSourceDragEdge,
   transferEdgeMouseBatch,
 } from '@/utils/plugin/X6patch'
 import type {
@@ -337,7 +338,7 @@ function registerEdgeMarkerListeners(graph: Graph) {
       edge.setTarget(source)
     }
     applyEdgeMarkerState(edge)
-    void routeAllEdges(graph)
+    if (!isReverseSourceDragEdge(edge)) void routeAllEdges(graph)
   }
 
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
@@ -345,6 +346,17 @@ function registerEdgeMarkerListeners(graph: Graph) {
     if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
     handleEdgeTerminalChanged(cell)
+    // 反向拉线高亮 Edge
+    if (isReverseSourceDragEdge(cell)) {
+      const selected = graph
+        .getSelectedCells()
+        .some((item) => item.id === cell.id)
+      if (cell.getSourceCell()?.isEdge() && cell.getTargetCell()?.isNode()) {
+        if (!selected) graph.resetSelection([cell])
+      } else if (selected) {
+        graph.resetSelection([])
+      }
+    }
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
     if (!cell.isEdge()) return
@@ -354,17 +366,20 @@ function registerEdgeMarkerListeners(graph: Graph) {
   }
 
   function handleEdgeTerminalChanged(edge: Edge) {
-    if (edge.getAttrs()?.line?.stroke === RED) {
+    // Branch Edge 或 Preview Edge 使用曼哈顿路由
+    if (
+      isReverseSourceDragEdge(edge) ||
+      edge.getAttrs()?.line?.stroke === RED
+    ) {
       fallbackEdgeToManhattan(edge)
       return
     }
-
+    // Edge 的 source/target 端口都已绑定，进行路由。
     if (isCompleteNodeEdge(edge)) {
       void routeAllEdges(graph)
       return
     }
-
-    fallbackEdgeToManhattan(edge)
+    console.error('未考虑情况发生')
   }
 
   return registerListeners(graph, [

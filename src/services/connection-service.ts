@@ -15,9 +15,11 @@ function resolveSourceFromUpstreamEdge(
   let current: Edge | null = startEdge
 
   while (current) {
-    const sourceCell = current.getSourceCell() as Node | Edge
+    const sourceCell = current.getSourceCell() as Node | Edge | null
     const sourcePortId = current.getSourcePortId()
+    if (!sourceCell) return null
     if (sourceCell.isNode()) {
+      if (!sourcePortId) return null
       return { cell: sourceCell, portId: sourcePortId }
     }
     current = sourceCell
@@ -61,7 +63,8 @@ function isConnectionValid(
 
   const sourcePortInfo = sourceCell.isNode()
     ? { cell: sourceCell, portId: sourcePort! }
-    : resolveSourceFromUpstreamEdge(sourceCell as Edge)!
+    : resolveSourceFromUpstreamEdge(sourceCell as Edge)
+  if (!sourcePortInfo) return false
 
   const sourceDirection = commonService.getPortGroup(
     sourcePortInfo.cell.getPort(sourcePortInfo.portId),
