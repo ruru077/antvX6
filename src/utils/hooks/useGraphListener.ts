@@ -64,7 +64,10 @@ import {
   getHoverEdgeToolId,
   setHoverEdgeToolsVisible,
 } from '@/utils/plugin/edgeToolVisibility'
-import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
+import {
+  _patchScrollerForceUpdate,
+  transferEdgeMouseBatch,
+} from '@/utils/plugin/X6patch'
 import type {
   Cell,
   Edge,
@@ -964,7 +967,11 @@ function registerEdgeBranchListeners(
         window.setTimeout(() => {
           void (async () => {
             try {
-              if (graph.hasCell(tempEdge)) await routeAllEdges(graph)
+              const exists = graph.hasCell(tempEdge)
+              const needsRoute = exists && tempEdge.getTargetCell()?.isNode()
+              if (needsRoute) {
+                await routeAllEdges(graph)
+              }
             } finally {
               graph.stopBatch('add-edge')
             }
@@ -975,7 +982,10 @@ function registerEdgeBranchListeners(
     )
     setTimeout(() => {
       const key = `__${graph.view.cid}__`
-      if (e.data?.[key]) e.data[key].currentView = tempEdgeView
+      if (e.data?.[key]) {
+        transferEdgeMouseBatch(edgeView, tempEdgeView)
+        e.data[key].currentView = tempEdgeView
+      }
     }, 0)
   }
 

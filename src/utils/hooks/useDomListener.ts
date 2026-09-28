@@ -16,6 +16,7 @@ import {
 } from '@/store/flags'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import { setHoverEdgeToolsVisible } from '@/utils/plugin/edgeToolVisibility'
+import { transferEdgeMouseBatch } from '@/utils/plugin/X6patch'
 import type { Cell, Edge, EdgeView, EventArgs, Graph, Node } from '@antv/x6'
 
 type EdgeMouseDownEvent = EventArgs['edge:mousedown']['e']
@@ -34,6 +35,8 @@ type PointerGesture =
       pageX: number
       pageY: number
       dragging: boolean
+      batchStarted: boolean
+      temporaryEdge: Edge | null
     }
   | {
       type: 'cell-copy'
@@ -145,6 +148,8 @@ function registerPointerGestures(
           pageX: e.pageX,
           pageY: e.pageY,
           dragging: false,
+          batchStarted: false,
+          temporaryEdge: null,
         }
       }
       e.preventDefault()
@@ -236,6 +241,8 @@ function registerPointerGestures(
 
       const startPosition = graph.pageToLocal(state.pageX, state.pageY)
       const ratio = state.edgeView.getClosestPointRatio(startPosition) ?? 0.5
+      graph.startBatch('add-edge')
+      state.batchStarted = true
       const temporaryEdge = graph.addEdge({
         source: {
           cell: state.edge.id,
@@ -244,6 +251,7 @@ function registerPointerGestures(
         target: { x: startPosition.x, y: startPosition.y },
         ...previewLinkAttrs,
       })
+      state.temporaryEdge = temporaryEdge
       graph.resetSelection([state.edge, temporaryEdge])
       const temporaryEdgeView = graph.findViewByCell(temporaryEdge) as EdgeView
       temporaryEdgeView.setEventData(
@@ -255,6 +263,7 @@ function registerPointerGestures(
           fallbackAction: 'remove',
         }),
       )
+      transferEdgeMouseBatch(state.edgeView, temporaryEdgeView)
       dragData.currentView = temporaryEdgeView
       // 拉出 Branch 时只隐藏箭头和 ratio anchor，常驻 EdgeEdit/label 保持不变。
       setHoverEdgeToolsVisible(graph, state.edge.id, false)
@@ -391,7 +400,27 @@ function registerPointerGestures(
     setRightEdgeDragging(false)
     scroller?.togglePanning(true)
     if (gesture?.type === 'edge-branch') {
+      const state = gesture
       gesture = null
+      if (state.batchStarted) {
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              const temporaryEdge = state.temporaryEdge
+              const exists = !!temporaryEdge && graph.hasCell(temporaryEdge)
+              const needsRoute =
+                !!temporaryEdge &&
+                exists &&
+                temporaryEdge.getTargetCell()?.isNode()
+              if (temporaryEdge && needsRoute) {
+                await routeAllEdges(graph)
+              }
+            } finally {
+              graph.stopBatch('add-edge')
+            }
+          })()
+        }, 0)
+      }
       return
     }
     if (gesture?.type !== 'cell-copy' || e.button !== gesture.button) return
@@ -434,6 +463,9 @@ function registerPointerGestures(
     if (gesture?.type === 'cell-copy' && gesture.batchStarted) {
       gesture.batchStarted = false
       graph.stopBatch('copy-cell')
+    }
+    if (gesture?.type === 'edge-branch' && gesture.batchStarted) {
+      graph.stopBatch('add-edge')
     }
     gesture = null
     graph.container.style.cursor = ''

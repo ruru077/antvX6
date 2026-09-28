@@ -382,7 +382,7 @@ function ExchangeDiagram({
                   </div>
                 ),
               }}
-              pagination={{ pageSize: 10, position: ['bottomRight'] }}
+              pagination={{ pageSize: 10, placement: ['bottomEnd'] }}
               rowKey="id"
               onRow={(model) => ({ onDoubleClick: () => showUpdate(model) })}
             />
@@ -416,7 +416,7 @@ function ExchangeDiagram({
                   </div>
                 ),
               }}
-              pagination={{ pageSize: 10, position: ['bottomRight'] }}
+              pagination={{ pageSize: 10, placement: ['bottomEnd'] }}
               rowKey="id"
               onRow={(model) => ({ onDoubleClick: () => showUpdate(model) })}
             />

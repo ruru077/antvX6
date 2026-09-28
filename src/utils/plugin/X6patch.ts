@@ -17,6 +17,25 @@ import type { Selection } from '@antv/x6/lib/plugin/selection'
 
 const commonService = createCommonService()
 
+/**
+ * EdgeView 之间转移 X6 的 mouse batch，
+ * 由新 EdgeView.onMouseUp 按 X6 原有生命周期关闭。
+ */
+export function transferEdgeMouseBatch(
+  sourceView: EdgeView,
+  targetView: EdgeView,
+) {
+  type MouseBatchView = EdgeView & {
+    cachedModelForMouseEvent: Graph['model'] | null
+  }
+  const source = sourceView as MouseBatchView
+  const target = targetView as MouseBatchView
+  const model = source.cachedModelForMouseEvent
+  if (!model) return
+  target.cachedModelForMouseEvent = model
+  source.cachedModelForMouseEvent = null
+}
+
 // ── X6 运行时原型补丁 ────────────────────────────────────────────────────────
 // _xxx 前缀表示自定义框架补丁方法，避免与 X6 未来版本的方法名冲突。
 // ─────────────────────────────────────────────────────────────────────────────
