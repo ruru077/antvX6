@@ -30,6 +30,23 @@ function selectContextNode(graph: Graph, cell: Cell) {
   graph.resetSelection([cell])
 }
 
+function rotateNodeWithRouting(
+  graph: Graph | null,
+  cell: Cell | undefined,
+  angle: number,
+) {
+  if (!graph || !cell?.isNode()) return
+  graph.startBatch('rotate-node')
+  void (async () => {
+    try {
+      cell.rotate(angle)
+      await routeAllEdges(graph)
+    } finally {
+      graph.stopBatch('rotate-node')
+    }
+  })()
+}
+
 function createContextMenuService(
   graph: Graph | null,
   cell?: Cell,
@@ -75,12 +92,10 @@ function createContextMenuService(
       removeCellsWithSubGraphHistory(graph, [cell])
     },
     rotateClockwise() {
-      if (!cell?.isNode()) return
-      cell.rotate(90)
+      rotateNodeWithRouting(graph, cell, 90)
     },
     rotateCounterclockwise() {
-      if (!cell?.isNode()) return
-      cell.rotate(-90)
+      rotateNodeWithRouting(graph, cell, -90)
     },
     formatDiagram() {
       if (!graph) return
@@ -217,7 +232,7 @@ function createContextMenuService(
       if (!graph) return
       const cells = graph.getSelectedCells()
       if (!cells.length) return
-      mergeToSubsystem(cells, graph)
+      void mergeToSubsystem(cells, graph)
     },
   }
 }

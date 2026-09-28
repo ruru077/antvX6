@@ -528,17 +528,11 @@ function registerNodeRouteListeners(graph: Graph) {
     void routeAllEdges(graph)
   }
 
-  function nodeAngleChangedHandler({ node }: EventArgs['node:change:angle']) {
-    if (!isRoutingNode(node)) return
-    void routeAllEdges(graph)
-  }
-
   return registerListeners(graph, [
     ['node:move', nodeMoveHandler],
     ['node:mousemove', nodeMouseMoveHandler],
     ['node:moved', nodeMovedHandler],
     ['node:resized', nodeResizedHandler],
-    ['node:change:angle', nodeAngleChangedHandler],
   ])
 }
 
