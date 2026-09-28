@@ -237,3 +237,11 @@
   min-width: 56px;
   justify-content: flex-end;
 }
+
+.friendly-module-rotation .x6-node text:not(.x6-port *),
+.friendly-module-rotation .x6-node image:not(.x6-port *),
+.friendly-module-rotation .x6-node foreignObject:not(.x6-port *) {
+  rotate: var(--node-content-counter-rotation, 0deg);
+  transform-box: fill-box;
+  transform-origin: center;
+}

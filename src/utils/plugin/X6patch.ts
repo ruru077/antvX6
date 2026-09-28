@@ -53,6 +53,24 @@ CellView.prototype._getSelectors = function () {
 const nodeViewProto = NodeView.prototype as unknown as Record<string, any>
 
 const selectionProto = SelectionImpl.prototype as unknown as Record<string, any>
+
+// NodeView 旋转包含端口与内容；只让内容反向旋转以保持文字和图像正向阅读。
+if (!nodeViewProto._keepContentUprightPatched) {
+  const originalUpdateTransform = nodeViewProto.updateTransform as (
+    this: NodeView,
+  ) => void
+  nodeViewProto.updateTransform = function (this: NodeView) {
+    originalUpdateTransform.call(this)
+    if (isRoutingNode(this.cell)) {
+      const container = this.container as SVGElement
+      container.style.setProperty(
+        '--node-content-counter-rotation',
+        `${-this.cell.getAngle()}deg`,
+      )
+    }
+  }
+  nodeViewProto._keepContentUprightPatched = true
+}
 const RUBBERBAND_SELECTION_RECT_KEY = '_rubberbandSelectionRect'
 
 /**

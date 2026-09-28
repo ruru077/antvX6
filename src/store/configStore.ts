@@ -18,6 +18,7 @@ interface ConfigValues {
   // 实验功能
   metaContextMenuEnabled: boolean
   betaGroupEnabled: boolean
+  friendlyModuleRotationEnabled: boolean
   // 开发者模式
   localSolverDebugEnabled: boolean
   localSolverPort: string
@@ -40,6 +41,7 @@ interface ConfigStore extends ConfigValues {
   setDateFormat: (fmt: string) => void
   setMetaContextMenuEnabled: (enabled: boolean) => void
   setBetaGroupEnabled: (enabled: boolean) => void
+  setFriendlyModuleRotationEnabled: (enabled: boolean) => void
   setLocalSolverDebugEnabled: (enabled: boolean) => void
   setLocalSolverPort: (port: string) => void
   setPrintDtoEnabled: (enabled: boolean) => void
@@ -60,6 +62,7 @@ const DEFAULT_VALUES: ConfigValues = {
   dateFormat: 'YYYY-MM-DD',
   metaContextMenuEnabled: false,
   betaGroupEnabled: false,
+  friendlyModuleRotationEnabled: false,
   localSolverDebugEnabled: false,
   localSolverPort: '',
   printDtoEnabled: false,
@@ -99,6 +102,8 @@ const useConfigStore = create<ConfigStore>()(
         setMetaContextMenuEnabled: (metaContextMenuEnabled) =>
           set({ metaContextMenuEnabled }),
         setBetaGroupEnabled: (betaGroupEnabled) => set({ betaGroupEnabled }),
+        setFriendlyModuleRotationEnabled: (friendlyModuleRotationEnabled) =>
+          set({ friendlyModuleRotationEnabled }),
         setLocalSolverDebugEnabled: (localSolverDebugEnabled) =>
           set({ localSolverDebugEnabled }),
         setLocalSolverPort: (localSolverPort) => set({ localSolverPort }),
@@ -127,6 +132,18 @@ resolveThemeClass(useConfigStore.getState().theme)
 useConfigStore.subscribe(
   (state) => state.theme,
   (theme) => resolveThemeClass(theme),
+)
+
+function syncFriendlyModuleRotation(enabled: boolean) {
+  document.documentElement.classList.toggle('friendly-module-rotation', enabled)
+}
+
+syncFriendlyModuleRotation(
+  useConfigStore.getState().friendlyModuleRotationEnabled,
+)
+useConfigStore.subscribe(
+  (state) => state.friendlyModuleRotationEnabled,
+  syncFriendlyModuleRotation,
 )
 
 export { useConfigStore }

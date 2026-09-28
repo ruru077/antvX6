@@ -172,6 +172,12 @@ const SETTING_SCHEMA: Record<string, SettingItem[]> = {
   ],
   实验功能: [
     {
+      key: 'friendlyModuleRotationEnabled',
+      label: '启用用户友好的模块旋转',
+      desc: '旋转时保持模块文字与图片正向阅读；旧模块的固定位置标签可能错位，供新版模块试用。',
+      type: 'toggle',
+    },
+    {
       key: 'betaGroupEnabled',
       label: '打开 Beta Group 模块',
       desc: '开启后在模块库与添加模块面板中显示 Beta 测试模块。',
@@ -198,6 +204,7 @@ type ConfigSlice = Pick<
   | 'dateFormat'
   | 'metaContextMenuEnabled'
   | 'betaGroupEnabled'
+  | 'friendlyModuleRotationEnabled'
   | 'setTheme'
   | 'setFontSize'
   | 'setCompactMode'
@@ -206,6 +213,7 @@ type ConfigSlice = Pick<
   | 'setDateFormat'
   | 'setMetaContextMenuEnabled'
   | 'setBetaGroupEnabled'
+  | 'setFriendlyModuleRotationEnabled'
 >
 
 function getConfigValue(
@@ -233,6 +241,8 @@ function setConfigValue(
   else if (key === 'metaContextMenuEnabled')
     store.setMetaContextMenuEnabled(Boolean(val))
   else if (key === 'betaGroupEnabled') store.setBetaGroupEnabled(Boolean(val))
+  else if (key === 'friendlyModuleRotationEnabled')
+    store.setFriendlyModuleRotationEnabled(Boolean(val))
 }
 
 // 子组件 ----------------------------------------------------
