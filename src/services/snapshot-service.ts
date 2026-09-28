@@ -2,7 +2,7 @@ import { Export, Graph } from '@antv/x6'
 import { EDGE_TARGET_CP_OFFSET } from '@/assets/constant'
 import type { ExportToImageOptions } from '@antv/x6/lib/plugin/export/type'
 import type { GraphJSON } from '~/types'
-import '@antv/x6/lib/plugin/export/api'
+import '@antv/x6/es/plugin/export/api'
 
 const SNAPSHOT_WIDTH = 800
 const SNAPSHOT_HEIGHT = 600
