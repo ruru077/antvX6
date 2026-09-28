@@ -1,10 +1,10 @@
 import { AvoidLib } from 'libavoid-js'
-import { GAP_SIZE, GRAPH_GRID, RED } from '@/assets/constant'
+import { GAP_SIZE, GRAPH_GRID, PORT_STUB_SIZE, RED } from '@/assets/constant'
 // 参数配置
 const ROUTE_OPTIONS = {
   edgeToNodeGap: 20,
   edgeToEdgeGap: 10,
-  stubSize: 20,
+  stubSize: PORT_STUB_SIZE,
   segmentPenalty: 80,
   anglePenalty: 100,
   crossingPenalty: 1500,
@@ -542,13 +542,20 @@ function applyBranchEdgesWithManhattan(routableEdges) {
   })
 }
 function applyRoutes(routes) {
-  routes.forEach(({ edge, points }) => {
+  routes.forEach(({ edge, points, source, target }) => {
     const routedPoints =
       ROUTE_OPTIONS.gridSize > 0
         ? points.map((point) => snapPoint(point, ROUTE_OPTIONS.gridSize))
         : points
     const normalized = dedupePoints(routedPoints)
-    const vertices = normalized.slice(1, -1)
+    // 端口 stub 必须留在路径里；其余共线中间点会破坏整段拖动。
+    const protectedIndices = new Set([0, normalized.length - 1])
+    if (source.hasStub) protectedIndices.add(1)
+    if (target.hasStub) protectedIndices.add(normalized.length - 2)
+    const vertices = simplifyRoutePoints(normalized, protectedIndices).slice(
+      1,
+      -1,
+    )
     edge.removeRouter({ ui: true, ignore: true })
     edge.setVertices(vertices, { ui: true, ignore: true })
     if (edge.attr('line/visibility') !== 'hidden') {
@@ -817,6 +824,45 @@ function dedupePoints(points) {
 function samePoint(a, b) {
   return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5
 }
+// 只删除未保护的重合点或同向共线中间点，保留端口方向约束点。
+function simplifyRoutePoints(points, protectedIndices = new Set()) {
+  const entries = points.map((point, index) => ({
+    point,
+    protected: protectedIndices.has(index),
+  }))
+  let index = 0
+  while (index < entries.length) {
+    if (
+      index + 1 < entries.length &&
+      samePoint(entries[index].point, entries[index + 1].point)
+    ) {
+      const removeIndex = !entries[index].protected
+        ? index
+        : !entries[index + 1].protected
+          ? index + 1
+          : -1
+      if (removeIndex >= 0) {
+        entries.splice(removeIndex, 1)
+        index = Math.max(0, index - 1)
+        continue
+      }
+    }
+    if (index > 0 && index + 1 < entries.length && !entries[index].protected) {
+      const a = entries[index - 1].point
+      const b = entries[index].point
+      const c = entries[index + 1].point
+      const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+      const forward = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y)
+      if (Math.abs(cross) < 0.01 && forward >= 0) {
+        entries.splice(index, 1)
+        index = Math.max(0, index - 1)
+        continue
+      }
+    }
+    index += 1
+  }
+  return entries.map(({ point }) => point)
+}
 function snapPoint(point, gridSize) {
   return {
     x: Math.round(point.x / gridSize) * gridSize,
@@ -840,6 +886,7 @@ function isCompleteNodeEdge(edge) {
 export {
   fallbackEdgeToManhattan,
   getPortRouteGeometry,
+  simplifyRoutePoints,
   ensureRoutingReady,
   isCompleteNodeEdge,
   isRoutingNode,

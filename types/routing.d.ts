@@ -26,10 +26,15 @@ declare module '@/services/routing-service' {
     node: Node,
     portId: string,
   ): PortRouteGeometry | null
+  function simplifyRoutePoints(
+    points: RoutePoint[],
+    protectedIndices?: Set<number>,
+  ): RoutePoint[]
 
   export {
     fallbackEdgeToManhattan,
     getPortRouteGeometry,
+    simplifyRoutePoints,
     ensureRoutingReady,
     isCompleteNodeEdge,
     isRoutingNode,

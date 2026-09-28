@@ -68,6 +68,7 @@ function initializeEdgeTools(
     'target-arrowhead',
     TOUCH_SOURCE_ARROWHEAD_TOOL,
     TOUCH_TARGET_ARROWHEAD_TOOL,
+    'm2p-vertices',
   ]
   const tools = edge.getTools()
   const persistentTools =
@@ -96,8 +97,14 @@ function initializeEdgeTools(
         },
       },
     })
-    // { name: 'vertices' },
-    // { name: 'segments' },
+    touchTools.push({
+      name: 'm2p-vertices',
+      args: {
+        addable: false,
+        removable: false,
+        removeRedundancies: false,
+      },
+    })
   }
 
   touchTools.push({

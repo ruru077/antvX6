@@ -369,6 +369,7 @@ function registerEdgeMarkerListeners(graph: Graph) {
     // Branch Edge 或 Preview Edge 使用曼哈顿路由
     if (
       isReverseSourceDragEdge(edge) ||
+      edge.getSourceCell()?.isEdge() ||
       edge.getAttrs()?.line?.stroke === RED
     ) {
       fallbackEdgeToManhattan(edge)

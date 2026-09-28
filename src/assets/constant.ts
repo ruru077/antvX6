@@ -34,6 +34,8 @@ const KEY_THROTTLE_TIME = 800
 const SAVE_MODEL_EVENT = 'model:save'
 // target connectionPoint 相对 anchor 的偏移量（负值 = 线段终点提前于 port）
 const EDGE_TARGET_CP_OFFSET = -5
+// Port 出线方向保留的固定线段长度
+const PORT_STUB_SIZE = 20
 // EDGE Wrapper 的宽度
 const EDGE_WRAPPER_WIDTH = 20
 // sourceArrowhead StrokeWdith
@@ -66,6 +68,7 @@ export {
   KEY_THROTTLE_TIME,
   SAVE_MODEL_EVENT,
   EDGE_TARGET_CP_OFFSET,
+  PORT_STUB_SIZE,
   EDGE_WRAPPER_WIDTH,
   SOURCE_ARROWHEAD_STROKE_WIDTH,
   TARGET_ARROWHEAD_STROKE_WIDTH,

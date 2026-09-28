@@ -25,7 +25,9 @@ import { rightEdgeDragging } from '@/store/flags'
 import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
 import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
 import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
+import { registerM2PVerticesTool } from '@/utils/plugin/m2pVerticesTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
+import { openPinDragPaper } from '@/utils/plugin/openPinDragPaper'
 import { registerRatioAnchorTool } from '@/utils/plugin/ratioAnchorTool'
 import { _patchScrollerOnUpdate } from '@/utils/plugin/X6patch'
 import type {
@@ -60,6 +62,12 @@ function createAndSetupGraph(
     onScale(Math.round(sx * 100))
   })
   openAutoPan(graph)
+  const closePinDragPaper = openPinDragPaper(graph)
+  const dispose = graph.dispose.bind(graph)
+  graph.dispose = (clean?: boolean) => {
+    closePinDragPaper()
+    dispose(clean)
+  }
   return graph
 }
 
@@ -254,6 +262,7 @@ function registerSteppedMouseWheel(graph: GraphType) {
 // ── 插件注册 ──────────────────────────────────────────────────────────────────
 
 registerEdgeEditTool()
+registerM2PVerticesTool()
 registerRatioAnchorTool()
 // registerSimulinkSegmentsTool()
 

@@ -206,6 +206,7 @@ function createInteractiveService() {
       'target-arrowhead',
       'touch-source-arrowhead',
       'touch-target-arrowhead',
+      'm2p-vertices',
     ]
     const tools = edge.getTools()
     const persistentTools =
@@ -234,8 +235,14 @@ function createInteractiveService() {
             },
           },
         },
-        // { name: 'vertices' },
-        // { name: 'segments' },
+        {
+          name: 'm2p-vertices',
+          args: {
+            addable: false,
+            removable: false,
+            removeRedundancies: false,
+          },
+        },
       )
     }
     hoverTools.push({
