@@ -12,6 +12,7 @@ import {
 import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
+import { connectNearbyPreviewPorts } from '@/services/connection-service'
 import {
   isRoutingNode,
   routeEdge,
@@ -538,6 +539,7 @@ if (!selectionProto._localRouteStopPatched) {
     this.graph.startBatch('route-selection')
     try {
       stopSelecting.call(this, e)
+      nodes.forEach((node) => connectNearbyPreviewPorts(this.graph, node))
     } catch (error) {
       this.graph.stopBatch('route-selection')
       throw error

@@ -1,7 +1,12 @@
+import { PREVIEW_PORT_SNAP_RADIUS, RED } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
-import { ensureRoutingReady, routeEdges } from '@/services/routing-service'
+import {
+  ensureRoutingReady,
+  getPortRouteGeometry,
+  routeEdges,
+} from '@/services/routing-service'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import type { Edge, Graph, Node } from '@antv/x6'
 
@@ -150,4 +155,68 @@ async function connectAvailablePorts(
   }
 }
 
-export { connectAvailablePorts, isConnectionValid }
+/** 放置模块后，将附近的预览线坐标端点连接到方向匹配的空闲端口。 */
+function connectNearbyPreviewPorts(graph: Graph, node: Node) {
+  if (!graph.hasCell(node)) return
+  const candidates: Array<{
+    edge: Edge
+    terminal: 'source' | 'target'
+    portId: string
+    distance: number
+  }> = []
+  for (const port of node.getPorts()) {
+    if (!port.id) continue
+    const group = commonService.getPortGroup(port)
+    if (!group) continue
+    const geometry = getPortRouteGeometry(node, port.id)
+    if (!geometry) continue
+    const portPoint = graph.localToClient(geometry.point)
+    const terminal = group === 'out' ? 'source' : 'target'
+    for (const edge of graph.getEdges()) {
+      if (edge.getAttrs()?.line?.stroke !== RED) continue
+      if (edge.getData()?.edgeInsertionPreview) continue
+      const endpoint = edge.getTerminal(terminal)
+      if ('cell' in endpoint || !('x' in endpoint) || !('y' in endpoint))
+        continue
+      if (typeof endpoint.x !== 'number' || typeof endpoint.y !== 'number')
+        continue
+      const point = graph.localToClient(endpoint.x, endpoint.y)
+      const distance = Math.hypot(point.x - portPoint.x, point.y - portPoint.y)
+      if (distance <= PREVIEW_PORT_SNAP_RADIUS)
+        candidates.push({ edge, terminal, portId: port.id, distance })
+    }
+  }
+  candidates.sort((a, b) => a.distance - b.distance)
+  if (!candidates.length) return
+  graph.startBatch('connect-preview-ports')
+  try {
+    for (const { edge, terminal, portId } of candidates) {
+      if ('cell' in edge.getTerminal(terminal)) continue
+      const source =
+        terminal === 'source'
+          ? node
+          : (edge.getSourceCell() as Node | Edge | null)
+      const target = terminal === 'target' ? node : edge.getTargetCell()
+      if (source?.id === target?.id || (target && !target.isNode())) continue
+      if (
+        !isConnectionValid(
+          graph,
+          source,
+          terminal === 'source' ? portId : edge.getSourcePortId(),
+          target as Node | null,
+          terminal === 'target' ? portId : edge.getTargetPortId(),
+          edge,
+        )
+      )
+        continue
+      // 使用原 Edge，保留其 ID、分支及已有编辑数据。
+      if (terminal === 'source') edge.setSource({ cell: node.id, port: portId })
+      else edge.setTarget({ cell: node.id, port: portId })
+      interactiveService.initializeEdgeTools(edge)
+    }
+  } finally {
+    graph.stopBatch('connect-preview-ports')
+  }
+}
+
+export { connectAvailablePorts, connectNearbyPreviewPorts, isConnectionValid }

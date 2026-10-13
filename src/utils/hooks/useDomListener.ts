@@ -1,7 +1,10 @@
 import { RED, RIGHT_DRAG_COPY_THRESHOLD } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { connectAvailablePorts } from '@/services/connection-service'
+import {
+  connectAvailablePorts,
+  connectNearbyPreviewPorts,
+} from '@/services/connection-service'
 import {
   clearEdgeInsertionPreview,
   commitEdgeInsertion,
@@ -373,6 +376,7 @@ function registerPointerGestures(
       if (state.insertionNode) {
         updateEdgeInsertionPreview(graph, state.insertionNode)
         const committed = await commitEdgeInsertion(graph, state.insertionNode)
+        connectNearbyPreviewPorts(graph, state.insertionNode)
         if (!committed) await routeNodeEdges(graph, [state.insertionNode])
       } else {
         clearEdgeInsertionPreview(graph)

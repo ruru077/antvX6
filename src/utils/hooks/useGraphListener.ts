@@ -12,6 +12,7 @@ import { editAnnotationNode } from '@/services/annotation-service'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { UPDATE_BLOCK_PARAMS } from '@/services/block-param-service'
 import { createCommonService } from '@/services/common-service'
+import { connectNearbyPreviewPorts } from '@/services/connection-service'
 import { createDomService } from '@/services/dom-service'
 import {
   canInsertNodeOnEdge,
@@ -537,6 +538,7 @@ function registerEdgeInsertionListeners(graph: Graph) {
     if (!isRoutingNode(node)) return
     try {
       const committed = await commitEdgeInsertion(graph, node)
+      connectNearbyPreviewPorts(graph, node)
       if (!committed) await routeNodeEdges(graph, [node])
     } finally {
       finishNodeRoutes(graph, [node])
@@ -550,6 +552,7 @@ function registerEdgeInsertionListeners(graph: Graph) {
   async function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
     if (!options.stencil || !isRoutingNode(node)) return
     const committed = await commitEdgeInsertion(graph, node)
+    connectNearbyPreviewPorts(graph, node)
     if (!committed) await routeNodeEdges(graph, [node])
   }
 

@@ -18,6 +18,8 @@ const EDGE_STROKE_WIDTH = 1
 const GAP_SIZE = 2
 // 吸附触发Threshold
 const SNAP_RADIUS = 20
+// 模块放置后，端口自动连接预览线悬空端点的屏幕距离（px）。
+const PREVIEW_PORT_SNAP_RADIUS = 10
 // 粘贴时节点偏移量
 const PASTE_OFFSET = 32
 // STENCIL节点行内间距
@@ -61,6 +63,7 @@ export {
   TARGETMARKER_SIZE,
   GAP_SIZE,
   SNAP_RADIUS,
+  PREVIEW_PORT_SNAP_RADIUS,
   EDGE_STROKE_WIDTH,
   PASTE_OFFSET,
   STENCIL_NODE_ROW_GAP,
