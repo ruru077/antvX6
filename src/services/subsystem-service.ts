@@ -1348,15 +1348,15 @@ function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
 
 interface BuildGraphModelDTOOptions {
   purpose?: 'simulation' | 'compilation'
-  userId?: number
+  userId: number
   modelId?: number
 }
 
 async function buildGraphModelDTO(
   graph: Graph,
-  options: BuildGraphModelDTOOptions = {},
+  options: BuildGraphModelDTOOptions,
 ): Promise<GraphModelDTO> {
-  const { purpose = 'simulation', userId = 0, modelId = 0 } = options
+  const { purpose = 'simulation', userId, modelId = 0 } = options
   const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
   const { config } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, rootId, graph)

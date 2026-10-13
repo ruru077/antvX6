@@ -37,6 +37,14 @@ const commonService = createCommonService()
 const primaryModifierLabel =
   commonService.getPrimaryModifeierByDevice() === 'metaKey' ? '⌘' : 'Ctrl+'
 
+function getUserId(userId: number | string | undefined): number {
+  if (userId == null || (typeof userId === 'string' && !userId.trim()))
+    throw new Error('缺少有效的 userId')
+  const numericUserId = Number(userId)
+  if (!Number.isInteger(numericUserId)) throw new Error('缺少有效的 userId')
+  return numericUserId
+}
+
 function PaperToolbar({
   exchangePath,
   showIssueLink,
@@ -111,7 +119,9 @@ function PaperToolbar({
     simulation.setError(null)
     syncGraph(graph.toJSON())
     try {
-      const model = await buildGraphModelDTO(graph)
+      const model = await buildGraphModelDTO(graph, {
+        userId: getUserId(ncslabContext?.user.id),
+      })
       if (useConfigStore.getState().printDtoEnabled) {
         console.log(JSON.stringify(model, null, 2))
       }
@@ -136,17 +146,14 @@ function PaperToolbar({
     setCompilationPercent(0)
     syncGraph(graph.toJSON())
     try {
-      if (ncslabContext?.user.id == null) throw new Error('缺少有效的 userId')
       if (modelId == null) throw new Error('缺少有效的 modelId')
-      const numericUserId = Number(ncslabContext?.user.id)
       const numericModelId = Number(modelId)
-      if (!Number.isInteger(numericUserId)) throw new Error('缺少有效的 userId')
       if (!Number.isInteger(numericModelId))
         throw new Error('缺少有效的 modelId')
 
       const model = await buildGraphModelDTO(graph, {
         purpose: 'compilation',
-        userId: numericUserId,
+        userId: getUserId(ncslabContext?.user.id),
         modelId: numericModelId,
       })
       if (useConfigStore.getState().printDtoEnabled) {
