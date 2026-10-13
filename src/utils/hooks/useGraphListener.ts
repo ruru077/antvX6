@@ -163,6 +163,9 @@ function registerScopeListeners(graph: Graph) {
 
 // ── Cell 交互：按下即选中 ───────────────────────────────────────────────
 function registerCellSelectionListeners(graph: Graph) {
+  let boxClick: { cell: Cell; x: number; y: number; moved: boolean } | null =
+    null
+
   function cellMouseDownHandler({ cell, e }: EventArgs['cell:mousedown']) {
     // 点击 Port 时不选中 cell
     if (e.target.closest('.x6-port')) return
@@ -171,8 +174,34 @@ function registerCellSelectionListeners(graph: Graph) {
     graph.resetSelection([cell])
   }
 
+  // 多选时节点上的 Selection box 会拦截 CellView 的鼠标事件。
+  // 松开时才收缩选择，让整组拖动仍由 Selection 正常处理。
+  function boxMouseDownHandler({ cell, e, x, y }: EventArgs['box:mousedown']) {
+    boxClick = null
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
+      return
+    const box = (e.target as Element).closest('.x6-widget-selection-box')
+    if (!cell || box?.getAttribute('data-cell-id') !== cell.id) return
+    boxClick = { cell, x, y, moved: false }
+  }
+
+  function boxMouseMoveHandler({ x, y }: EventArgs['box:mousemove']) {
+    if (boxClick && (x !== boxClick.x || y !== boxClick.y))
+      boxClick.moved = true
+  }
+
+  function boxMouseUpHandler({ x, y }: EventArgs['box:mouseup']) {
+    const click = boxClick
+    boxClick = null
+    if (!click || click.moved || x !== click.x || y !== click.y) return
+    if (graph.hasCell(click.cell)) graph.resetSelection([click.cell])
+  }
+
   return registerListeners(graph, [
     ['cell:mousedown', withDeviceGuard('desktop', cellMouseDownHandler)],
+    ['box:mousedown', withDeviceGuard('desktop', boxMouseDownHandler)],
+    ['box:mousemove', withDeviceGuard('desktop', boxMouseMoveHandler)],
+    ['box:mouseup', withDeviceGuard('desktop', boxMouseUpHandler)],
   ])
 }
 
