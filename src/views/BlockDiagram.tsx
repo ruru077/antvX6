@@ -41,6 +41,7 @@ type BlockDiagramProps = {
   exchangePath?: string
   showIssueLink?: boolean
   onReady?: () => void
+  active?: boolean
 }
 
 /**
@@ -55,6 +56,7 @@ function DiagramWorkspace({
   exchangePath = '/exchange',
   showIssueLink = false,
   onReady,
+  active = true,
 }: BlockDiagramProps) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
@@ -85,7 +87,12 @@ function DiagramWorkspace({
     )
     useSubGraphStore.getState().markSaved()
   }, [initialConfig, initialModel, modelId, modelName])
-  const graphLoadingStage = useKeepAliveGraphViewport()
+  // 在上面的模型加载 layout effect 之后安排画布适应。
+  const graphLoadingStage = useKeepAliveGraphViewport(
+    active,
+    stencilReady,
+    initialModel,
+  )
   const workspaceStage = stencilReady ? graphLoadingStage : 'initializing'
   useEffect(() => {
     if (workspaceStage === 'ready') onReady?.()

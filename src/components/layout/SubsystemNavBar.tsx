@@ -38,7 +38,7 @@ function SubsystemNavBar() {
   const items = currentPathIds.map((id, index) => {
     const isLast = index === currentPathIds.length - 1
     const isRoot = index === 0
-    const name = subGraphs[id].name
+    const name = isRoot ? 'root' : subGraphs[id].name
     const label = (
       <Space
         size={2}

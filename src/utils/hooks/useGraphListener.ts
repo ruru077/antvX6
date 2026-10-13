@@ -25,7 +25,12 @@ import {
   fallbackEdgeToManhattan,
   isCompleteNodeEdge,
   isRoutingNode,
-  routeAllEdges,
+  routeEdge,
+  routeNodeEdges,
+  captureNodeRoutes,
+  captureEdgeRoutes,
+  finishNodeRoutes,
+  isRoutingReplay,
 } from '@/services/routing-service'
 import {
   hasSubsystemMask,
@@ -328,7 +333,7 @@ function registerEdgeMarkerListeners(graph: Graph) {
     edge,
     currentCell,
   }: EventArgs['edge:connected']) {
-    if (!currentCell) return
+    if (!currentCell || isRoutingReplay(graph)) return
     if (!edge.getSourceCell() || !edge.getTargetCell()) return
 
     if (isReverseConnection(edge)) {
@@ -338,10 +343,12 @@ function registerEdgeMarkerListeners(graph: Graph) {
       edge.setTarget(source)
     }
     applyEdgeMarkerState(edge)
-    if (!isReverseSourceDragEdge(edge)) void routeAllEdges(graph)
+    if (!isReverseSourceDragEdge(edge))
+      void routeEdge(edge, { reason: 'connect' })
   }
 
   function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
+    if (isRoutingReplay(graph)) return
     if (!cell.isEdge()) return
     if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
@@ -359,6 +366,7 @@ function registerEdgeMarkerListeners(graph: Graph) {
     }
   }
   function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
+    if (isRoutingReplay(graph)) return
     if (!cell.isEdge()) return
     if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
@@ -369,21 +377,29 @@ function registerEdgeMarkerListeners(graph: Graph) {
     // Branch Edge 或 Preview Edge 使用曼哈顿路由
     if (
       isReverseSourceDragEdge(edge) ||
-      edge.getSourceCell()?.isEdge() ||
       edge.getAttrs()?.line?.stroke === RED
     ) {
       fallbackEdgeToManhattan(edge)
       return
     }
     // Edge 的 source/target 端口都已绑定，进行路由。
-    if (isCompleteNodeEdge(edge)) {
-      void routeAllEdges(graph)
+    if (
+      isCompleteNodeEdge(edge) ||
+      edge.getSourceCell()?.isEdge() ||
+      edge.getTargetCell()?.isEdge()
+    ) {
+      void routeEdge(edge, { reason: 'terminal' })
       return
     }
     console.error('未考虑情况发生')
   }
 
   return registerListeners(graph, [
+    [
+      'edge:mousedown',
+      ({ edge }: EventArgs['edge:mousedown']) =>
+        captureEdgeRoutes(graph, [edge]),
+    ],
     ['edge:connected', edgeConnectedHandler],
     ['cell:change:source', edgeSourceChangedHandler],
     ['cell:change:target', edgeTargetChangedHandler],
@@ -483,8 +499,9 @@ function registerEdgeInsertionListeners(graph: Graph) {
     if (!isRoutingNode(node)) return
     try {
       const committed = await commitEdgeInsertion(graph, node)
-      if (!committed) await routeAllEdges(graph)
+      if (!committed) await routeNodeEdges(graph, [node])
     } finally {
+      finishNodeRoutes(graph, [node])
       if (movingRoutingNodeId === node.id) {
         movingRoutingNodeId = null
         graph.stopBatch('move-routing-node')
@@ -495,7 +512,7 @@ function registerEdgeInsertionListeners(graph: Graph) {
   async function nodeAddedHandler({ node, options }: EventArgs['node:added']) {
     if (!options.stencil || !isRoutingNode(node)) return
     const committed = await commitEdgeInsertion(graph, node)
-    if (!committed) await routeAllEdges(graph)
+    if (!committed) await routeNodeEdges(graph, [node])
   }
 
   const unregister = registerListeners(graph, [
@@ -516,8 +533,16 @@ function registerEdgeInsertionListeners(graph: Graph) {
 // ── Node 移动时重新巡线 ───────────────────────────────────────────────────
 function registerNodeRouteListeners(graph: Graph) {
   const lastPositions = new Map<string, { x: number; y: number }>()
+  const transforming = new Set<Node>()
+  function beginTransform({ node }: { node: Node }) {
+    if (!isRoutingNode(node) || transforming.has(node)) return
+    captureNodeRoutes(graph, [node])
+    transforming.add(node)
+    graph.startBatch('transform-routing-node')
+  }
 
   function nodeMoveHandler({ node }: EventArgs['node:move']) {
+    captureNodeRoutes(graph, [node])
     lastPositions.set(node.id, node.getPosition())
   }
 
@@ -532,23 +557,31 @@ function registerNodeRouteListeners(graph: Graph) {
     // Edge 原路线不动，否则全局避障会先把 Edge 绕开，永远无法进入吸附范围。
     // 命中后仅由 insertion service 触发预览 Edge 的 Avoid 路由。
     if (canInsertNodeOnEdge(graph, node)) return
-    void routeAllEdges(graph)
+    void routeNodeEdges(graph, [node])
   }
 
   function nodeMovedHandler({ node }: EventArgs['node:moved']) {
     lastPositions.delete(node.id)
   }
 
-  function nodeResizedHandler({ node }: EventArgs['node:resized']) {
+  async function nodeResizedHandler({ node }: EventArgs['node:resized']) {
     if (!isRoutingNode(node)) return
-    void routeAllEdges(graph)
+    try {
+      await routeNodeEdges(graph, [node], { reason: 'resize' })
+    } finally {
+      finishNodeRoutes(graph, [node])
+      if (transforming.delete(node)) graph.stopBatch('transform-routing-node')
+    }
   }
 
   return registerListeners(graph, [
     ['node:move', nodeMoveHandler],
+    ['node:resize', beginTransform],
+    ['node:rotate', beginTransform],
     ['node:mousemove', nodeMouseMoveHandler],
     ['node:moved', nodeMovedHandler],
     ['node:resized', nodeResizedHandler],
+    ['node:rotated', nodeResizedHandler],
   ])
 }
 
@@ -980,7 +1013,7 @@ function registerEdgeBranchListeners(
               const exists = graph.hasCell(tempEdge)
               const needsRoute = exists && tempEdge.getTargetCell()?.isNode()
               if (needsRoute) {
-                await routeAllEdges(graph)
+                await routeEdge(tempEdge, { reason: 'connect' })
               }
             } finally {
               graph.stopBatch('add-edge')
@@ -1034,4 +1067,9 @@ function registerListeners(graph: Graph, entries: ListenerEntry[]): () => void {
     }
   }
 }
-export { useGraphListener }
+export {
+  useGraphListener,
+  registerNodeRouteListeners,
+  registerEdgeInsertionListeners,
+  registerEdgeMarkerListeners,
+}

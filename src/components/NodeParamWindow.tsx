@@ -14,7 +14,11 @@ import {
   resolveMaskParamValue,
 } from '@/services/mask-param-service'
 import { resizeBlockByParamValues } from '@/services/resize-serviec'
-import { routeAllEdges } from '@/services/routing-service'
+import {
+  routeNodeEdges,
+  captureNodeRoutes,
+  finishNodeRoutes,
+} from '@/services/routing-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { Graph, Node, NodeProperties } from '@antv/x6'
@@ -94,6 +98,7 @@ function BlockParamWindow({
       )
       const { graph, node } = activateTargetNode(target)
       graph.startBatch(UPDATE_BLOCK_PARAMS)
+      captureNodeRoutes(graph, [node])
       try {
         node.setData(
           { paramValues: nextParamValues },
@@ -101,8 +106,9 @@ function BlockParamWindow({
         )
         resizeBlockByParamValues(node, nextParamValues)
         syncBlockDisplayByParamValues(node, nextParamValues)
-        await routeAllEdges(graph)
+        await routeNodeEdges(graph, [node], { reason: 'ports' })
       } finally {
+        finishNodeRoutes(graph, [node])
         graph.stopBatch(UPDATE_BLOCK_PARAMS)
       }
       onDestroy()

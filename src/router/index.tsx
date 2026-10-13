@@ -1,26 +1,33 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router'
 import DeployPage from '@/views/DeployPage'
 import RootLayout from '@/views/layout/RootLayout'
-import NcslabIframeDemo from '@/views/NcslabIframeDemo'
-import BlogPage from '@/views/site/BlogPage'
-import ExchangeWorkspaceRoutes from '@/views/site/ExchangeWorkspaceRoutes'
-import HomePage from '@/views/site/HomePage'
+
+const ExchangeWorkspaceRoutes = lazy(
+  () => import('@/views/site/ExchangeWorkspaceRoutes'),
+)
 
 const router = createBrowserRouter([
   {
     path: '/iframe-demo',
-    Component: NcslabIframeDemo,
+    hydrateFallbackElement: <></>,
+    lazy: async () => ({
+      Component: (await import('@/views/NcslabIframeDemo')).default,
+    }),
   },
   {
     Component: DeployPage,
+    hydrateFallbackElement: <></>,
     children: [
       {
         element: (
-          <ExchangeWorkspaceRoutes
-            exchangePath="/deploy"
-            workspacePath="/deploy-workspace"
-            showIssueLink
-          />
+          <Suspense fallback={null}>
+            <ExchangeWorkspaceRoutes
+              exchangePath="/deploy"
+              workspacePath="/deploy-workspace"
+              showIssueLink
+            />
+          </Suspense>
         ),
         children: [
           { path: '/deploy', element: null },
@@ -32,18 +39,23 @@ const router = createBrowserRouter([
   {
     path: '/',
     Component: RootLayout,
+    hydrateFallbackElement: <></>,
     children: [
       // ── 首页（index route）── //
       {
         index: true,
-        Component: HomePage,
+        lazy: async () => ({
+          Component: (await import('@/views/site/HomePage')).default,
+        }),
       },
       {
         element: (
-          <ExchangeWorkspaceRoutes
-            exchangePath="/exchange"
-            workspacePath="/workspace"
-          />
+          <Suspense fallback={null}>
+            <ExchangeWorkspaceRoutes
+              exchangePath="/exchange"
+              workspacePath="/workspace"
+            />
+          </Suspense>
         ),
         children: [
           { path: '/exchange', element: null },
@@ -52,7 +64,9 @@ const router = createBrowserRouter([
       },
       {
         path: '/blog',
-        Component: BlogPage,
+        lazy: async () => ({
+          Component: (await import('@/views/site/BlogPage')).default,
+        }),
       },
       {
         path: '/model2',

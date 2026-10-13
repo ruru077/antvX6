@@ -1,5 +1,23 @@
 import { AvoidLib } from 'libavoid-js'
-import { GAP_SIZE, GRAPH_GRID, PORT_STUB_SIZE, RED } from '@/assets/constant'
+import {
+  GAP_SIZE,
+  GRAPH_GRID,
+  PORT_STUB_SIZE,
+  RED,
+  NODE_ROUTE_RESET_DISTANCE,
+} from '@/assets/constant'
+import {
+  repairManualRoute,
+  validRoute,
+  scoreFixedPaths,
+} from './routing-geometry'
+import {
+  getRoutingSession,
+  invalidateRouting,
+  isRoutingReplay,
+  routingMode,
+  sameVertices,
+} from './routing-session'
 // 参数配置
 const ROUTE_OPTIONS = {
   edgeToNodeGap: 20,
@@ -14,9 +32,6 @@ const ROUTE_OPTIONS = {
   gapSize: GAP_SIZE,
   cornerRadius: 0,
 }
-let routeRequestId = 0
-let activeRoutePromise = null
-let pendingRouteGraph = null
 let avoidInitPromise = null
 const AVOID_CONN_DIR_UP = 1
 const AVOID_CONN_DIR_DOWN = 2
@@ -27,44 +42,322 @@ const INSERT_PREVIEW_TERMINALS = 'edgeInsertionPreviewTerminals'
 function isRoutingNode(node) {
   return node.getPorts().length > 0
 }
-async function routeAllEdges(graph) {
-  pendingRouteGraph = graph
-  if (activeRoutePromise) return activeRoutePromise
-  activeRoutePromise = drainRouteQueue()
-  try {
-    await activeRoutePromise
-  } finally {
-    activeRoutePromise = null
+function routeAllEdges(graph) {
+  return routeEdges(graph, graph.getEdges(), { reason: 'global', force: true })
+}
+function routeEdge(edge, options = {}) {
+  const graph = edge.model?.graph
+  return graph ? routeEdges(graph, [edge], options) : Promise.resolve()
+}
+function connectedNodeEdges(graph, nodes) {
+  return [
+    ...new Set(nodes.flatMap((node) => graph.getConnectedEdges(node) ?? [])),
+  ]
+}
+function withDependentEdges(graph, edges) {
+  const result = new Set(edges)
+  for (const parent of result) {
+    graph.getEdges().forEach((edge) => {
+      if ([edge.getSourceCellId(), edge.getTargetCellId()].includes(parent.id))
+        result.add(edge)
+    })
+  }
+  return [...result]
+}
+function routeNodeEdges(graph, nodes, options = {}) {
+  const state = getRoutingSession(graph)
+  const forced = new Set()
+  if (!options.reason || options.reason === 'node') {
+    for (const node of nodes) {
+      const drag = state.nodeDrags.get(node)
+      if (!drag) continue
+      const position = node.getPosition()
+      // Latch at request time: frame coalescing must not lose a threshold crossing.
+      if (
+        Math.hypot(position.x - drag.x, position.y - drag.y) >
+        NODE_ROUTE_RESET_DISTANCE
+      )
+        drag.relayout = true
+      if (drag.relayout)
+        connectedNodeEdges(graph, [node]).forEach((edge) => forced.add(edge))
+    }
+  }
+  const edges = connectedNodeEdges(graph, nodes)
+  if (forced.size)
+    routeEdges(graph, [...forced], { ...options, reason: 'node', force: true })
+  return routeEdges(
+    graph,
+    edges.filter((edge) => !forced.has(edge)),
+    { reason: 'node', ...options },
+  )
+}
+function captureNodeRoutes(graph, nodes) {
+  captureEdgeRoutes(graph, connectedNodeEdges(graph, nodes))
+  const state = getRoutingSession(graph)
+  nodes.forEach((node) => {
+    if (!state.nodeDrags.has(node))
+      state.nodeDrags.set(node, { ...node.getPosition(), relayout: false })
+  })
+  withDependentEdges(graph, connectedNodeEdges(graph, nodes)).forEach(
+    (edge) => {
+      const snapshot = state.snapshots.get(edge)
+      if (snapshot) snapshot.gesture = true
+    },
+  )
+}
+function captureEdgeRoutes(graph, edges, { gesture = false } = {}) {
+  const state = getRoutingSession(graph)
+  for (const edge of withDependentEdges(graph, edges)) {
+    if (state.snapshots.get(edge)?.gesture) continue
+    const source = getTerminalInfo(graph, edge, 'source')
+    const target = getTerminalInfo(graph, edge, 'target')
+    if (source && target)
+      state.snapshots.set(edge, {
+        source,
+        target,
+        mode: routingMode(edge),
+        gesture,
+        points: getExistingRoutePoints(graph, { edge, source, target }),
+      })
   }
 }
-async function drainRouteQueue() {
-  while (pendingRouteGraph) {
-    const graph = pendingRouteGraph
-    pendingRouteGraph = null
-    await routeAllEdgesNow(graph)
+function finishNodeRoutes(graph, nodes) {
+  const state = getRoutingSession(graph)
+  nodes.forEach((node) => state.nodeDrags.delete(node))
+  finishEdgeRoutes(graph, connectedNodeEdges(graph, nodes))
+}
+function finishEdgeRoutes(graph, edges) {
+  const state = getRoutingSession(graph)
+  withDependentEdges(graph, edges).forEach((edge) =>
+    state.snapshots.delete(edge),
+  )
+}
+function beginManualEdgeEdit(edge) {
+  const graph = edge.model?.graph
+  if (!graph) return
+  const state = getRoutingSession(graph)
+  captureEdgeRoutes(
+    graph,
+    withDependentEdges(graph, [edge]).filter((child) => child !== edge),
+  )
+  state.editing.add(edge)
+  state.pending.delete(edge)
+  state.snapshots.delete(edge)
+  state.revision++
+}
+function finishManualEdgeEdit(edge, original) {
+  const graph = edge.model?.graph
+  if (!graph) return Promise.resolve()
+  const state = getRoutingSession(graph)
+  state.editing.delete(edge)
+  if (sameVertices(original, edge.getVertices())) {
+    withDependentEdges(graph, [edge]).forEach((child) => {
+      if (!state.snapshots.get(child)?.gesture) state.snapshots.delete(child)
+    })
+    return Promise.resolve()
+  }
+  edge.setData({ routingMode: 'manual' }, { routingWrite: true })
+  return routeDependentEdges(edge)
+}
+function routeDependentEdges(edge) {
+  const graph = edge.model?.graph
+  if (!graph) return Promise.resolve()
+  const children = graph
+    .getEdges()
+    .filter(
+      (child) =>
+        child !== edge &&
+        [child.getSourceCellId(), child.getTargetCellId()].includes(edge.id),
+    )
+  return routeEdges(graph, children, { reason: 'parent' })
+}
+function routeEdges(graph, edges, options = {}) {
+  const state = getRoutingSession(graph)
+  if (state.disposed || isRoutingReplay(graph)) return Promise.resolve()
+  for (const edge of edges) {
+    if (graph.getCellById(edge.id) !== edge || state.editing.has(edge)) continue
+    const previous = state.pending.get(edge)
+    state.pending.set(edge, {
+      ...previous,
+      ...options,
+      force: !!(previous?.force || options.force),
+    })
+  }
+  if (!state.pending.size) return state.promise ?? Promise.resolve()
+  if (!state.promise) {
+    state.promise = drainRouteQueue(graph, state).finally(() => {
+      state.promise = null
+      // A listener may enqueue in a microtask after drain's last synchronous pass.
+      if (!state.disposed && state.pending.size) return routeEdges(graph, [])
+    })
+  }
+  return state.promise
+}
+async function drainRouteQueue(graph, state) {
+  // Merge event bursts and wait for WASM before taking geometry snapshots.
+  await new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function')
+      requestAnimationFrame(resolve)
+    else setTimeout(resolve, 0)
+  })
+  const avoid = await ensureAvoidReady()
+  while (!state.disposed && state.pending.size) {
+    const epoch = state.epoch
+    const requests = new Map(state.pending)
+    state.pending.clear()
+    const all = getRoutableEdges(graph)
+    const byId = new Map(all.map((entry) => [entry.edge.id, entry]))
+    const active = new Map()
+    function include(entry, options, ancestors = new Set()) {
+      if (!entry || state.editing.has(entry.edge) || ancestors.has(entry.edge))
+        return
+      const previous = active.get(entry.edge)
+      active.set(entry.edge, {
+        ...options,
+        ...previous,
+        force: !!(previous?.force || options.force),
+      })
+      if (previous && (!options.force || previous.force)) return
+      const next = new Set(ancestors).add(entry.edge)
+      all
+        .filter(
+          (child) =>
+            child.source.nodeId === entry.edge.id ||
+            child.target.nodeId === entry.edge.id,
+        )
+        .forEach((child) =>
+          include(child, { reason: 'parent', force: options.force }, next),
+        )
+    }
+    requests.forEach((options, edge) => {
+      if (graph.getCellById(edge.id) === edge)
+        include(byId.get(edge.id), options)
+    })
+    const fixed = all
+      .filter((entry) => !active.has(entry.edge))
+      .map((entry) => ({
+        edge: entry.edge,
+        points: getExistingRoutePoints(graph, entry),
+      }))
+      .filter((entry) => entry.points.length > 1)
+    const remaining = new Set(active.keys())
+    // Parents are committed first, then branch anchors are read from their updated geometry.
+    while (remaining.size && epoch === state.epoch && !state.disposed) {
+      const ready = [...remaining].filter(
+        (edge) =>
+          !remaining.has(graph.getCellById(edge.getSourceCellId())) &&
+          !remaining.has(graph.getCellById(edge.getTargetCellId())),
+      )
+      if (!ready.length) break // Invalid cyclic edge dependencies must not loop or clear paths.
+      const automatic = []
+      for (const edge of ready) {
+        remaining.delete(edge)
+        if (graph.getCellById(edge.id) !== edge || state.editing.has(edge))
+          continue
+        const source = getTerminalInfo(graph, edge, 'source')
+        const target = getTerminalInfo(graph, edge, 'target')
+        if (!source || !target) continue
+        alignBranchDirections(source, target)
+        const entry = { edge, source, target }
+        const options = active.get(edge)
+        const snapshot = state.snapshots.get(edge)
+        const manual =
+          !options.force && (snapshot?.mode ?? routingMode(edge)) === 'manual'
+        const current = getExistingRoutePoints(graph, entry)
+        let points = null
+        if (
+          !options.force &&
+          options.preserveVertices &&
+          validRoute(current, entry, nodeBoxes(graph))
+        ) {
+          points = current
+        } else if (manual) {
+          points = repairManualRoute(
+            entry,
+            snapshot ?? { source, target, points: current },
+            (partial) =>
+              routeWithAvoidAttempt(graph, [partial], avoid, 0, 0, fixed)[0]
+                ?.points,
+            nodeBoxes(graph),
+          )
+        }
+        if (points) {
+          applyRoutes([{ ...entry, points }], {
+            mode: manual ? 'manual' : routingMode(edge),
+          })
+          fixed.push({ edge, points })
+        } else if (hasBranchTerminal(entry) && !manual) {
+          fallbackEdgeToManhattan(edge, source.direction, target.direction)
+          edge.setData(
+            { routingMode: 'auto' },
+            { routingWrite: true, undo: !isInsertionPreview(edge) },
+          )
+          graph.findViewByCell(edge)?.update?.()
+          fixed.push({ edge, points: getExistingRoutePoints(graph, entry) })
+        } else automatic.push({ ...entry, manual })
+      }
+      const revision = state.revision
+      const routes = routeWithAvoid(graph, automatic, avoid, fixed)
+      if (epoch !== state.epoch || state.disposed) break
+      if (revision !== state.revision) {
+        active.forEach((options, edge) => {
+          if (graph.getCellById(edge.id) === edge && !state.editing.has(edge))
+            state.pending.set(edge, options)
+        })
+        break
+      }
+      for (const route of routes) {
+        if (
+          graph.getCellById(route.edge.id) !== route.edge ||
+          state.editing.has(route.edge)
+        )
+          continue
+        applyRoutes([route], { mode: route.manual ? 'manual' : 'auto' })
+        fixed.push({ edge: route.edge, points: route.points })
+      }
+      ready.forEach((edge) => graph.findViewByCell(edge)?.update?.())
+    }
+    active.forEach((_, edge) => {
+      if (!state.snapshots.get(edge)?.gesture) state.snapshots.delete(edge)
+    })
   }
 }
-async function routeAllEdgesNow(graph) {
-  const requestId = ++routeRequestId
-  const routableEdges = getRoutableEdges(graph)
-  if (!routableEdges.length) return
-  try {
-    const branchEdges = routableEdges.filter(hasBranchTerminal)
-    const avoidEdges = routableEdges.filter((edge) => !hasBranchTerminal(edge))
-    applyBranchEdgesWithManhattan(branchEdges)
-    const routes = await routeWithAvoid(graph, avoidEdges)
-    if (requestId !== routeRequestId || pendingRouteGraph) return
-    applyRoutes(routes)
-  } catch (error) {
-    // console.error('[avoid-route] routing failed', error)
-    throw error
+function nodeBoxes(graph) {
+  return graph
+    .getNodes()
+    .filter(isRoutingNode)
+    .map((node) => ({ ...getRotatedNodeBBox(node), id: node.id }))
+}
+function isInsertionPreview(edge) {
+  return edge.getData()?.[INSERT_PREVIEW] === true
+}
+function routeWriteOptions(edge) {
+  return {
+    ui: true,
+    ignore: true,
+    routingWrite: true,
+    ...(isInsertionPreview(edge) ? { undo: false } : {}),
   }
+}
+function getExistingRoutePoints(graph, { edge, source, target }) {
+  if (edge.getRouter()) {
+    const view = graph.findViewByCell(edge)
+    // routePoints is X6's routed polyline before jumpover/corner decoration.
+    if (view?.routePoints)
+      return dedupePoints([
+        view.sourcePoint,
+        ...view.routePoints,
+        view.targetPoint,
+      ])
+  }
+  return dedupePoints([source.point, ...edge.getVertices(), target.point])
 }
 function getRoutableEdges(graph) {
   return graph
     .getEdges()
     .map((edge) => {
       if (isPreviewEdge(edge)) return null
+      if (edge.isVisible?.() === false) return null
       if (edge.attr('line/visibility') === 'hidden') return null
       const source = getTerminalInfo(graph, edge, 'source')
       const target = getTerminalInfo(graph, edge, 'target')
@@ -159,22 +452,41 @@ function getTerminalInfo(graph, edge, terminal) {
     hasStub: true,
   }
 }
-async function routeWithAvoid(graph, routableEdges) {
+function routeWithAvoid(graph, routableEdges, avoid, fixed = []) {
   if (!routableEdges.length) return []
-  const avoid = await ensureAvoidReady()
-  const routes = routeWithAvoidAttempt(graph, routableEdges, avoid)
+  const routes = routeWithAvoidAttempt(
+    graph,
+    routableEdges,
+    avoid,
+    undefined,
+    undefined,
+    fixed,
+  )
   const failed = routableEdges.filter((_, index) => !routes[index])
   if (failed.length) {
-    const relaxed = routeWithAvoidAttempt(graph, failed, avoid, 0, 0)
+    const completed = routes
+      .filter(Boolean)
+      .map((route) => ({ edge: route.edge, points: route.points }))
+    const relaxed = routeWithAvoidAttempt(graph, failed, avoid, 0, 0, [
+      ...fixed,
+      ...completed,
+    ])
     let retryIndex = 0
     routes.forEach((route, index) => {
       if (!route) routes[index] = relaxed[retryIndex++]
     })
   }
-  return routes.map(
-    (route, index) =>
-      route ?? createOrthogonalFallback(graph, routableEdges[index]),
-  )
+  const completed = [
+    ...fixed,
+    ...routes
+      .filter(Boolean)
+      .map((route) => ({ edge: route.edge, points: route.points })),
+  ]
+  return routes.map((route, index) => ({
+    ...(route ??
+      createOrthogonalFallback(graph, routableEdges[index], completed)),
+    manual: routableEdges[index].manual,
+  }))
 }
 function routeWithAvoidAttempt(
   graph,
@@ -182,11 +494,33 @@ function routeWithAvoidAttempt(
   avoid,
   edgeToNodeGap = ROUTE_OPTIONS.edgeToNodeGap,
   edgeToEdgeGap = ROUTE_OPTIONS.edgeToEdgeGap,
+  fixed = [],
 ) {
   if (!routableEdges.length) return []
   const router = new avoid.Router(avoid.RouterFlag.OrthogonalRouting.value)
   try {
     configureAvoidRouter(avoid, router, edgeToNodeGap, edgeToEdgeGap)
+    for (const path of fixed) {
+      if (path.points.length < 2) continue
+      const first = new avoid.Point(path.points[0].x, path.points[0].y)
+      const last = new avoid.Point(path.points.at(-1).x, path.points.at(-1).y)
+      const source = new avoid.ConnEnd(first),
+        target = new avoid.ConnEnd(last)
+      const connection = new avoid.ConnRef(router, source, target)
+      connection.setRoutingType(avoid.ConnType.ConnType_Orthogonal.value)
+      const polygon = new avoid.Polygon(path.points.length)
+      path.points.forEach((point, index) => {
+        const native = new avoid.Point(point.x, point.y)
+        polygon.setPoint(index, native)
+        native.delete()
+      })
+      connection.setFixedRoute(polygon)
+      polygon.delete()
+      source.delete()
+      target.delete()
+      first.delete()
+      last.delete()
+    }
     const shapes = new Map()
     graph
       .getNodes()
@@ -204,16 +538,7 @@ function routeWithAvoidAttempt(
           !shapes.has(terminal.routeNodeId)
         ) {
           const bbox = terminal.bbox
-          shapes.set(
-            terminal.routeNodeId,
-            new avoid.ShapeRef(
-              router,
-              new avoid.Rectangle(
-                new avoid.Point(bbox.x, bbox.y),
-                new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height),
-              ),
-            ),
-          )
+          shapes.set(terminal.routeNodeId, createAvoidBox(avoid, router, bbox))
         }
         if (endpointShapes.has(terminal.routePortId)) continue
         const endpointPoint = terminal.hasStub
@@ -248,18 +573,27 @@ function routeWithAvoidAttempt(
       const sourceEnd = new avoid.ConnEnd(sourceShape, sourcePin)
       const targetEnd = new avoid.ConnEnd(targetShape, targetPin)
       const conn = new avoid.ConnRef(router, sourceEnd, targetEnd)
+      sourceEnd.delete()
+      targetEnd.delete()
       conn.setRoutingType(avoid.ConnType.ConnType_Orthogonal.value)
       conn.setHateCrossings(ROUTE_OPTIONS.crossingPenalty > 0)
       return { conn, routeEdge }
     })
     try {
       router.processTransaction()
-    } catch {
+    } catch (error) {
+      console.warn('[avoid-route] transaction failed', error)
       return routableEdges.map(() => null)
     }
     return connectors.map(({ conn, routeEdge }) => {
       try {
-        const points = avoidRouteToPoints(conn.displayRoute())
+        const polyline = conn.displayRoute()
+        let points
+        try {
+          points = avoidRouteToPoints(polyline)
+        } finally {
+          polyline.delete()
+        }
         assertOrthogonalRoute(routeEdge.edge, points)
         const terminalPoints = applyTerminalGeometry(routeEdge, points)
         assertTerminalStubRoute(routeEdge, terminalPoints)
@@ -269,7 +603,8 @@ function routeWithAvoidAttempt(
           source: routeEdge.source,
           target: routeEdge.target,
         }
-      } catch {
+      } catch (error) {
+        console.warn('[avoid-route] invalid result', error)
         return null
       }
     })
@@ -279,9 +614,12 @@ function routeWithAvoidAttempt(
 }
 function ensureAvoidReady() {
   if (!avoidInitPromise) {
-    avoidInitPromise = AvoidLib.load('/vendor/libavoid.wasm').then(() =>
-      AvoidLib.getInstance(),
-    )
+    avoidInitPromise = AvoidLib.load()
+      .then(() => AvoidLib.getInstance())
+      .catch((error) => {
+        avoidInitPromise = null
+        throw error
+      })
   }
   return avoidInitPromise
 }
@@ -314,7 +652,10 @@ function configureAvoidRouter(
     avoid.RoutingParameter.crossingPenalty,
     ROUTE_OPTIONS.crossingPenalty,
   )
-  router.setRoutingParameter(avoid.RoutingParameter.fixedSharedPathPenalty, 0)
+  router.setRoutingParameter(
+    avoid.RoutingParameter.fixedSharedPathPenalty,
+    1500,
+  )
   router.setRoutingParameter(
     avoid.RoutingParameter.reverseDirectionPenalty,
     ROUTE_OPTIONS.reverseDirectionPenalty,
@@ -341,23 +682,27 @@ function configureAvoidRouter(
   )
 }
 function createAvoidShape(avoid, router, node) {
-  const bbox = getRotatedNodeBBox(node)
-  return new avoid.ShapeRef(
-    router,
-    new avoid.Rectangle(
-      new avoid.Point(bbox.x, bbox.y),
-      new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height),
-    ),
-  )
+  return createAvoidBox(avoid, router, getRotatedNodeBBox(node))
+}
+function createAvoidBox(avoid, router, bbox) {
+  const first = new avoid.Point(bbox.x, bbox.y)
+  const last = new avoid.Point(bbox.x + bbox.width, bbox.y + bbox.height)
+  const rectangle = new avoid.Rectangle(first, last)
+  try {
+    return new avoid.ShapeRef(router, rectangle)
+  } finally {
+    rectangle.delete()
+    first.delete()
+    last.delete()
+  }
 }
 function createAvoidEndpointShape(avoid, router, point) {
-  return new avoid.ShapeRef(
-    router,
-    new avoid.Rectangle(
-      new avoid.Point(point.x - 0.5, point.y - 0.5),
-      new avoid.Point(point.x + 0.5, point.y + 0.5),
-    ),
-  )
+  return createAvoidBox(avoid, router, {
+    x: point.x - 0.5,
+    y: point.y - 0.5,
+    width: 1,
+    height: 1,
+  })
 }
 function applyTerminalGeometry(routeEdge, points) {
   if (!points.length) {
@@ -387,19 +732,16 @@ function applyTerminalGeometry(routeEdge, points) {
     : []
   return dedupePoints([...sourcePoints, ...points, ...targetPoints])
 }
-function createOrthogonalFallback(graph, routeEdge) {
+function createOrthogonalFallback(graph, routeEdge, fixed = []) {
   const { source, target, edge } = routeEdge
-  const sourceStub = offsetByVector(
-    source.point,
-    directionToVector(source.direction),
-    ROUTE_OPTIONS.stubSize,
-  )
-  const targetStub = offsetByVector(
-    target.point,
-    directionToVector(target.direction),
-    ROUTE_OPTIONS.stubSize,
-  )
-  const boxes = graph.getNodes().filter(isRoutingNode).map(getRotatedNodeBBox)
+  const sourceStub = source.hasStub ? source.stubPoint : source.point
+  const targetStub = target.hasStub ? target.stubPoint : target.point
+  const boxes = [
+    ...graph.getNodes().filter(isRoutingNode).map(getRotatedNodeBBox),
+    ...[source, target]
+      .filter((terminal) => terminal.kind === 'virtualNode')
+      .map((terminal) => terminal.bbox),
+  ]
   const margin = ROUTE_OPTIONS.stubSize + ROUTE_OPTIONS.edgeToNodeGap
   const left =
     Math.min(sourceStub.x, targetStub.x, ...boxes.map((box) => box.x)) - margin
@@ -438,13 +780,25 @@ function createOrthogonalFallback(graph, routeEdge) {
   const routes = candidates.map((candidate) =>
     dedupePoints([source.point, ...candidate, target.point]),
   )
-  const points = routes.reduce((best, candidate) =>
-    scoreOrthogonalFallback(candidate, boxes) <
-    scoreOrthogonalFallback(best, boxes)
+  const valid = routes.filter((candidate) =>
+    validRoute(candidate, routeEdge, boxes),
+  )
+  const candidatesWithValidTerminals = routes.filter((candidate) =>
+    validRoute(candidate, routeEdge, []),
+  )
+  const pool = valid.length
+    ? valid
+    : candidatesWithValidTerminals.length
+      ? candidatesWithValidTerminals
+      : routes
+  const points = pool.reduce((best, candidate) =>
+    scoreOrthogonalFallback(candidate, boxes) +
+      scoreFixedPaths(candidate, fixed) <
+    scoreOrthogonalFallback(best, boxes) + scoreFixedPaths(best, fixed)
       ? candidate
       : best,
   )
-  assertOrthogonalRoute(edge, points)
+  assertTerminalStubRoute(routeEdge, points)
   return { edge, points, source, target }
 }
 function scoreOrthogonalFallback(points, boxes) {
@@ -482,6 +836,7 @@ function avoidRouteToPoints(polyline) {
   for (let index = 0; index < polyline.size(); index++) {
     const point = polyline.at(index)
     points.push({ x: point.x, y: point.y })
+    point.delete?.()
   }
   return dedupePoints(points)
 }
@@ -495,6 +850,8 @@ function toAvoidDirection(direction) {
       return AVOID_CONN_DIR_UP
     case 'bottom':
       return AVOID_CONN_DIR_DOWN
+    default:
+      return 15
   }
 }
 function assertOrthogonalRoute(edge, points) {
@@ -536,12 +893,7 @@ function assertTerminalStubRoute(routeEdge, points) {
     }
   }
 }
-function applyBranchEdgesWithManhattan(routableEdges) {
-  routableEdges.forEach(({ edge, source, target }) => {
-    fallbackEdgeToManhattan(edge, source.direction, target.direction)
-  })
-}
-function applyRoutes(routes) {
+function applyRoutes(routes, { mode = 'auto' } = {}) {
   routes.forEach(({ edge, points, source, target }) => {
     const routedPoints =
       ROUTE_OPTIONS.gridSize > 0
@@ -556,10 +908,14 @@ function applyRoutes(routes) {
       1,
       -1,
     )
-    edge.removeRouter({ ui: true, ignore: true })
-    edge.setVertices(vertices, { ui: true, ignore: true })
+    const options = routeWriteOptions(edge)
+    edge.removeRouter(options)
+    if (!sameVertices(edge.getVertices(), vertices))
+      edge.setVertices(vertices, options)
+    if (edge.getData()?.routingMode !== mode)
+      edge.setData({ routingMode: mode }, options)
     if (edge.attr('line/visibility') !== 'hidden') {
-      edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+      edge.attr('line/visibility', 'visible', options)
     }
     setJumpoverConnector(edge)
   })
@@ -572,9 +928,10 @@ function fallbackEdgeToManhattan(edge, sourceDirection, targetDirection) {
   }
   if (sourceDirection) args.startDirections = [sourceDirection]
   if (targetDirection) args.endDirections = [targetDirection]
-  edge.setVertices([], { ui: true, ignore: true })
-  edge.setRouter('manhattan', args, { ui: true, ignore: true })
-  edge.attr('line/visibility', 'visible', { ui: true, ignore: true })
+  const options = routeWriteOptions(edge)
+  edge.setVertices([], options)
+  edge.setRouter('manhattan', args, options)
+  edge.attr('line/visibility', 'visible', options)
   setJumpoverConnector(edge)
 }
 function getAttachedPortDirection(edge, terminal) {
@@ -593,7 +950,7 @@ function setJumpoverConnector(edge) {
       size: ROUTE_OPTIONS.gapSize,
       radius: ROUTE_OPTIONS.cornerRadius,
     },
-    { ui: true, ignore: true },
+    routeWriteOptions(edge),
   )
 }
 function hasBranchTerminal(edge) {
@@ -891,4 +1248,17 @@ export {
   isCompleteNodeEdge,
   isRoutingNode,
   routeAllEdges,
+  routeEdge,
+  routeEdges,
+  routeNodeEdges,
+  captureNodeRoutes,
+  captureEdgeRoutes,
+  finishNodeRoutes,
+  finishEdgeRoutes,
+  beginManualEdgeEdit,
+  finishManualEdgeEdit,
+  routeDependentEdges,
+  getRoutingSession,
+  invalidateRouting,
+  isRoutingReplay,
 }

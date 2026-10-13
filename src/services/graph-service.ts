@@ -19,6 +19,7 @@ import { previewLinkAttrs } from '@/assets/x6Model'
 import { isConnectionValid } from '@/services/connection-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import { registerKeyboard } from '@/services/keyboard-service'
+import { getRoutingSession } from '@/services/routing-service'
 import { createSettingService } from '@/services/setting-service'
 import { mergeToSubsystem } from '@/services/subsystem-service'
 import { rightEdgeDragging } from '@/store/flags'
@@ -50,6 +51,7 @@ function createAndSetupGraph(
   withDeviceGuard('desktop', registerSteppedMouseWheel)(graph)
   setupDevTools(graph)
   registerPlugins(graph)
+  const routingSession = getRoutingSession(graph)
   // Keyboard 的插件安装和快捷键行为由 keyboard-service 统一维护。
   registerKeyboard(graph)
   graph.on('scale', ({ sx }: { sx: number }) => {
@@ -65,6 +67,7 @@ function createAndSetupGraph(
   const closePinDragPaper = openPinDragPaper(graph)
   const dispose = graph.dispose.bind(graph)
   graph.dispose = (clean?: boolean) => {
+    routingSession.dispose()
     closePinDragPaper()
     dispose(clean)
   }

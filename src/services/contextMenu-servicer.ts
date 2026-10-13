@@ -1,7 +1,12 @@
 import { removeCellsWithSubGraphHistory } from '@/services/cell-removal-service'
 import { cutCells, pasteAndSelect } from '@/services/clipboard-service'
 import { createInteractiveService } from '@/services/interactive-service'
-import { routeAllEdges } from '@/services/routing-service'
+import {
+  routeAllEdges,
+  routeNodeEdges,
+  captureNodeRoutes,
+  finishNodeRoutes,
+} from '@/services/routing-service'
 import {
   addSubsystemImage,
   hasSubsystemMask,
@@ -39,9 +44,11 @@ function rotateNodeWithRouting(
   graph.startBatch('rotate-node')
   void (async () => {
     try {
+      captureNodeRoutes(graph, [cell])
       cell.rotate(angle)
-      await routeAllEdges(graph)
+      await routeNodeEdges(graph, [cell], { reason: 'rotate' })
     } finally {
+      finishNodeRoutes(graph, [cell])
       graph.stopBatch('rotate-node')
     }
   })()

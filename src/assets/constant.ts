@@ -5,6 +5,8 @@
  * @instruction 当为 10 的倍数时 曼哈顿路由更为稳定
  */
 const GRAPH_GRID = 20
+// 单次节点拖动超过三个网格时，放弃旧手动折点，按新布局重新路由。
+const NODE_ROUTE_RESET_DISTANCE = GRAPH_GRID * 3
 // EDGE 红
 const RED = '#e60000'
 // EDGE 黑
@@ -53,6 +55,7 @@ const HOVER_EDGE_TOOL_CLASS = 'edge-hover-tool'
 const HOVER_EDGE_TOOL_VISIBLE_CLASS = 'edge-hover-tool-visible'
 export {
   GRAPH_GRID,
+  NODE_ROUTE_RESET_DISTANCE,
   RED,
   BLACK,
   TARGETMARKER_SIZE,

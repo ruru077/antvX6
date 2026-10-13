@@ -44,6 +44,7 @@ function ExchangeWorkspaceRoutes({
         inert={!workspaceVisible}
       >
         <BlockDiagram
+          active={active && pathname === workspacePath}
           initialModel={model?.diagramModel}
           modelId={model?.modelId}
           modelName={model?.modelName}
