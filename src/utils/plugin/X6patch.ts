@@ -3,6 +3,7 @@ import {
   Dom,
   EdgeView,
   FunctionExt,
+  Model,
   Node,
   NodeView,
   Scroller,
@@ -27,6 +28,8 @@ import type { Selection } from '@antv/x6/lib/plugin/selection'
 const commonService = createCommonService()
 const reverseSourceDragEdges = new WeakSet<Edge>()
 const activeReverseSourceDragGraphs = new WeakSet<Graph>()
+
+export const NODE_REMOVAL_DETACH_OPTION = 'nodeRemovalDetach'
 
 export function isReverseSourceDragEdge(edge: Edge) {
   return reverseSourceDragEdges.has(edge)
@@ -54,6 +57,56 @@ export function transferEdgeMouseBatch(
 // ── X6 运行时原型补丁 ────────────────────────────────────────────────────────
 // _xxx 前缀表示自定义框架补丁方法，避免与 X6 未来版本的方法名冲突。
 // ─────────────────────────────────────────────────────────────────────────────
+
+// X6 3.1.8：Model.onCellRemoved 默认级联删除连线；内置 disconnectEdges
+// 又会把端点重置到 (0, 0)。必须在 removeCell 删除节点前读取端口坐标。
+const modelProto = Model.prototype as Model & {
+  _preserveNodeEdgesPatched?: boolean
+}
+if (!modelProto._preserveNodeEdgesPatched) {
+  const originalRemoveCell = modelProto.removeCell
+  modelProto.removeCell = function (cellOrId, options = {}) {
+    const cell =
+      typeof cellOrId === 'string' ? this.getCell(cellOrId) : cellOrId
+    if (!cell?.isNode() || !this.has(cell) || options.clear) {
+      return originalRemoveCell.call(this, cellOrId as Cell, options)
+    }
+
+    // 一次性读取所有端点，避免前一条线的更新影响后续几何信息。
+    const terminals = this.getConnectedEdges(cell).map((edge) => {
+      const view = this.graph?.findViewByCell(edge) as
+        | EdgeView
+        | null
+        | undefined
+      return {
+        edge,
+        source:
+          edge.getSourceCellId() === cell.id
+            ? (view?.sourcePoint ?? edge.getSourcePoint()).clone()
+            : null,
+        target:
+          edge.getTargetCellId() === cell.id
+            ? (view?.targetPoint ?? edge.getTargetPoint()).clone()
+            : null,
+      }
+    })
+    const detachOptions = { ...options, [NODE_REMOVAL_DETACH_OPTION]: true }
+    this.startBatch('remove', options)
+    try {
+      for (const { edge, source, target } of terminals) {
+        // 坐标端点的第二个参数是端点属性，事件 options 必须传第三个参数。
+        if (source)
+          edge.setSource({ x: source.x, y: source.y }, undefined, detachOptions)
+        if (target)
+          edge.setTarget({ x: target.x, y: target.y }, undefined, detachOptions)
+      }
+      return originalRemoveCell.call(this, cell, options)
+    } finally {
+      this.stopBatch('remove', options)
+    }
+  }
+  modelProto._preserveNodeEdgesPatched = true
+}
 
 declare module '@antv/x6' {
   interface Node {

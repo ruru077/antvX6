@@ -72,6 +72,7 @@ import {
 import {
   _patchScrollerForceUpdate,
   isReverseSourceDragEdge,
+  NODE_REMOVAL_DETACH_OPTION,
   transferEdgeMouseBatch,
 } from '@/utils/plugin/X6patch'
 import type {
@@ -347,11 +348,15 @@ function registerEdgeMarkerListeners(graph: Graph) {
       void routeEdge(edge, { reason: 'connect' })
   }
 
-  function edgeSourceChangedHandler({ cell }: EventArgs['cell:change:source']) {
+  function edgeSourceChangedHandler({
+    cell,
+    options,
+  }: EventArgs['cell:change:source']) {
     if (isRoutingReplay(graph)) return
     if (!cell.isEdge()) return
     if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
+    if (options[NODE_REMOVAL_DETACH_OPTION]) return
     handleEdgeTerminalChanged(cell)
     // 反向拉线高亮 Edge
     if (isReverseSourceDragEdge(cell)) {
@@ -365,11 +370,15 @@ function registerEdgeMarkerListeners(graph: Graph) {
       }
     }
   }
-  function edgeTargetChangedHandler({ cell }: EventArgs['cell:change:target']) {
+  function edgeTargetChangedHandler({
+    cell,
+    options,
+  }: EventArgs['cell:change:target']) {
     if (isRoutingReplay(graph)) return
     if (!cell.isEdge()) return
     if (cell.getData()?.[EDGE_INSERTION_PREVIEW] === true) return
     applyEdgeMarkerState(cell)
+    if (options[NODE_REMOVAL_DETACH_OPTION]) return
     handleEdgeTerminalChanged(cell)
   }
 

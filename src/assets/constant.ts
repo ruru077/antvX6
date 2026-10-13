@@ -6,7 +6,7 @@
  */
 const GRAPH_GRID = 20
 // 单次节点拖动超过三个网格时，放弃旧手动折点，按新布局重新路由。
-const NODE_ROUTE_RESET_DISTANCE = GRAPH_GRID * 3
+const NODE_ROUTE_RESET_DISTANCE = GRAPH_GRID * 8
 // EDGE 红
 const RED = '#e60000'
 // EDGE 黑
