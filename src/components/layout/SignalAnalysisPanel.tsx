@@ -4,14 +4,20 @@ import {
   SisternodeOutlined,
 } from '@ant-design/icons'
 import { Splitter, Tree } from 'antd'
+import { lazy, Suspense } from 'react'
 import { useShallow } from 'zustand/shallow'
-import { ScopeComparisonChart } from '@/components/ScopeChart'
 import { focusCellInSubGraph } from '@/services/graph-navigation-service'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import type { ScopeResult } from '@/api/simulation'
 import type { TreeDataNode } from 'antd'
 import type { GraphJSON, SubGraphMap } from '~/types'
+
+const ScopeComparisonChart = lazy(() =>
+  import('@/components/ScopeChart').then((module) => ({
+    default: module.ScopeComparisonChart,
+  })),
+)
 
 type GraphJsonCell = GraphJSON['cells'][number] & {
   id?: string
@@ -58,7 +64,7 @@ function buildScopeTree(
   const scopes = getLayerScopes(subGraphs, graphId)
   return {
     key: `graph:${graphId}`,
-    title: `${graphId === rootId ? rootId : layer.name} (${scopes.length})`,
+    title: `${graphId === rootId ? 'root' : layer.name} (${scopes.length})`,
     icon: graphId === rootId ? <ApartmentOutlined /> : <SisternodeOutlined />,
     checkable: false,
     children: [
@@ -181,7 +187,9 @@ function SignalAnalysisPanel() {
         <div className="flex h-full min-h-0 flex-col gap-2 p-2">
           <div className="min-h-0 flex-1">
             {chartScopes.length ? (
-              <ScopeComparisonChart scopes={chartScopes} />
+              <Suspense fallback={null}>
+                <ScopeComparisonChart scopes={chartScopes} />
+              </Suspense>
             ) : (
               <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
                 {selectedScopes.length

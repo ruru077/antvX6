@@ -1,5 +1,9 @@
 import { PORT_STUB_SIZE, RED } from '@/assets/constant'
 import { createCommonService } from '@/services/common-service'
+import {
+  beginManualEdgeEdit,
+  finishManualEdgeEdit,
+} from '@/services/routing-service'
 import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
 import {
   isPortStub,
@@ -106,6 +110,8 @@ export function openPinDragPaper(graph: Graph) {
       targetStub: isPortStub(edge, 'target', vertices[vertices.length - 1]),
       moved: false,
     }
+    edge.startBatch('move-segment', { ui: true })
+    beginManualEdgeEdit(edge)
   }
 
   function edgeMouseMove({ edge, e }: EventArgs['edge:mousemove']) {
@@ -113,30 +119,45 @@ export function openPinDragPaper(graph: Graph) {
     if (!state || state.edge !== edge) return
     const pointer = graph.snapToGrid(e.clientX, e.clientY)
     const delta = pointer[state.axis] - state.start[state.axis]
-    if (delta === 0) return
     edge.setVertices(
-      moveVertexPairSegment(
-        state.vertices,
-        state.firstIndex,
-        state.firstIndex + 1,
-        state.axis,
-        delta,
-        state.sourceStub,
-        state.targetStub,
-      ),
+      delta === 0
+        ? state.vertices.map((p) => ({ ...p }))
+        : moveVertexPairSegment(
+            state.vertices,
+            state.firstIndex,
+            state.firstIndex + 1,
+            state.axis,
+            delta,
+            state.sourceStub,
+            state.targetStub,
+          ),
       { ui: true },
     )
     state.moved = true
   }
 
-  function edgeMouseUp({ edge }: EventArgs['edge:mouseup']) {
+  async function edgeMouseUp({ edge }: EventArgs['edge:mouseup']) {
     const state = drag
     drag = undefined
     if (panningSuppressedEdge === edge) {
       panningSuppressedEdge = undefined
       scroller?.togglePanning(true)
     }
-    if (state?.edge === edge && state.moved) simplifyEdgeVertices(edge)
+    if (state?.edge === edge) {
+      try {
+        const current = edge.getVertices()
+        const changed =
+          current.length !== state.vertices.length ||
+          current.some(
+            (p, i) =>
+              p.x !== state.vertices[i].x || p.y !== state.vertices[i].y,
+          )
+        if (state.moved && changed) simplifyEdgeVertices(edge)
+        await finishManualEdgeEdit(edge, state.vertices)
+      } finally {
+        edge.stopBatch('move-segment', { ui: true })
+      }
+    }
   }
 
   const onDown = withDeviceGuard('desktop', edgeMouseDown)
@@ -146,6 +167,7 @@ export function openPinDragPaper(graph: Graph) {
   graph.on('edge:mousemove', onMove)
   graph.on('edge:mouseup', onUp)
   return () => {
+    if (drag) drag.edge.stopBatch('move-segment', { ui: true })
     drag = undefined
     panningSuppressedEdge = undefined
     scroller?.togglePanning(true)

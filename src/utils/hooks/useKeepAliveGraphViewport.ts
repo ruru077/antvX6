@@ -1,39 +1,36 @@
-import { Scroller } from '@antv/x6'
-import { useLayoutEffectOnActive } from 'keepalive-for-react'
+import { useLayoutEffect, useState } from 'react'
 import { useGraphStore } from '@/store/graphStore'
+import { _patchScrollerForceUpdate } from '@/utils/plugin/X6patch'
+import type { Scroller } from '@antv/x6'
+import type { EntryGraphModel } from '~/types'
 
 type GraphLoadingStage = 'initializing' | 'restoring' | 'ready'
 
-interface ScrollerPosition {
-  left: number
-  top: number
-}
-
-/**
- * KeepAlive 会在路由失活时把缓存节点移出 DOM，Scroller 因此短暂变为 0×0。
- * 记录失活前的滚动位置，并在节点重新挂回 DOM 完成布局后恢复。
- */
-function useKeepAliveGraphViewport() {
+/** 每次进入画布，在模型加载与布局完成后适应当前图层。 */
+function useKeepAliveGraphViewport(
+  active: boolean,
+  layoutReady: boolean,
+  model?: EntryGraphModel,
+) {
   const graph = useGraphStore((state) => state.graph)
-  const positionRef = useRef<ScrollerPosition | null>(null)
-  const initializedRef = useRef(false)
   const [stage, setStage] = useState<GraphLoadingStage>('initializing')
 
-  // 首次初始化属于 Graph 自身生命周期，独立部署时同样执行。
-  useEffect(() => {
-    const scroller = graph?.getPlugin<Scroller>('scroller')
+  useLayoutEffect(() => {
+    if (!graph || !layoutReady) return
+    // 隐藏画布仍需完成初始化，让模型列表解除加载状态。
+    if (!active) {
+      setStage('ready')
+      return
+    }
+    const scroller = graph.getPlugin<Scroller>('scroller')
     if (!scroller) return
-
+    setStage('restoring')
     let firstFrame = 0
     let secondFrame = 0
     firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
-        const { pageWidth, pageHeight } = scroller.options
-        if (pageWidth == null || pageHeight == null) {
-          throw new Error('Scroller page size is required to center the graph')
-        }
-        scroller.centerPoint(pageWidth / 2, pageHeight / 2)
-        initializedRef.current = true
+        _patchScrollerForceUpdate(scroller)
+        graph.zoomToFit({ padding: 16, useCellGeometry: true, maxScale: 1.2 })
         setStage('ready')
       })
     })
@@ -42,35 +39,7 @@ function useKeepAliveGraphViewport() {
       cancelAnimationFrame(firstFrame)
       cancelAnimationFrame(secondFrame)
     }
-  }, [graph])
-
-  // 仅在 KeepAlive 上下文中处理路由返回；不负责首次初始化。
-  useLayoutEffectOnActive(() => {
-    const scroller = graph?.getPlugin<Scroller>('scroller')
-    if (!scroller) return
-
-    let firstFrame = 0
-    let secondFrame = 0
-    const position = positionRef.current
-    if (position) {
-      setStage('restoring')
-      firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => {
-          scroller.setScrollbarPosition(position.left, position.top)
-          setStage('ready')
-        })
-      })
-    }
-
-    return () => {
-      cancelAnimationFrame(firstFrame)
-      cancelAnimationFrame(secondFrame)
-      if (initializedRef.current) {
-        positionRef.current = scroller.getScrollbarPosition()
-      }
-      setStage(initializedRef.current ? 'restoring' : 'initializing')
-    }
-  }, [graph])
+  }, [active, graph, layoutReady, model])
 
   return stage
 }

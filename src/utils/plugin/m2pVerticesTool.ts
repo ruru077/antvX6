@@ -2,6 +2,8 @@ import { Dom, edgeToolPresets, Graph } from '@antv/x6'
 import {
   getPortRouteGeometry,
   simplifyRoutePoints,
+  beginManualEdgeEdit,
+  finishManualEdgeEdit,
 } from '@/services/routing-service'
 import type { Edge } from '@antv/x6'
 
@@ -9,6 +11,50 @@ const Vertices = edgeToolPresets.vertices
 type Handle = ReturnType<NonNullable<typeof Vertices.defaults.createHandle>>
 
 type Vertex = { x: number; y: number }
+type CornerNeighbors = { x: number; y: number }
+
+function getCornerNeighbors(
+  vertices: Vertex[],
+  index: number,
+): CornerNeighbors | undefined {
+  const current = vertices[index]
+  const prev = vertices[index - 1]
+  const next = vertices[index + 1]
+  if (!current || !prev || !next) return
+  const neighbors = [index - 1, index + 1]
+  const x = neighbors.find(
+    (i) => vertices[i].x === current.x && vertices[i].y !== current.y,
+  )
+  const y = neighbors.find(
+    (i) => vertices[i].y === current.y && vertices[i].x !== current.x,
+  )
+  if (x != null && y != null) return { x, y }
+}
+
+/** 从按下时的快照同时移动拐点及两侧邻点，最后统一补入端口连接点。 */
+function moveVertexCorner(
+  original: Vertex[],
+  index: number,
+  dx: number,
+  dy: number,
+  sourceStub: boolean,
+  targetStub: boolean,
+  neighbors = getCornerNeighbors(original, index),
+) {
+  const vertices = original.map((vertex) => ({ ...vertex }))
+  if (!neighbors) return vertices
+  vertices[index].x += dx
+  vertices[index].y += dy
+  vertices[neighbors.x].x += dx
+  vertices[neighbors.y].y += dy
+  return vertices.flatMap((vertex, i) => {
+    const stub = original[i]
+    if (vertex.x === stub.x && vertex.y === stub.y) return [vertex]
+    if (sourceStub && i === 0) return [{ ...stub }, vertex]
+    if (targetStub && i === original.length - 1) return [vertex, { ...stub }]
+    return [vertex]
+  })
+}
 
 function samePoint(a: Vertex, b: Vertex) {
   return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5
@@ -80,6 +126,8 @@ class M2PVerticesTool extends Vertices {
     x: number
     y: number
     vertices: Vertex[]
+    index: number
+    neighbors?: CornerNeighbors
     sourceStub: boolean
     targetStub: boolean
     pair?: { index: number; axis: 'x' | 'y' }
@@ -117,7 +165,7 @@ class M2PVerticesTool extends Vertices {
   }
 
   protected onRender() {
-    this.normalizeVertices(false)
+    if (!this.dragStart) this.normalizeVertices(false)
     return super.onRender()
   }
 
@@ -130,6 +178,8 @@ class M2PVerticesTool extends Vertices {
       x,
       y,
       vertices,
+      index: args.handle.options.index,
+      neighbors: getCornerNeighbors(vertices, args.handle.options.index),
       sourceStub:
         !!vertices.length &&
         isPortStub(this.cellView.cell, 'source', vertices[0]),
@@ -138,6 +188,7 @@ class M2PVerticesTool extends Vertices {
         isPortStub(this.cellView.cell, 'target', vertices[vertices.length - 1]),
     }
     super.onHandleChange(args)
+    beginManualEdgeEdit(this.cellView.cell)
   }
 
   protected onHandleChanging({
@@ -150,14 +201,35 @@ class M2PVerticesTool extends Vertices {
     const start = this.dragStart
     if (!start) return
 
-    const index = handle.options.index
+    const index = start.index
     const current = start.vertices[index]
     if (!current) return
 
     const { x, y } = this.getMouseEventArgs(e)
     const dx = x - start.x
     const dy = y - start.y
-    if (dx === 0 && dy === 0) return
+    if (start.neighbors) {
+      const vertices = moveVertexCorner(
+        start.vertices,
+        index,
+        dx,
+        dy,
+        start.sourceStub,
+        start.targetStub,
+        start.neighbors,
+      )
+      this.cellView.cell.setVertices(vertices, { ui: true, toolId: this.cid })
+      handle.updatePosition(current.x + dx, current.y + dy)
+      return
+    }
+    if (dx === 0 && dy === 0) {
+      this.cellView.cell.setVertices(
+        start.vertices.map((vertex) => ({ ...vertex })),
+        { ui: true, toolId: this.cid },
+      )
+      handle.updatePosition(current.x, current.y)
+      return
+    }
     if (!start.pair) {
       const axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
       const pairIndex = [index + 1, index - 1].find((otherIndex) => {
@@ -190,11 +262,26 @@ class M2PVerticesTool extends Vertices {
     )
   }
 
-  protected onHandleChanged(args: { e: Dom.MouseUpEvent; handle: Handle }) {
+  protected async onHandleChanged(args: {
+    e: Dom.MouseUpEvent
+    handle: Handle
+  }) {
+    const original =
+      this.dragStart?.vertices ?? this.cellView.cell.getVertices()
     this.dragStart = null
-    this.normalizeVertices(true)
-    super.onHandleChanged(args)
-    this.render()
+    const current = this.cellView.cell.getVertices()
+    if (
+      current.length !== original.length ||
+      current.some((p, i) => p.x !== original[i].x || p.y !== original[i].y)
+    ) {
+      this.normalizeVertices(true)
+    }
+    try {
+      await finishManualEdgeEdit(this.cellView.cell, original)
+    } finally {
+      super.onHandleChanged(args)
+      this.render()
+    }
   }
 }
 
@@ -204,6 +291,7 @@ function registerM2PVerticesTool() {
 
 export {
   isPortStub,
+  moveVertexCorner,
   moveVertexPairSegment,
   registerM2PVerticesTool,
   simplifyEdgeVertices,

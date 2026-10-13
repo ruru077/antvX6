@@ -11,7 +11,15 @@ import {
 import { SelectionImpl } from '@antv/x6/es/plugin/selection/selection'
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
-import { isRoutingNode, routeAllEdges } from '@/services/routing-service'
+import {
+  isRoutingNode,
+  routeEdge,
+  routeNodeEdges,
+  captureNodeRoutes,
+  finishNodeRoutes,
+  captureEdgeRoutes,
+  finishEdgeRoutes,
+} from '@/services/routing-service'
 import type { Cell, Edge, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
 import type { Selection } from '@antv/x6/lib/plugin/selection'
@@ -343,7 +351,7 @@ interface FixedEdgeTerminal {
 /**
  * Selection 整体平移 Edge vertices 时，引用未选中 Node 的端点不会移动，
  * 首尾线段因此会倾斜。平移后在同一帧校正固定端旁的 vertex：内部 Edge
- * 保持相对位置不变，边界 Edge 保持正交连接，全程不触发 Avoid。
+ * 保持相对位置不变，边界 Edge 在本帧结束后局部修复。
  */
 if (!selectionProto._fixedTerminalVertexPatched) {
   const originalTranslateSelectedNodes =
@@ -362,6 +370,10 @@ if (!selectionProto._fixedTerminalVertexPatched) {
     exclude?: Cell,
     otherOptions?: Record<string, unknown>,
   ) {
+    captureNodeRoutes(
+      this.graph,
+      this.collection.toArray().filter((cell) => cell.isNode()),
+    )
     const movingNodeIds = this.translatingCache?.nodeIdSet ?? new Set<string>()
     const fixedTerminals =
       this.translatingCache?.edgesToTranslate
@@ -427,7 +439,7 @@ if (!selectionProto._fixedTerminalVertexPatched) {
 /**
  * 一个模块和 Edge 一起移动时，整体平移可能让路线穿过其他模块。
  * 必须等 Selection 在当前帧提交节点和 vertices 后，再按最新坐标执行 Avoid。
- * 多个模块一起移动时不寻路，保持组内 Cell 的相对位置不变。
+ * 多个模块一起移动时优先保留整体平移的路径，仅修复关联边。
  */
 if (!selectionProto._routeSingleNodeSelectionPatched) {
   const originalApplyDraggingPreview = selectionProto.applyDraggingPreview as (
@@ -445,13 +457,84 @@ if (!selectionProto._routeSingleNodeSelectionPatched) {
       (cell) => cell.isNode() && isRoutingNode(cell),
     ).length
 
-    if (selectedCells.length > 1 && selectedNodeCount === 1) {
-      void routeAllEdges(this.graph)
+    if (selectedCells.length > 1 && selectedNodeCount >= 1) {
+      void routeNodeEdges(
+        this.graph,
+        selectedCells.filter((cell) => cell.isNode()),
+        { preserveVertices: true },
+      )
     }
     return result
   }
 
   selectionProto._routeSingleNodeSelectionPatched = true
+}
+
+// Keep the selection's geometry and final async route in one history transaction.
+if (!selectionProto._localRouteStopPatched) {
+  const stopSelecting = selectionProto.stopSelecting
+  selectionProto.stopSelecting = function (
+    this: SelectionTranslationState,
+    e: Dom.MouseUpEvent,
+  ) {
+    const nodes = this.collection
+      .toArray()
+      .filter((cell): cell is Node => cell.isNode())
+    if (!this.translatingCache || !nodes.length)
+      return stopSelecting.call(this, e)
+    this.graph.startBatch('route-selection')
+    try {
+      stopSelecting.call(this, e)
+    } catch (error) {
+      this.graph.stopBatch('route-selection')
+      throw error
+    }
+    void routeNodeEdges(this.graph, nodes, { preserveVertices: true }).finally(
+      () => {
+        finishNodeRoutes(this.graph, nodes)
+        this.graph.stopBatch('route-selection')
+      },
+    )
+  }
+  selectionProto._localRouteStopPatched = true
+}
+
+// X6 closes the pointer batch synchronously; retain it until the final route commits.
+if (!edgeViewProto._localRouteMouseUpPatched) {
+  const prepare = edgeViewProto.prepareArrowheadDragging
+  edgeViewProto.prepareArrowheadDragging = function (
+    this: EdgeView,
+    ...args: unknown[]
+  ) {
+    captureEdgeRoutes(this.graph, [this.cell], { gesture: true })
+    return prepare.apply(this, args)
+  }
+  const originalMouseUp = edgeViewProto.onMouseUp
+  edgeViewProto.onMouseUp = function (
+    this: EdgeView,
+    e: Dom.MouseUpEvent,
+    x: number,
+    y: number,
+  ) {
+    const data = this.getEventData(e)
+    if (data.action !== 'drag-arrowhead')
+      return originalMouseUp.call(this, e, x, y)
+    const graph = this.graph
+    graph.startBatch('route-terminal')
+    let result
+    try {
+      result = originalMouseUp.call(this, e, x, y)
+    } catch (error) {
+      graph.stopBatch('route-terminal')
+      throw error
+    }
+    void routeEdge(this.cell, { reason: 'terminal' }).finally(() => {
+      finishEdgeRoutes(graph, [this.cell])
+      graph.stopBatch('route-terminal')
+    })
+    return result
+  }
+  edgeViewProto._localRouteMouseUpPatched = true
 }
 
 /**
@@ -536,7 +619,7 @@ if (!nodeViewProto._stopReverseConnecttingPatched) {
           edge.getSourceCell() &&
           edge.getTargetCell()
         ) {
-          await routeAllEdges(graph)
+          await routeEdge(edge, { reason: 'connect' })
         }
       } finally {
         reverseSourceDragEdges.delete(edge)

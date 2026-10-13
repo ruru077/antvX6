@@ -6,7 +6,8 @@ import {
   fallbackEdgeToManhattan,
   getPortRouteGeometry,
   isCompleteNodeEdge,
-  routeAllEdges,
+  routeEdges,
+  captureEdgeRoutes,
 } from '@/services/routing-service'
 import type { Edge, EdgeView, Graph, Node } from '@antv/x6'
 /**
@@ -221,7 +222,7 @@ function createPreview(
   })
   // 原 Edge 保持隐藏且不参与本轮路由；两条 insertion 预览 Edge 作为特例
   // 进入 Avoid，因此预览与松手后生成的正式 Edge 使用同一套路由规则。
-  void routeAllEdges(graph)
+  void routeEdges(graph, [upstream, downstream], { reason: 'preview' })
 }
 
 function updateEdgeInsertionPreview(graph: Graph, node: Node) {
@@ -303,7 +304,7 @@ function updateEdgeInsertionPreview(graph: Graph, node: Node) {
       fallbackEdgeToManhattan(current.previewEdges[0])
       fallbackEdgeToManhattan(current.previewEdges[1])
     }
-    void routeAllEdges(graph)
+    void routeEdges(graph, current.previewEdges, { reason: 'preview' })
     return true
   }
 
@@ -361,11 +362,12 @@ async function commitEdgeInsertion(graph: Graph, node: Node) {
   }
   let upstream: Edge
   graph.startBatch('insert-node-on-edge')
+  captureEdgeRoutes(graph, [state.targetEdge])
   try {
     state.targetEdge.setSource({ cell: node.id, port: ports.outputPortId })
     upstream = graph.addEdge({ source, ...previewLinkAttrs })
     upstream.setTarget({ cell: node.id, port: ports.inputPortId })
-    await routeAllEdges(graph)
+    await routeEdges(graph, [upstream, state.targetEdge], { reason: 'insert' })
   } finally {
     graph.stopBatch('insert-node-on-edge')
   }

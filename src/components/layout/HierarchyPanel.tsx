@@ -24,7 +24,7 @@ function buildHierarchyTree(subGraphs: SubGraphMap, rootId: string) {
     const subGraph = subGraphs[graphId]
     return {
       key: `graph:${graphId}`,
-      title: graphId === rootId ? rootId : subGraph.name,
+      title: graphId === rootId ? 'root' : subGraph.name,
       icon: graphId === rootId ? <ApartmentOutlined /> : <SisternodeOutlined />,
       children: subGraph.childrenIds.map(buildSubGraphNode),
     }
@@ -78,7 +78,7 @@ function HierarchyPanel() {
   )
   const previewGraphName =
     previewGraphId === rootId
-      ? rootId
+      ? 'root'
       : (subGraphs[previewGraphId]?.name ?? previewGraphId)
   const currentPathKeys = useMemo(
     () => currentPathIds.map((id) => `graph:${id}`),

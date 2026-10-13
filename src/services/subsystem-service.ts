@@ -19,7 +19,11 @@ import {
   selectImageFile,
 } from '@/services/image-file-service'
 import { resolveSubGraphMaskParams } from '@/services/mask-param-service'
-import { routeAllEdges } from '@/services/routing-service'
+import {
+  routeEdges,
+  captureEdgeRoutes,
+  invalidateRouting,
+} from '@/services/routing-service'
 import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useInterpreterStore } from '@/store/interpreterStore'
@@ -472,6 +476,7 @@ function changeGraphView(
 
   // 切换期间禁用 history，过滤 fromJSON 进入历史栈
   graph.disableHistory()
+  invalidateRouting(graph)
   graph.fromJSON(subGraphs[subGraphId].graphJson)
   graph.enableHistory()
 
@@ -734,6 +739,7 @@ async function mergeToSubsystem(cells: Cell[], graph: Graph) {
 
   // 7. Batch 更新
   graph.startBatch('merge-to-subsystem')
+  captureEdgeRoutes(graph, crossingEdges)
   try {
     useSubGraphStore.setState({ subGraphs: nextSubGraphs })
     const subsystemNode = graph.addNode(
@@ -802,7 +808,7 @@ async function mergeToSubsystem(cells: Cell[], graph: Graph) {
       }
     })
     graph.removeCells(allCells, { ignore: true })
-    await routeAllEdges(graph)
+    await routeEdges(graph, crossingEdges, { reason: 'subsystem' })
     useSubGraphStore.getState().syncGraph(graph.toJSON())
     await syncParentSubsystemSnapshot(subGraphItem.id, graphJson, graph).catch(
       (error: unknown) => {

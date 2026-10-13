@@ -1,7 +1,7 @@
 import { previewLinkAttrs } from '@/assets/x6Model'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
-import { ensureRoutingReady, routeAllEdges } from '@/services/routing-service'
+import { ensureRoutingReady, routeEdges } from '@/services/routing-service'
 import { addEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
 import type { Edge, Graph, Node } from '@antv/x6'
 
@@ -120,7 +120,7 @@ async function connectAvailablePorts(
     )
     .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
 
-  let connected = false
+  const connected: Edge[] = []
   graph.startBatch('connect-available-ports')
   try {
     for (const targetPort of targetPorts) {
@@ -142,9 +142,9 @@ async function connectAvailablePorts(
       edge.setTarget({ cell: targetNode.id, port: targetPort.id })
       addEdgeEditTool(edge)
       interactiveService.initializeEdgeTools(edge)
-      connected = true
+      connected.push(edge)
     }
-    if (connected) await routeAllEdges(graph)
+    await routeEdges(graph, connected, { reason: 'connect' })
   } finally {
     graph.stopBatch('connect-available-ports')
   }

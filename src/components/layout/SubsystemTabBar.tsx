@@ -147,7 +147,7 @@ function SubsystemTabBar() {
     key: tab.key,
     label:
       tab.currentSubGraphId === rootId
-        ? rootId
+        ? 'root'
         : (subGraphsData[tab.currentSubGraphId]?.name ?? tab.currentSubGraphId),
     children: null,
     closable: tabs.length > 1,

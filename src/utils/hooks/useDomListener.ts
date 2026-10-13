@@ -7,7 +7,11 @@ import {
   commitEdgeInsertion,
   updateEdgeInsertionPreview,
 } from '@/services/edge-insertion-service'
-import { routeAllEdges } from '@/services/routing-service'
+import {
+  routeEdge,
+  routeEdges,
+  routeNodeEdges,
+} from '@/services/routing-service'
 import {
   rightEdgeDragging,
   setRightEdgeDragging,
@@ -369,10 +373,14 @@ function registerPointerGestures(
       if (state.insertionNode) {
         updateEdgeInsertionPreview(graph, state.insertionNode)
         const committed = await commitEdgeInsertion(graph, state.insertionNode)
-        if (!committed) await routeAllEdges(graph)
+        if (!committed) await routeNodeEdges(graph, [state.insertionNode])
       } else {
         clearEdgeInsertionPreview(graph)
-        await routeAllEdges(graph)
+        await routeEdges(
+          graph,
+          cloneCells.filter((cell) => cell.isEdge()),
+          { reason: 'copy', preserveVertices: true },
+        )
       }
     } finally {
       if (state.hideSelectionOverlay) setSelectionOverlayVisibility(true)
@@ -413,7 +421,7 @@ function registerPointerGestures(
                 exists &&
                 temporaryEdge.getTargetCell()?.isNode()
               if (temporaryEdge && needsRoute) {
-                await routeAllEdges(graph)
+                await routeEdge(temporaryEdge, { reason: 'connect' })
               }
             } finally {
               graph.stopBatch('add-edge')

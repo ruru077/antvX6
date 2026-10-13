@@ -43,7 +43,8 @@ export default defineConfig(({ mode }) => {
     // 生产配置
     build: {
       // https://vite.dev/config/build-options.html
-      sourcemap: true,
+      sourcemap: env.VITE_BUILD_SOURCEMAP === 'true',
+      manifest: true,
       outDir: 'dist',
       assetsDir: 'assets',
     },

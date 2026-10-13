@@ -1,8 +1,14 @@
 import { ChartNoAxesCombinedIcon } from 'lucide-react'
-import { ScopeChart } from '@/components/ScopeChart'
+import { lazy, Suspense } from 'react'
 import { FloatingWindow } from '@/components/ui/floating-window'
 import { useGraphStore } from '@/store/graphStore'
 import { useSimulationStore } from '@/store/simulationStore'
+
+const ScopeChart = lazy(() =>
+  import('@/components/ScopeChart').then((module) => ({
+    default: module.ScopeChart,
+  })),
+)
 
 function ScopeWindowInstance({ scopeId }: { scopeId: string }) {
   const graph = useGraphStore((state) => state.graph)
@@ -48,7 +54,9 @@ function ScopeWindowInstance({ scopeId }: { scopeId: string }) {
       onClose={() => closeScope(scopeId)}
     >
       {scope ? (
-        <ScopeChart scope={scope} />
+        <Suspense fallback={null}>
+          <ScopeChart scope={scope} />
+        </Suspense>
       ) : (
         <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
           暂无该 Scope 的仿真结果，请先点击仿真

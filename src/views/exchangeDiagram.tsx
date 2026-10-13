@@ -44,15 +44,15 @@ const sameId = (a: number | string, b: number | string) =>
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : '请求失败，请稍后重试'
 
-function createEmptyGraphModel(modelName: string): EntryGraphModel {
-  const rootId = crypto.randomUUID()
+function createEmptyGraphModel(): EntryGraphModel {
+  const rootId = 'root'
   return {
     currentGraphId: rootId,
     rootId,
     subGraphs: {
       [rootId]: {
         id: rootId,
-        name: modelName,
+        name: 'root',
         deep: 0,
         parentId: null,
         childrenIds: [],
@@ -190,7 +190,7 @@ function ExchangeDiagram({
         const created = await createDiagramModel({
           modelName,
           description: values.description?.trim() ?? '',
-          graphModel: createEmptyGraphModel(modelName),
+          graphModel: createEmptyGraphModel(),
           config: DEFAULT_INTERPRETER_CONFIG,
         })
         setPrivateModels((items) => [...items, created])

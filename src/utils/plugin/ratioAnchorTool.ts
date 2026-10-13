@@ -1,5 +1,10 @@
 import { Dom, Graph, ToolItem } from '@antv/x6'
 import { SOURCE_ARROWHEAD_STROKE_WIDTH } from '@/assets/constant'
+import {
+  captureEdgeRoutes,
+  finishEdgeRoutes,
+  routeEdge,
+} from '@/services/routing-service'
 import { setActiveToolEdgeId } from '@/store/flags'
 import { setHoverEdgeToolsVisible } from '@/utils/plugin/edgeToolVisibility'
 import type { Edge, EdgeView } from '@antv/x6'
@@ -84,6 +89,10 @@ class RatioAnchorTool extends ToolItem<EdgeView, RatioAnchorOptions> {
     if (this.guard(evt)) return
     evt.stopPropagation()
     evt.preventDefault()
+    captureEdgeRoutes(this.graph, [this.cell as unknown as Edge], {
+      gesture: true,
+    })
+    this.graph.startBatch('move-branch-anchor', { ui: true })
     this.delegateDocumentEvents(
       (this.options as ToolItemOptions).documentEvents!,
       evt.data,
@@ -112,12 +121,11 @@ class RatioAnchorTool extends ToolItem<EdgeView, RatioAnchorOptions> {
 
     this.cell.prop('source/anchor/args/ratio', newRatio, {
       ui: true,
-      undo: false,
     })
     this.update()
   }
 
-  protected onMouseUp(evt: Dom.MouseUpEvent) {
+  protected async onMouseUp(evt: Dom.MouseUpEvent) {
     this.undelegateDocumentEvents()
     ;(this.container as HTMLElement).style.pointerEvents = ''
     // 拖拽结束后，若鼠标已离开 edge 容器则隐藏 hover 工具
@@ -127,6 +135,12 @@ class RatioAnchorTool extends ToolItem<EdgeView, RatioAnchorOptions> {
     if (edgeView && target && !edgeView.container.contains(target)) {
       setActiveToolEdgeId(null)
       setHoverEdgeToolsVisible(this.graph, this.cell.id, false)
+    }
+    try {
+      await routeEdge(this.cell as unknown as Edge, { reason: 'terminal' })
+    } finally {
+      finishEdgeRoutes(this.graph, [this.cell as unknown as Edge])
+      this.graph.stopBatch('move-branch-anchor', { ui: true })
     }
   }
 }
