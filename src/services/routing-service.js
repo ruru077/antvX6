@@ -92,18 +92,12 @@ function routeNodeEdges(graph, nodes, options = {}) {
   )
 }
 function captureNodeRoutes(graph, nodes) {
-  captureEdgeRoutes(graph, connectedNodeEdges(graph, nodes))
+  captureEdgeRoutes(graph, connectedNodeEdges(graph, nodes), { gesture: true })
   const state = getRoutingSession(graph)
   nodes.forEach((node) => {
     if (!state.nodeDrags.has(node))
       state.nodeDrags.set(node, { ...node.getPosition(), relayout: false })
   })
-  withDependentEdges(graph, connectedNodeEdges(graph, nodes)).forEach(
-    (edge) => {
-      const snapshot = state.snapshots.get(edge)
-      if (snapshot) snapshot.gesture = true
-    },
-  )
 }
 function captureEdgeRoutes(graph, edges, { gesture = false } = {}) {
   const state = getRoutingSession(graph)
@@ -226,7 +220,14 @@ async function drainRouteQueue(graph, state) {
             child.target.nodeId === entry.edge.id,
         )
         .forEach((child) =>
-          include(child, { reason: 'parent', force: options.force }, next),
+          include(
+            child,
+            {
+              reason: 'parent',
+              force: options.force,
+            },
+            next,
+          ),
         )
     }
     requests.forEach((options, edge) => {

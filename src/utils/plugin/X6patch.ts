@@ -1,5 +1,8 @@
 import {
   CellView,
+  connectorPresets,
+  Path,
+  Point,
   Dom,
   EdgeView,
   FunctionExt,
@@ -21,6 +24,7 @@ import {
   finishNodeRoutes,
   captureEdgeRoutes,
   finishEdgeRoutes,
+  getPortRouteGeometry,
 } from '@/services/routing-service'
 import type { Cell, Edge, Graph, Rectangle } from '@antv/x6'
 import type { PortMetadata } from '@antv/x6/lib/model/port'
@@ -386,37 +390,179 @@ if (!selectionProto._preciseRubberEdgePatched) {
 }
 
 interface SelectionTranslationState {
+  cid: string
   graph: Graph
-  collection: {
-    toArray(): Cell[]
+  collection: { toArray(): Cell[] }
+  translatingCache: { selectedNodes: Node[] } | null
+}
+
+type SelectionEdgePreview = {
+  view: EdgeView
+  line?: Element
+  users: number
+  smoothing: boolean
+  previewPathRendered: boolean
+  source: ReturnType<typeof getPortRouteGeometry>
+  target: ReturnType<typeof getPortRouteGeometry>
+}
+const selectionEdgePreviews = new WeakMap<
+  SelectionTranslationState,
+  Set<SelectionEdgePreview>
+>()
+const selectionCapturedNodes = new WeakMap<
+  SelectionTranslationState,
+  Set<Node>
+>()
+const previewEdgeViews = new WeakMap<EdgeView, SelectionEdgePreview>()
+
+function getPreviewPortGeometry(edge: Edge, terminal: 'source' | 'target') {
+  const cell =
+    terminal === 'source' ? edge.getSourceCell() : edge.getTargetCell()
+  const portId =
+    terminal === 'source' ? edge.getSourcePortId() : edge.getTargetPortId()
+  return cell?.isNode() && portId ? getPortRouteGeometry(cell, portId) : null
+}
+
+// 拖动预览仅覆盖 View 的绘制，不修改端口、vertices、connector 或历史记录。
+if (!edgeViewProto._selectionSmoothPreviewPatched) {
+  const findRoutePoints = edgeViewProto.findRoutePoints
+  edgeViewProto.findRoutePoints = function (
+    this: EdgeView,
+    ...args: unknown[]
+  ) {
+    const preview = previewEdgeViews.get(this)
+    if (!preview?.smoothing) return findRoutePoints.apply(this, args)
+    // X6 在同一次 updateConnection 中依次调用 findRoutePoints 和 findPath。
+    preview.source = getPreviewPortGeometry(this.cell, 'source')
+    preview.target = getPreviewPortGeometry(this.cell, 'target')
+    const points: Point[] = []
+    if (preview.source) points.push(Point.create(preview.source.stubPoint))
+    if (preview.target) points.push(Point.create(preview.target.stubPoint))
+    return points
   }
-  translatingCache: {
-    nodeIdSet: Set<string>
-    edgesToTranslate: Edge[]
-  } | null
+  const findPath = edgeViewProto.findPath
+  edgeViewProto.findPath = function (
+    this: EdgeView,
+    routePoints: Point[],
+    sourcePoint: Point,
+    targetPoint: Point,
+  ) {
+    const preview = previewEdgeViews.get(this)
+    if (!preview?.smoothing) {
+      const path = findPath.call(this, routePoints, sourcePoint, targetPoint)
+      if (preview) preview.previewPathRendered = false
+      return path
+    }
+    preview.previewPathRendered = true
+    const { source, target } = preview
+    if (!source && !target) {
+      const path = connectorPresets.smooth.call(
+        this,
+        sourcePoint,
+        targetPoint,
+        [],
+        { raw: true },
+        this,
+      )
+      return typeof path === 'string' ? Path.parse(path) : path
+    }
+    const start = source?.stubPoint ?? sourcePoint
+    const end = target?.stubPoint ?? targetPoint
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const distance = Math.hypot(dx, dy)
+    const sourceNormal = source?.normal ?? {
+      x: distance ? dx / distance : 0,
+      y: distance ? dy / distance : 0,
+    }
+    const targetNormal = target?.normal ?? {
+      x: distance ? -dx / distance : 0,
+      y: distance ? -dy / distance : 0,
+    }
+    const controlDistance = distance / 2
+    const path = new Path()
+    path.appendSegment(Path.createSegment('M', sourcePoint.x, sourcePoint.y))
+    if (source) path.appendSegment(Path.createSegment('L', start.x, start.y))
+    path.appendSegment(
+      Path.createSegment(
+        'C',
+        start.x + sourceNormal.x * controlDistance,
+        start.y + sourceNormal.y * controlDistance,
+        end.x + targetNormal.x * controlDistance,
+        end.y + targetNormal.y * controlDistance,
+        end.x,
+        end.y,
+      ),
+    )
+    // 箭头沿最后一段直线流入端口，方向与正式 Avoid 路径使用相同的 stub。
+    if (target)
+      path.appendSegment(Path.createSegment('L', targetPoint.x, targetPoint.y))
+    return path
+  }
+  edgeViewProto._selectionSmoothPreviewPatched = true
 }
 
-interface FixedEdgeTerminal {
-  edge: Edge
-  source?: { horizontal: boolean; x: number; y: number }
-  target?: { horizontal: boolean; x: number; y: number }
+function previewSelectionEdges(
+  selection: SelectionTranslationState,
+  nodes: Node[],
+) {
+  let previews = selectionEdgePreviews.get(selection)
+  if (!previews) {
+    previews = new Set()
+    selectionEdgePreviews.set(selection, previews)
+  }
+  const edges = new Set(
+    nodes.flatMap((node) => selection.graph.getConnectedEdges(node) ?? []),
+  )
+  // 分支也依赖父线的几何，随父线一起进入预览。
+  for (const edge of edges) {
+    for (const child of selection.graph.getConnectedEdges(edge) ?? [])
+      edges.add(child)
+    const view = selection.graph.findViewByCell(edge) as EdgeView | null
+    if (!view) continue
+    let state = previewEdgeViews.get(view)
+    if (!state) {
+      const selectors = (
+        view as unknown as {
+          _getSelectors(): Record<string, Element>
+        }
+      )._getSelectors()
+      state = {
+        view,
+        line: selectors.line,
+        users: 0,
+        smoothing: true,
+        previewPathRendered: false,
+        source: null,
+        target: null,
+      }
+      previewEdgeViews.set(view, state)
+    }
+    if (previews.has(state)) continue
+    previews.add(state)
+    state.users += 1
+    state.smoothing = true
+    view.container.classList.add('selection-edge-preview')
+    state.line?.classList.add('selection-edge-preview-line')
+    view.update()
+  }
 }
 
-/**
- * Selection 整体平移 Edge vertices 时，引用未选中 Node 的端点不会移动，
- * 首尾线段因此会倾斜。平移后在同一帧校正固定端旁的 vertex：内部 Edge
- * 保持相对位置不变，边界 Edge 在本帧结束后局部修复。
- */
-if (!selectionProto._fixedTerminalVertexPatched) {
-  const originalTranslateSelectedNodes =
-    selectionProto.translateSelectedNodes as (
-      this: SelectionTranslationState,
-      dx: number,
-      dy: number,
-      exclude?: Cell,
-      otherOptions?: Record<string, unknown>,
-    ) => void
+function restoreSelectionEdges(previews?: Set<SelectionEdgePreview>) {
+  previews?.forEach((state) => {
+    state.users -= 1
+    if (state.users > 0) return
+    previewEdgeViews.delete(state.view)
+    state.view.container.classList.remove('selection-edge-preview')
+    state.line?.classList.remove('selection-edge-preview-line')
+    // 正式路由已绘制的连线只需移除 CSS；异常或未参与路由的线才需重绘。
+    if (state.previewPathRendered && state.view.container.isConnected)
+      state.view.update()
+  })
+}
 
+// 框选拖动只移动节点；连线复用普通节点移动的路由，不直接平移 vertices。
+if (!selectionProto._nodesOnlyTranslationPatched) {
   selectionProto.translateSelectedNodes = function (
     this: SelectionTranslationState,
     dx: number,
@@ -424,104 +570,46 @@ if (!selectionProto._fixedTerminalVertexPatched) {
     exclude?: Cell,
     otherOptions?: Record<string, unknown>,
   ) {
-    captureNodeRoutes(
-      this.graph,
-      this.collection.toArray().filter((cell) => cell.isNode()),
-    )
-    const movingNodeIds = this.translatingCache?.nodeIdSet ?? new Set<string>()
-    const fixedTerminals =
-      this.translatingCache?.edgesToTranslate
-        .map((edge) => {
-          const vertices = edge.getVertices()
-          if (vertices.length === 0) return null
-
-          const view = this.graph.findViewByCell(edge) as EdgeView | null
-          if (!view) return null
-
-          const item: FixedEdgeTerminal = { edge }
-          const sourceId = edge.getSourceCellId()
-          const targetId = edge.getTargetCellId()
-          const firstVertex = vertices[0]
-          const lastVertex = vertices[vertices.length - 1]
-
-          if (sourceId && !movingNodeIds.has(sourceId)) {
-            item.source = {
-              horizontal:
-                Math.abs(view.sourcePoint.x - firstVertex.x) >=
-                Math.abs(view.sourcePoint.y - firstVertex.y),
-              x: view.sourcePoint.x,
-              y: view.sourcePoint.y,
-            }
-          }
-          if (targetId && !movingNodeIds.has(targetId)) {
-            item.target = {
-              horizontal:
-                Math.abs(view.targetPoint.x - lastVertex.x) >=
-                Math.abs(view.targetPoint.y - lastVertex.y),
-              x: view.targetPoint.x,
-              y: view.targetPoint.y,
-            }
-          }
-
-          return item.source || item.target ? item : null
-        })
-        .filter((item): item is FixedEdgeTerminal => item !== null) ?? []
-
-    originalTranslateSelectedNodes.call(this, dx, dy, exclude, otherOptions)
-
-    fixedTerminals.forEach(({ edge, source, target }) => {
-      const vertices = edge.getVertices().map((point) => ({ ...point }))
-      if (vertices.length === 0) return
-
-      if (source) {
-        if (source.horizontal) vertices[0].y = source.y
-        else vertices[0].x = source.x
-      }
-      if (target) {
-        const lastVertex = vertices[vertices.length - 1]
-        if (target.horizontal) lastVertex.y = target.y
-        else lastVertex.x = target.x
-      }
-
-      edge.setVertices(vertices, { ui: true })
+    if (dx === 0 && dy === 0) return
+    const cells = this.collection.toArray()
+    const nodes =
+      this.translatingCache?.selectedNodes ??
+      cells.filter((cell): cell is Node => cell.isNode())
+    const excludedIds = new Set<string>()
+    const excluded: Cell[] = []
+    if (exclude) excludedIds.add(exclude.id)
+    cells.forEach((cell) => {
+      cell
+        .getDescendants({ deep: true })
+        .forEach((child) => excludedIds.add(child.id))
     })
-  }
-
-  selectionProto._fixedTerminalVertexPatched = true
-}
-
-/**
- * 一个模块和 Edge 一起移动时，整体平移可能让路线穿过其他模块。
- * 必须等 Selection 在当前帧提交节点和 vertices 后，再按最新坐标执行 Avoid。
- * 多个模块一起移动时优先保留整体平移的路径，仅修复关联边。
- */
-if (!selectionProto._routeSingleNodeSelectionPatched) {
-  const originalApplyDraggingPreview = selectionProto.applyDraggingPreview as (
-    this: SelectionTranslationState,
-    offset: { dx: number; dy: number },
-  ) => void
-
-  selectionProto.applyDraggingPreview = function (
-    this: SelectionTranslationState,
-    offset: { dx: number; dy: number },
-  ) {
-    const result = originalApplyDraggingPreview.call(this, offset)
-    const selectedCells = this.collection.toArray()
-    const selectedNodeCount = selectedCells.filter(
-      (cell) => cell.isNode() && isRoutingNode(cell),
-    ).length
-
-    if (selectedCells.length > 1 && selectedNodeCount >= 1) {
-      void routeNodeEdges(
-        this.graph,
-        selectedCells.filter((cell) => cell.isNode()),
-        { preserveVertices: true },
-      )
+    if (typeof otherOptions?.translateBy === 'string') {
+      const current = this.graph.getCellById(otherOptions.translateBy)
+      if (current) {
+        excludedIds.add(current.id)
+        current
+          .getDescendants({ deep: true })
+          .forEach((child) => excludedIds.add(child.id))
+        excluded.push(current)
+      }
     }
-    return result
+    const movingNodes = nodes.filter((node) => !excludedIds.has(node.id))
+    if (!movingNodes.length) return
+    let captured = selectionCapturedNodes.get(this)
+    if (!captured) {
+      captured = new Set()
+      selectionCapturedNodes.set(this, captured)
+    }
+    const addedNodes = movingNodes.filter((node) => !captured.has(node))
+    if (addedNodes.length) {
+      captureNodeRoutes(this.graph, addedNodes)
+      previewSelectionEdges(this, addedNodes)
+      addedNodes.forEach((node) => captured.add(node))
+    }
+    const options = { ...otherOptions, selection: this.cid, exclude: excluded }
+    movingNodes.forEach((node) => node.translate(dx, dy, options))
   }
-
-  selectionProto._routeSingleNodeSelectionPatched = true
+  selectionProto._nodesOnlyTranslationPatched = true
 }
 
 // Keep the selection's geometry and final async route in one history transaction.
@@ -541,15 +629,26 @@ if (!selectionProto._localRouteStopPatched) {
       stopSelecting.call(this, e)
       nodes.forEach((node) => connectNearbyPreviewPorts(this.graph, node))
     } catch (error) {
+      restoreSelectionEdges(selectionEdgePreviews.get(this))
+      selectionEdgePreviews.delete(this)
+      selectionCapturedNodes.delete(this)
       this.graph.stopBatch('route-selection')
       throw error
     }
-    void routeNodeEdges(this.graph, nodes, { preserveVertices: true }).finally(
-      () => {
-        finishNodeRoutes(this.graph, nodes)
-        this.graph.stopBatch('route-selection')
-      },
-    )
+    // 包含最后一次位移及自动吸附连接；下一次手势使用独立的预览记录。
+    if (selectionEdgePreviews.has(this)) previewSelectionEdges(this, nodes)
+    const previews = selectionEdgePreviews.get(this)
+    selectionEdgePreviews.delete(this)
+    selectionCapturedNodes.delete(this)
+    // 正式计算时恢复真实路径读取；灰色预览样式保留到路由完成。
+    previews?.forEach((state) => {
+      if (state.users === 1) state.smoothing = false
+    })
+    void routeNodeEdges(this.graph, nodes).finally(() => {
+      finishNodeRoutes(this.graph, nodes)
+      restoreSelectionEdges(previews)
+      this.graph.stopBatch('route-selection')
+    })
   }
   selectionProto._localRouteStopPatched = true
 }

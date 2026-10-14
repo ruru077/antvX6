@@ -1,3 +1,16 @@
+@keyframes selection-ant-line {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.x6-edge.selection-edge-preview .selection-edge-preview-line {
+  stroke: gray !important;
+  stroke-dasharray: 5 !important;
+  filter: none !important;
+  animation: selection-ant-line 30s infinite linear;
+}
+
 // 注册可动画的自定义属性，用于滚动条 thumb 渐显/渐隐
 // Chrome 85+ 支持；transition 写在父元素上，避免伪元素 transition 不触发的已知问题
 @property --x6-thumb-alpha {
