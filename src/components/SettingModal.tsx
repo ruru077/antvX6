@@ -46,6 +46,7 @@ interface SettingModalProps {
 interface NavItem {
   name: string
   icon: React.ComponentType<{ className?: string }>
+  disabled?: boolean
 }
 
 type SettingType = 'toggle' | 'select'
@@ -62,11 +63,11 @@ interface SettingItem {
 const NAV_ITEMS: NavItem[] = [
   { name: '库函数', icon: Library },
   { name: '性能', icon: Gauge },
-  { name: '参数封装', icon: Box },
-  { name: '外观', icon: Paintbrush },
-  { name: '语言', icon: Globe },
+  { name: '参数封装', icon: Box, disabled: import.meta.env.PROD },
+  { name: '外观', icon: Paintbrush, disabled: import.meta.env.PROD },
+  { name: '语言', icon: Globe, disabled: import.meta.env.PROD },
   { name: '实验功能', icon: FlaskConical },
-  { name: '开发者模式', icon: Code2 },
+  { name: '开发者模式', icon: Code2, disabled: import.meta.env.PROD },
 ]
 
 const THEME_OPTIONS: { label: string; value: Theme }[] = [
@@ -267,14 +268,13 @@ function NavSidebar({
               {NAV_ITEMS.map((item) => (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton
-                    asChild
+                    type="button"
+                    disabled={item.disabled}
                     isActive={item.name === active}
                     onClick={() => onChange(item.name)}
                   >
-                    <a href="#">
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </a>
+                    <item.icon />
+                    <span>{item.name}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
