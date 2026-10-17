@@ -29,8 +29,18 @@ function useKeepAliveGraphViewport(
     let secondFrame = 0
     firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
-        _patchScrollerForceUpdate(scroller)
-        graph.zoomToFit({ padding: 16, useCellGeometry: true, maxScale: 1.2 })
+        if (graph.getCellCount() > 0) {
+          _patchScrollerForceUpdate(scroller)
+          graph.zoomToFit({ padding: 16, useCellGeometry: true, maxScale: 1.2 })
+        } else {
+          // 空模块以 100% 缩放显示，并定位到画布页面中心。
+          graph.zoomTo(1)
+          _patchScrollerForceUpdate(scroller)
+          graph.centerPoint(
+            (scroller.options.pageWidth ?? graph.options.width) / 2,
+            (scroller.options.pageHeight ?? graph.options.height) / 2,
+          )
+        }
         setStage('ready')
       })
     })
