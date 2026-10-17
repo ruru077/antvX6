@@ -1,4 +1,4 @@
-import { Button, InputNumber, Space, Switch, Tooltip } from 'antd'
+import { Button, InputNumber, message, Space, Switch, Tooltip } from 'antd'
 import { LineChart } from 'echarts/charts'
 import {
   DataZoomComponent,
@@ -15,6 +15,7 @@ import {
   ImageDownIcon,
   RotateCcwIcon,
 } from 'lucide-react'
+import { useInterpreterStore } from '@/store/interpreterStore'
 import type { ScopeResult } from '@/api/simulation'
 import type { ButtonProps } from 'antd'
 
@@ -67,6 +68,10 @@ interface DataZoomEvent extends DataZoomRange {
 
 function getSeriesColor(index: number) {
   return `hsl(${(index * 137.508) % 360} 68% 48%)`
+}
+
+function formatTime(value: number) {
+  return String(Number(value.toPrecision(12)))
 }
 
 function getCsvData(time: number[], signal: number[]) {
@@ -157,7 +162,36 @@ function ScopeCharts({
   toolbar?: ChartToolbar
   fileName?: string
 }) {
-  const [sampleTime, setSampleTime] = useState(0.1)
+  const config = useInterpreterStore((state) => state.config)
+  const simulationStep = useMemo(() => {
+    const fixedStep = Number(config.SimFixedStep)
+    if (
+      config.Step === 'FixedStep' &&
+      Number.isFinite(fixedStep) &&
+      fixedStep > 0
+    )
+      return fixedStep
+
+    // 自动或变步长模式没有固定数值，使用返回数据中最小的有效时间间隔。
+    let minimum = Infinity
+    for (const { scope } of sources) {
+      for (let index = 1; index < scope.time.length; index += 1) {
+        const delta = scope.time[index] - scope.time[index - 1]
+        if (delta > 0 && delta < minimum) minimum = delta
+      }
+    }
+    return Number.isFinite(minimum) ? Number(minimum.toPrecision(12)) : 0
+  }, [config.Step, config.SimFixedStep, sources])
+  const [sampleTime, setSampleTime] = useState(0.01)
+  const [sampleTimeInput, setSampleTimeInput] = useState<number | null>(0.01)
+  const [messageApi, messageHolder] = message.useMessage()
+  const startTime = Number(config.StartTime)
+  const stopTime = Number(config.StopTime)
+  const hasTimeRange =
+    Number.isFinite(startTime) &&
+    Number.isFinite(stopTime) &&
+    stopTime > startTime
+  const samplingInterval = Math.max(sampleTime, simulationStep)
   const [stepLine, setStepLine] = useState(false)
   const series = useMemo(
     () =>
@@ -166,7 +200,7 @@ function ScopeCharts({
         return values.map((data, index) => {
           const sampled =
             toolbar !== false && !stepLine
-              ? sampleSignal(source.scope.time, data, sampleTime)
+              ? sampleSignal(source.scope.time, data, samplingInterval)
               : { time: source.scope.time, data }
           return {
             key: `${source.key}:${index}`,
@@ -179,14 +213,14 @@ function ScopeCharts({
           }
         })
       }),
-    [sampleTime, sources, stepLine, toolbar],
+    [samplingInterval, sources, stepLine, toolbar],
   )
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null)
-  const sampleTimeRef = useRef(sampleTime)
+  const sampleTimeRef = useRef(samplingInterval)
   const timeExtentRef = useRef<{ min: number; max: number } | null>(null)
   const snappingDataZoomRef = useRef(false)
-  sampleTimeRef.current = sampleTime
+  sampleTimeRef.current = samplingInterval
   const [showGrid, setShowGrid] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const hasData = series.some(
@@ -280,7 +314,10 @@ function ScopeCharts({
     const time = series[0]?.time
     timeExtentRef.current =
       toolbar && time?.length
-        ? { min: time[0], max: time[time.length - 1] }
+        ? {
+            min: hasTimeRange ? startTime : time[0],
+            max: hasTimeRange ? stopTime : time[time.length - 1],
+          }
         : null
 
     chart.setOption(
@@ -300,9 +337,14 @@ function ScopeCharts({
           name: 'Time(s)',
           nameLocation: 'end',
           nameGap: 8,
-          min: 'dataMin',
-          max: 'dataMax',
-          axisLabel: { color: textColor },
+          min: hasTimeRange ? startTime : 'dataMin',
+          max: hasTimeRange ? stopTime : 'dataMax',
+          axisLabel: { color: textColor, formatter: formatTime },
+          axisPointer: {
+            label: {
+              formatter: ({ value }: { value: number }) => formatTime(value),
+            },
+          },
           axisLine: { lineStyle: { color: textColor } },
           nameTextStyle: { color: textColor },
           splitLine: {
@@ -327,7 +369,7 @@ function ScopeCharts({
         },
         dataZoom: [
           { type: 'inside' },
-          { type: 'slider', height: 16, bottom: 6 },
+          { type: 'slider', height: 16, bottom: 6, labelFormatter: formatTime },
         ],
         series: series.map((item, index) => {
           const color = getSeriesColor(index)
@@ -352,7 +394,16 @@ function ScopeCharts({
       },
       { replaceMerge: ['series'] },
     )
-  }, [series, showGrid, showLegend, stepLine])
+  }, [
+    hasTimeRange,
+    series,
+    showGrid,
+    showLegend,
+    startTime,
+    stepLine,
+    stopTime,
+    toolbar,
+  ])
 
   if (!hasData) {
     return (
@@ -390,6 +441,7 @@ function ScopeCharts({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
+      {messageHolder}
       {toolbar !== false && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Tooltip title="离散信号使用阶梯线，在下一个采样时刻更新显示值">
@@ -426,13 +478,30 @@ function ScopeCharts({
               <InputNumber<number>
                 size="small"
                 disabled={stepLine}
-                min={0.001}
+                min={0}
                 step={0.01}
-                precision={3}
-                value={sampleTime}
+                changeOnBlur={false}
+                value={sampleTimeInput}
                 aria-label="采样时间"
-                onChange={(value) => {
-                  if (value !== null && value > 0) setSampleTime(value)
+                onChange={setSampleTimeInput}
+                onBlur={() => {
+                  if (
+                    sampleTimeInput === null ||
+                    !Number.isFinite(sampleTimeInput) ||
+                    sampleTimeInput <= 0 ||
+                    sampleTimeInput < simulationStep - simulationStep * 1e-9
+                  ) {
+                    messageApi.error(
+                      simulationStep > 0
+                        ? `采样时间不得小于仿真步长：${formatTime(simulationStep)} s`
+                        : '采样时间必须大于 0',
+                    )
+                    const restored = Math.max(sampleTime, simulationStep)
+                    setSampleTimeInput(restored)
+                    setSampleTime(restored)
+                    return
+                  }
+                  setSampleTime(sampleTimeInput)
                 }}
               />
               <span className="scope-sample-time-unit">s</span>
