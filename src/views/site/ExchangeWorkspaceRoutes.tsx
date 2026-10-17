@@ -2,6 +2,10 @@ import { useKeepAliveContext } from 'keepalive-for-react'
 import { useLocation } from 'react-router'
 import BlockDiagram from '@/views/BlockDiagram'
 import ExchangeDiagram from '@/views/exchangeDiagram'
+import type {
+  ModelAutosaveInfo,
+  ModelContent,
+} from '@/services/model-autosave-service'
 import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { EntryGraphModel } from '~/types'
 
@@ -10,6 +14,9 @@ type WorkspaceLocationState = {
   modelId?: number | string
   modelName?: string
   config?: InterpreterConfig
+  savedContent?: ModelContent
+  recovery?: ModelAutosaveInfo | null
+  lastUpdate?: string
 }
 
 function ExchangeWorkspaceRoutes({
@@ -45,10 +52,14 @@ function ExchangeWorkspaceRoutes({
       >
         <BlockDiagram
           active={active && pathname === workspacePath}
+          visible={workspaceVisible}
           initialModel={model?.diagramModel}
           modelId={model?.modelId}
           modelName={model?.modelName}
           initialConfig={model?.config}
+          savedContent={model?.savedContent}
+          recovery={model?.recovery}
+          lastUpdate={model?.lastUpdate}
           exchangePath={exchangePath}
           showIssueLink={showIssueLink}
           onReady={() => setWorkspaceReady(true)}

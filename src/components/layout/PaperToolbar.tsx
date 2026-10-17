@@ -10,7 +10,14 @@ import {
   SaveOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
-import { Button as AntdButton, Divider, Dropdown, Space, Tooltip } from 'antd'
+import {
+  Button as AntdButton,
+  Divider,
+  Dropdown,
+  Modal,
+  Space,
+  Tooltip,
+} from 'antd'
 import { useNavigate } from 'react-router'
 import { startCompilation } from '@/api/compilation'
 import { saveModel } from '@/api/saveModel'
@@ -19,6 +26,10 @@ import { SAVE_MODEL_EVENT } from '@/assets/constant'
 import { Button } from '@/components/ui/button'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { createCommonService } from '@/services/common-service'
+import {
+  removeModelAutosave,
+  writeModelAutosave,
+} from '@/services/model-autosave-service'
 import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import { buildGraphModelDTO } from '@/services/subsystem-service'
 import { useConfigStore } from '@/store/configStore'
@@ -60,6 +71,7 @@ function PaperToolbar({
   const modelName = useSubGraphStore((s) => s.modelName)
   const ncslabContext = useNcslabContextStore((state) => state.context)
   const [saving, setSaving] = useState(false)
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false)
   const [compiling, setCompiling] = useState(false)
   const [compilationPercent, setCompilationPercent] = useState(0)
 
@@ -68,23 +80,75 @@ function PaperToolbar({
   const canSave = !!graph && modelId != null && isDirty && !saving
 
   async function handleSave() {
-    if (!canSave || !graph || modelId == null) return
+    if (!canSave || !graph || modelId == null) return false
     const currentGraphJson = graph.toJSON()
     if (useConfigStore.getState().printDtoEnabled) {
       console.log(JSON.stringify(currentGraphJson, null, 2))
     }
     const graphModel = saveEntryGraphModel(graph)
-    const config = useInterpreterStore.getState().config
+    const config = structuredClone(useInterpreterStore.getState().config)
+    const userId = ncslabContext?.user.id
     setSaving(true)
     try {
       await saveModel({ modelId, graphModel, config })
-      markSaved()
+      syncGraph(graph.toJSON())
+      markSaved({ graphModel, config })
+      if (userId != null) {
+        try {
+          const store = useSubGraphStore.getState()
+          if (store.isDirty) {
+            writeModelAutosave(userId, modelId, {
+              graphModel: store.exportEntryGraphModel(),
+              config: useInterpreterStore.getState().config,
+            })
+          } else removeModelAutosave(userId, modelId)
+        } catch (error) {
+          message.warning(
+            `模型已保存，但本地草稿更新失败：${error instanceof Error ? error.message : String(error)}`,
+          )
+        }
+      }
       message.success('模型保存成功')
+      return true
     } catch (error) {
       message.error(error instanceof Error ? error.message : '模型保存失败')
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleReturn() {
+    setReturnTooltipOpen(false)
+    if (saving || !graph) return
+    syncGraph(graph.toJSON())
+    useSubGraphStore.getState().recomputeDirty()
+    if (useSubGraphStore.getState().isDirty) setReturnDialogOpen(true)
+    else void navigate(exchangePath)
+  }
+
+  function discardAndReturn() {
+    if (saving) return
+    try {
+      if (ncslabContext && modelId != null)
+        removeModelAutosave(ncslabContext.user.id, modelId)
+      setReturnDialogOpen(false)
+      void navigate(exchangePath)
+    } catch (error) {
+      message.error(
+        `无法清除本地草稿：${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  async function saveAndReturn() {
+    if (!(await handleSave())) return
+    if (useSubGraphStore.getState().isDirty) {
+      message.info('保存期间产生了新的修改，请再次保存后返回')
+      return
+    }
+    setReturnDialogOpen(false)
+    await navigate(exchangePath)
   }
 
   function handleExportModel() {
@@ -189,10 +253,8 @@ function PaperToolbar({
             <AntdButton
               size="small"
               icon={<ArrowLeftOutlined />}
-              onClick={() => {
-                setReturnTooltipOpen(false)
-                navigate(exchangePath)
-              }}
+              disabled={saving}
+              onClick={handleReturn}
             >
               返回
             </AntdButton>
@@ -287,6 +349,44 @@ function PaperToolbar({
           </Tooltip>
         </Space>
       </Space>
+
+      <Modal
+        open={returnDialogOpen}
+        title="未保存的更改"
+        onCancel={() => {
+          if (!saving) setReturnDialogOpen(false)
+        }}
+        closable={!saving}
+        maskClosable={!saving}
+        footer={[
+          <AntdButton
+            key="cancel"
+            disabled={saving}
+            onClick={() => setReturnDialogOpen(false)}
+          >
+            取消
+          </AntdButton>,
+          <AntdButton
+            key="discard"
+            danger
+            disabled={saving}
+            onClick={discardAndReturn}
+          >
+            放弃更改
+          </AntdButton>,
+          <AntdButton
+            key="save"
+            type="primary"
+            loading={saving}
+            disabled={!canSave}
+            onClick={() => void saveAndReturn()}
+          >
+            保存
+          </AntdButton>,
+        ]}
+      >
+        您有未保存的更改。您想要做什么？
+      </Modal>
 
       {showIssueLink && (
         <Button

@@ -7,6 +7,8 @@ import {
   maskArrowAttrs,
   MASK_SELECTOR,
 } from '@/assets/x6Model'
+import { useInterpreterStore } from '@/store/interpreterStore'
+import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { Cell, Graph, Node } from '@antv/x6'
 import type {
   EntryGraphModel,
@@ -25,6 +27,7 @@ interface SubGraphStore {
   isDirty: boolean
   // 最近一次保存的模型快照
   savedSnapshot: EntryGraphModel
+  savedConfig: InterpreterConfig
   // 当前所在的Graph ID
   currentGraphId: string
   // 从根Graph到当前Graph的路径ID列表
@@ -40,7 +43,10 @@ interface SubGraphStore {
   // 根据保存快照重算修改状态
   recomputeDirty: () => void
   // 将当前模型标记为已保存
-  markSaved: () => void
+  markSaved: (content?: {
+    graphModel: EntryGraphModel
+    config: InterpreterConfig
+  }) => void
   // 同步当前Layer Graph数据
   syncGraph: (graphJson: GraphJSON) => void
   // 同步新增SubGraph数据
@@ -304,6 +310,20 @@ function normalizeEntryGraphModel(model: EntryGraphModel): EntryGraphModel {
   return normalized
 }
 
+/** 浏览子图不属于模型内容修改。 */
+function isSameGraphModel(left: EntryGraphModel, right: EntryGraphModel) {
+  return isEqual(
+    {
+      ...normalizeEntryGraphModel(zipGraphModelJson(left)),
+      currentGraphId: left.rootId,
+    },
+    {
+      ...normalizeEntryGraphModel(zipGraphModelJson(right)),
+      currentGraphId: right.rootId,
+    },
+  )
+}
+
 const initialSubGraphs: SubGraphMap = {
   [ROOT_ID]: {
     id: ROOT_ID,
@@ -327,6 +347,7 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   modelName: DEFAULT_MODEL_NAME,
   isDirty: false,
   savedSnapshot: initialSavedSnapshot,
+  savedConfig: structuredClone(useInterpreterStore.getState().config),
   currentGraphId: ROOT_ID,
   currentPathIds: [ROOT_ID],
   rootId: ROOT_ID,
@@ -350,14 +371,23 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
     get().recomputeDirty()
   },
   recomputeDirty: () => {
-    const { exportEntryGraphModel, savedSnapshot } = get()
-    set({ isDirty: !isEqual(exportEntryGraphModel(), savedSnapshot) })
-  },
-  markSaved: () => {
+    const { exportEntryGraphModel, savedSnapshot, savedConfig } = get()
     set({
-      savedSnapshot: get().exportEntryGraphModel(),
-      isDirty: false,
+      isDirty:
+        !isSameGraphModel(exportEntryGraphModel(), savedSnapshot) ||
+        !isEqual(useInterpreterStore.getState().config, savedConfig),
     })
+  },
+  markSaved: (content) => {
+    set({
+      savedSnapshot: structuredClone(
+        content?.graphModel ?? get().exportEntryGraphModel(),
+      ),
+      savedConfig: structuredClone(
+        content?.config ?? useInterpreterStore.getState().config,
+      ),
+    })
+    get().recomputeDirty()
   },
   syncGraph: (graphJson) => {
     const { currentGraphId, subGraphs } = get()
@@ -461,6 +491,11 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   },
 }))
 
+useInterpreterStore.subscribe((state, previous) => {
+  if (state.config !== previous.config)
+    useSubGraphStore.getState().recomputeDirty()
+})
+
 function captureSubGraphHistory(
   cells: Cell[],
 ): SubGraphHistoryPayload | undefined {
@@ -526,6 +561,7 @@ export {
   createSubGraphItem,
   buildPaths,
   normalizeEntryGraphModel,
+  isSameGraphModel,
   SUBGRAPH_HISTORY_OPTION,
   captureSubGraphHistory,
   restoreSubGraphHistory,

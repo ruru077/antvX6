@@ -27,9 +27,15 @@ import {
   listDiagramModels,
   updateDiagramModel,
 } from '@/services/diagram-model-service'
+import {
+  isSameModelContent,
+  readModelAutosaveInfo,
+  removeModelAutosave,
+} from '@/services/model-autosave-service'
 import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import { DEFAULT_INTERPRETER_CONFIG } from '@/store/interpreterStore'
 import type { DiagramModelSummary } from '@/services/diagram-model-service'
+import type { ModelAutosaveInfo } from '@/services/model-autosave-service'
 import type { TableColumnsType } from 'antd'
 import type { EntryGraphModel } from '~/types'
 
@@ -134,16 +140,30 @@ function ExchangeDiagram({
   }, [userId, reloadCount])
 
   const openModel = async (model: DiagramModelSummary, sourceKey: string) => {
+    if (openingKey != null) return
     setOpenTooltipKey(null)
     setOpeningKey(sourceKey)
     try {
       const detail = await getDiagramModel(model.id)
+      if (userId == null) throw new Error('缺少用户上下文')
+      let autosave: ModelAutosaveInfo | null = null
+      try {
+        autosave = readModelAutosaveInfo(userId, model.id)
+        if (autosave && isSameModelContent(autosave.content, detail)) {
+          removeModelAutosave(userId, model.id)
+          autosave = null
+        }
+      } catch (error) {
+        messageApi.warning(`无法读取本地自动保存：${errorText(error)}`)
+      }
       await navigate(workspacePath, {
         state: {
           diagramModel: detail.graphModel,
           modelId: detail.id,
           modelName: detail.modelName,
           config: detail.config,
+          lastUpdate: detail.lastUpdate,
+          recovery: autosave,
         },
       })
     } catch (error) {

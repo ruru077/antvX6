@@ -8,14 +8,22 @@ import {
   StencilLayout,
 } from '@/components'
 import { WorkspaceLoadingBoundary } from '@/components/layout/WorkspaceLoadingBoundary'
+import { ModelRecoveryDialog } from '@/components/ModelRecoveryDialog'
 import { bindAntdMessage } from '@/services/antd-message-service'
+import { removeModelAutosave } from '@/services/model-autosave-service'
+import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import { loadEntryGraphModel } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useInterpreterStore } from '@/store/interpreterStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
 import { useTouchAdapter } from '@/touch/useTouchAdapter'
 import { useKeepAliveGraphViewport } from '@/utils/hooks/useKeepAliveGraphViewport'
+import { useModelAutosave } from '@/utils/hooks/useModelAutosave'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
+import type {
+  ModelAutosaveInfo,
+  ModelContent,
+} from '@/services/model-autosave-service'
 import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { EntryGraphModel } from '~/types'
 import '@styles/BlockDiagram.scss'
@@ -38,10 +46,14 @@ type BlockDiagramProps = {
   modelId?: number | string
   modelName?: string
   initialConfig?: InterpreterConfig
+  savedContent?: ModelContent
+  recovery?: ModelAutosaveInfo | null
+  lastUpdate?: string
   exchangePath?: string
   showIssueLink?: boolean
   onReady?: () => void
   active?: boolean
+  visible?: boolean
 }
 
 /**
@@ -53,14 +65,29 @@ function DiagramWorkspace({
   modelId,
   modelName,
   initialConfig,
+  savedContent,
+  recovery,
+  lastUpdate,
   exchangePath = '/exchange',
   showIssueLink = false,
   onReady,
   active = true,
+  visible = true,
 }: BlockDiagramProps) {
   const { message } = AntdApp.useApp()
   const paperContainerRef = useRef<HTMLDivElement>(null)
   const [stencilReady, setStencilReady] = useState(false)
+  const [resolvedRecovery, setResolvedRecovery] =
+    useState<EntryGraphModel | null>(null)
+  const [restored, setRestored] = useState<{
+    sourceModel: EntryGraphModel
+    content: ModelContent
+  } | null>(null)
+  const restoredContent =
+    restored && restored.sourceModel === initialModel ? restored.content : null
+  const displayedModel = restoredContent?.graphModel ?? initialModel
+  const displayedConfig = restoredContent?.config ?? initialConfig
+  const recoveryPending = recovery != null && resolvedRecovery !== initialModel
 
   bindAntdMessage(message)
   useGraphListener()
@@ -73,30 +100,65 @@ function DiagramWorkspace({
     return destroyGraph
   }, [])
   useLayoutEffect(() => {
-    if (!initialModel || modelId == null) return
+    if (!initialModel || !displayedModel || modelId == null) return
     const graph = useGraphStore.getState().graph
     if (!graph) return
 
-    loadEntryGraphModel(initialModel, graph)
+    loadEntryGraphModel(displayedModel, graph)
     if (!modelName) throw new Error('模型详情缺少 modelName')
-    if (!initialConfig) throw new Error('模型详情缺少 config')
+    if (!initialConfig || !displayedConfig)
+      throw new Error('模型详情缺少 config')
     useSubGraphStore.setState({ modelName })
-    useInterpreterStore.getState().setConfig(initialConfig)
+    useInterpreterStore.getState().setConfig(displayedConfig)
     graph.fromJSON(
-      initialModel.subGraphs[initialModel.currentGraphId].graphJson,
+      displayedModel.subGraphs[displayedModel.currentGraphId].graphJson,
     )
-    useSubGraphStore.getState().markSaved()
-  }, [initialConfig, initialModel, modelId, modelName])
+    useSubGraphStore.getState().markSaved(
+      savedContent ?? {
+        graphModel: initialModel,
+        config: initialConfig,
+      },
+    )
+  }, [
+    displayedConfig,
+    displayedModel,
+    initialConfig,
+    initialModel,
+    modelId,
+    modelName,
+    savedContent,
+  ])
   // 在上面的模型加载 layout effect 之后安排画布适应。
   const graphLoadingStage = useKeepAliveGraphViewport(
     active,
     stencilReady,
-    initialModel,
+    displayedModel,
   )
   const workspaceStage = stencilReady ? graphLoadingStage : 'initializing'
+  useModelAutosave(
+    active && workspaceStage === 'ready' && !recoveryPending,
+    modelId,
+  )
   useEffect(() => {
     if (workspaceStage === 'ready') onReady?.()
   }, [onReady, workspaceStage])
+
+  function chooseRecovery(source: 'database' | 'autosave' | 'discard') {
+    if (!initialModel || !recovery || modelId == null) return
+    try {
+      if (source === 'discard') {
+        const userId = useNcslabContextStore.getState().context?.user.id
+        if (userId == null) throw new Error('缺少用户上下文')
+        removeModelAutosave(userId, modelId)
+      }
+      if (source === 'autosave') {
+        setRestored({ sourceModel: initialModel, content: recovery.content })
+      }
+      setResolvedRecovery(initialModel)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   return (
     <WorkspaceLoadingBoundary
@@ -119,6 +181,16 @@ function DiagramWorkspace({
           </>
         }
       />
+      {recovery && (
+        <ModelRecoveryDialog
+          open={
+            active && visible && workspaceStage === 'ready' && recoveryPending
+          }
+          autosave={recovery}
+          lastUpdate={lastUpdate}
+          onChoose={chooseRecovery}
+        />
+      )}
     </WorkspaceLoadingBoundary>
   )
 }
