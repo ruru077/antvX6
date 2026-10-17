@@ -3,3 +3,5 @@ allowBuilds:
   react-intl-universal: true
 minimumReleaseAgeExclude:
   - react-simple-keyboard@3.8.261
+  - '@voidzero-dev/vite-plus-core@1.3.0'
+  - vite-plus@1.3.0

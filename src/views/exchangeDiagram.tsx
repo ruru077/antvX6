@@ -340,7 +340,7 @@ function ExchangeDiagram({
 
   if (!runtimeContext)
     return (
-      <main className="min-h-full bg-[#f0f2f5] p-6">
+      <main className="h-full overflow-y-auto bg-[#f0f2f5] p-6">
         {messageHolder}
         <Alert
           showIcon
@@ -355,7 +355,7 @@ function ExchangeDiagram({
     <WorkspaceLoadingBoundary
       stage={workspaceReady && exchangeReady ? 'ready' : 'initializing'}
     >
-      <main className="min-h-full bg-[#f0f2f5] p-6">
+      <main className="h-full overflow-y-auto bg-[#f0f2f5] p-6">
         {messageHolder}
         <div className="flex flex-col gap-4">
           {currentLoadError && (
@@ -382,7 +382,11 @@ function ExchangeDiagram({
                   </div>
                 ),
               }}
-              pagination={{ pageSize: 10, placement: ['bottomEnd'] }}
+              pagination={{
+                pageSize: 5,
+                showSizeChanger: false,
+                placement: ['bottomEnd'],
+              }}
               rowKey="id"
               onRow={(model) => ({ onDoubleClick: () => showUpdate(model) })}
             />
@@ -416,7 +420,11 @@ function ExchangeDiagram({
                   </div>
                 ),
               }}
-              pagination={{ pageSize: 10, placement: ['bottomEnd'] }}
+              pagination={{
+                pageSize: 5,
+                showSizeChanger: false,
+                placement: ['bottomEnd'],
+              }}
               rowKey="id"
               onRow={(model) => ({ onDoubleClick: () => showUpdate(model) })}
             />
