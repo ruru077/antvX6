@@ -18,6 +18,7 @@ import {
   Tooltip,
 } from 'antd'
 import { useNavigate } from 'react-router'
+import { ROOT_GRAPH_ID } from '@/assets/constant'
 import { WorkspaceLoadingBoundary } from '@/components/layout/WorkspaceLoadingBoundary'
 import {
   createDiagramModel,
@@ -51,14 +52,13 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : '请求失败，请稍后重试'
 
 function createEmptyGraphModel(): EntryGraphModel {
-  const rootId = 'root'
   return {
-    currentGraphId: rootId,
-    rootId,
+    currentGraphId: ROOT_GRAPH_ID,
+    rootId: ROOT_GRAPH_ID,
     subGraphs: {
-      [rootId]: {
-        id: rootId,
-        name: 'root',
+      [ROOT_GRAPH_ID]: {
+        id: ROOT_GRAPH_ID,
+        name: ROOT_GRAPH_ID,
         deep: 0,
         parentId: null,
         childrenIds: [],

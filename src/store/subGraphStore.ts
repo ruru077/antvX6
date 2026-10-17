@@ -1,6 +1,7 @@
 import { StringExt } from '@antv/x6'
 import { cloneDeep, isEqual } from 'lodash-es'
 import { create } from 'zustand'
+import { ROOT_GRAPH_ID } from '@/assets/constant'
 import {
   buildSubsystemMarkup,
   DROP_SHADOW_FILTER,
@@ -33,7 +34,7 @@ interface SubGraphStore {
   // 从根Graph到当前Graph的路径ID列表
   currentPathIds: string[]
   // Entry Graph ID
-  rootId: string
+  rootId: typeof ROOT_GRAPH_ID
   // 所有subGraph的信息
   subGraphs: SubGraphMap
   // 导出EntryGraphModel
@@ -248,7 +249,6 @@ function buildPaths(subGraphs: SubGraphMap, subGraphId: string) {
   }
   return pathIds
 }
-const ROOT_ID = 'root'
 const DEFAULT_MODEL_NAME = '实验二-系统稳态误差分析'
 
 // 压缩 JSON
@@ -315,18 +315,18 @@ function isSameGraphModel(left: EntryGraphModel, right: EntryGraphModel) {
   return isEqual(
     {
       ...normalizeEntryGraphModel(zipGraphModelJson(left)),
-      currentGraphId: left.rootId,
+      currentGraphId: ROOT_GRAPH_ID,
     },
     {
       ...normalizeEntryGraphModel(zipGraphModelJson(right)),
-      currentGraphId: right.rootId,
+      currentGraphId: ROOT_GRAPH_ID,
     },
   )
 }
 
 const initialSubGraphs: SubGraphMap = {
-  [ROOT_ID]: {
-    id: ROOT_ID,
+  [ROOT_GRAPH_ID]: {
+    id: ROOT_GRAPH_ID,
     name: 'root',
     deep: 0,
     parentId: null,
@@ -337,8 +337,8 @@ const initialSubGraphs: SubGraphMap = {
 
 const initialSavedSnapshot = normalizeEntryGraphModel(
   zipGraphModelJson({
-    currentGraphId: ROOT_ID,
-    rootId: ROOT_ID,
+    currentGraphId: ROOT_GRAPH_ID,
+    rootId: ROOT_GRAPH_ID,
     subGraphs: initialSubGraphs,
   }),
 )
@@ -348,17 +348,17 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
   isDirty: false,
   savedSnapshot: initialSavedSnapshot,
   savedConfig: structuredClone(useInterpreterStore.getState().config),
-  currentGraphId: ROOT_ID,
-  currentPathIds: [ROOT_ID],
-  rootId: ROOT_ID,
+  currentGraphId: ROOT_GRAPH_ID,
+  currentPathIds: [ROOT_GRAPH_ID],
+  rootId: ROOT_GRAPH_ID,
   subGraphs: structuredClone(initialSubGraphs),
 
   exportEntryGraphModel: () => {
-    const { currentGraphId, rootId, subGraphs } = get()
+    const { currentGraphId, subGraphs } = get()
     return normalizeEntryGraphModel(
       zipGraphModelJson({
         currentGraphId,
-        rootId,
+        rootId: ROOT_GRAPH_ID,
         subGraphs,
       }),
     )

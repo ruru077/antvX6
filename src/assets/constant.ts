@@ -36,6 +36,8 @@ const STENCIL_NODE_COLUMN_GAP = 12
 const KEY_THROTTLE_TIME = 800
 // 模型保存事件
 const SAVE_MODEL_EVENT = 'model:save'
+// Entry Graph 的固定 ID；模型名称不得复用为图层 ID。
+const ROOT_GRAPH_ID = 'root' as const
 // target connectionPoint 相对 anchor 的偏移量（负值 = 线段终点提前于 port）
 const EDGE_TARGET_CP_OFFSET = -5
 // Port 出线方向保留的固定线段长度
@@ -73,6 +75,7 @@ export {
   STENCIL_NODE_COLUMN_GAP,
   KEY_THROTTLE_TIME,
   SAVE_MODEL_EVENT,
+  ROOT_GRAPH_ID,
   EDGE_TARGET_CP_OFFSET,
   PORT_STUB_SIZE,
   EDGE_WRAPPER_WIDTH,

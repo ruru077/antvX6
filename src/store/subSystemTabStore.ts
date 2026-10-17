@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ROOT_GRAPH_ID } from '@/assets/constant'
 import { changeGraphView } from '@/services/subsystem-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useSubGraphStore } from '@/store/subGraphStore'
@@ -50,7 +51,6 @@ interface SubSystemTabStore {
   setActiveTab: (key: string) => void
 }
 
-const ROOT_ID = 'root'
 let nextTabKey = 0
 
 function createTab(subGraphId: string): TabItem {
@@ -66,7 +66,7 @@ function compactHistory(history: string[]) {
   return history.filter((id, index) => id !== history[index - 1])
 }
 
-const initialTab = createTab(ROOT_ID)
+const initialTab = createTab(ROOT_GRAPH_ID)
 
 /** 调用 changeGraphView 加载目标图层 */
 function loadGraph(subGraphId: string, options?: ChangeGraphViewOptions) {

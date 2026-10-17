@@ -1,6 +1,6 @@
 import { Model, StringExt } from '@antv/x6'
 import { isEmpty } from 'lodash-es'
-import { GRAPH_GRID } from '@/assets/constant'
+import { GRAPH_GRID, ROOT_GRAPH_ID } from '@/assets/constant'
 import {
   buildSubsystemMarkup,
   formalLinkAttrs,
@@ -281,7 +281,7 @@ function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
   useSubGraphStore.setState({
     currentGraphId: model.currentGraphId,
     currentPathIds: buildPaths(model.subGraphs, model.currentGraphId),
-    rootId: model.rootId,
+    rootId: ROOT_GRAPH_ID,
     subGraphs: model.subGraphs,
   })
 }
@@ -1337,10 +1337,10 @@ function syncParentSubsystemPorts(graph: Graph): boolean {
  * @param rootId 根图 id
  * @param graph X6 Graph 实例，用于 remap 边索引回溯
  */
-function solve(subGraphs: SubGraphMap, rootId: string, graph: Graph) {
+function solve(subGraphs: SubGraphMap, graph: Graph) {
   const resolvedSubGraphs = resolveSubGraphMaskParams(subGraphs)
   // 1) 平铺所有边到 remap 结果
-  const linesDTO = flatGraph(resolvedSubGraphs, rootId, graph)
+  const linesDTO = flatGraph(resolvedSubGraphs, ROOT_GRAPH_ID, graph)
   // 2) 按连通性构造 flow chain
   // 使用双向可达性筛选合法边，不再枚举 flow chain。
   const validLines = filterValidLines(linesDTO, resolvedSubGraphs)
@@ -1363,9 +1363,9 @@ async function buildGraphModelDTO(
   options: BuildGraphModelDTOOptions,
 ): Promise<GraphModelDTO> {
   const { purpose = 'simulation', userId, modelId = 0 } = options
-  const { rootId, subGraphs, modelName } = useSubGraphStore.getState()
+  const { subGraphs, modelName } = useSubGraphStore.getState()
   const { config } = useInterpreterStore.getState()
-  const { blocks, lines } = solve(subGraphs, rootId, graph)
+  const { blocks, lines } = solve(subGraphs, graph)
   const solver =
     config.SimSolver === 'auto'
       ? config.Step === 'VariableStep'

@@ -13,7 +13,7 @@ interface SubGraphItem {
 
 interface EntryGraphModel {
   currentGraphId: string
-  rootId: string
+  rootId: 'root'
   subGraphs: Record<string, SubGraphItem>
 }
 
