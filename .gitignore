@@ -27,7 +27,6 @@ dist-ssr
 # 编辑器配置
 .vscode
 .github
-/docs
 .agents
 skills-lock.json
 .qoder
