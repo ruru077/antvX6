@@ -25,7 +25,6 @@ const router = createBrowserRouter([
             <ExchangeWorkspaceRoutes
               exchangePath="/deploy"
               workspacePath="/deploy-workspace"
-              showIssueLink
             />
           </Suspense>
         ),

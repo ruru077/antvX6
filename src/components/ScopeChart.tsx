@@ -184,6 +184,7 @@ function ScopeCharts({
   }, [config.Step, config.SimFixedStep, sources])
   const [sampleTime, setSampleTime] = useState(0.01)
   const [sampleTimeInput, setSampleTimeInput] = useState<number | null>(0.01)
+  const [decimalPlaces, setDecimalPlaces] = useState(2)
   const [messageApi, messageHolder] = message.useMessage()
   const startTime = Number(config.StartTime)
   const stopTime = Number(config.StopTime)
@@ -311,6 +312,12 @@ function ScopeCharts({
     if (!chart || !chartElement) return
 
     const textColor = getComputedStyle(chartElement).color
+    const numberFormatter = new Intl.NumberFormat('zh-CN', {
+      useGrouping: false,
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    })
+    const formatDisplay = (value: number) => numberFormatter.format(value)
     const time = series[0]?.time
     timeExtentRef.current =
       toolbar && time?.length
@@ -324,7 +331,13 @@ function ScopeCharts({
       {
         animation: false,
         color: series.map((_, index) => getSeriesColor(index)),
-        tooltip: { trigger: 'axis' },
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: (value: unknown) =>
+            Array.isArray(value)
+              ? value.map((item) => formatDisplay(Number(item))).join(', ')
+              : formatDisplay(Number(value)),
+        },
         legend: { show: showLegend, top: 8, textStyle: { color: textColor } },
         grid: {
           left: 52,
@@ -360,6 +373,11 @@ function ScopeCharts({
           nameRotate: 0,
           scale: true,
           axisLabel: { color: textColor },
+          axisPointer: {
+            label: {
+              formatter: ({ value }: { value: number }) => String(value),
+            },
+          },
           axisLine: { show: true, lineStyle: { color: textColor } },
           nameTextStyle: { color: textColor },
           splitLine: {
@@ -395,6 +413,7 @@ function ScopeCharts({
       { replaceMerge: ['series'] },
     )
   }, [
+    decimalPlaces,
     hasTimeRange,
     series,
     showGrid,
@@ -482,6 +501,8 @@ function ScopeCharts({
                 step={0.01}
                 changeOnBlur={false}
                 value={sampleTimeInput}
+                style={{ width: 60 }}
+                controls={false}
                 aria-label="采样时间"
                 onChange={setSampleTimeInput}
                 onBlur={() => {
@@ -507,6 +528,24 @@ function ScopeCharts({
               <span className="scope-sample-time-unit">s</span>
             </Space.Compact>
           </Tooltip>
+          <Space.Compact size="small">
+            <span className="scope-sample-time-label">小数位数</span>
+            <InputNumber<number>
+              size="small"
+              min={0}
+              max={12}
+              step={1}
+              precision={0}
+              value={decimalPlaces}
+              style={{ width: 30 }}
+              controls={false}
+              aria-label="小数位数"
+              onChange={(value) => {
+                if (value !== null && Number.isFinite(value))
+                  setDecimalPlaces(Math.min(12, Math.max(0, Math.round(value))))
+              }}
+            />
+          </Space.Compact>
           <div className="flex items-center gap-1">
             <ChartAction
               label={showGrid ? '隐藏网格' : '显示网格'}

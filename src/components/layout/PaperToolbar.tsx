@@ -269,6 +269,7 @@ function PaperToolbar({
           <Tooltip title="下载到目标设备" mouseEnterDelay={0.3}>
             <AntdButton
               size="small"
+              disabled={import.meta.env.PROD}
               icon={<CloudDownloadOutlined style={{ color: '#52c41a' }} />}
             >
               下载到目标设备
@@ -276,7 +277,11 @@ function PaperToolbar({
           </Tooltip>
 
           <Tooltip title="验证模型" mouseEnterDelay={0.3}>
-            <AntdButton size="small" icon={<CheckCircleOutlined />}>
+            <AntdButton
+              size="small"
+              disabled={import.meta.env.PROD}
+              icon={<CheckCircleOutlined />}
+            >
               验证模型
             </AntdButton>
           </Tooltip>
