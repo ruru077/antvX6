@@ -16,9 +16,11 @@ import {
   Dropdown,
   Modal,
   Space,
+  Select,
   Tooltip,
 } from 'antd'
 import { useNavigate } from 'react-router'
+import { requestDiagramModel } from '@/services/diagram-model-service'
 import { startCompilation } from '@/api/compilation'
 import { saveModel } from '@/api/saveModel'
 import { startSimulation } from '@/api/simulation'
@@ -74,6 +76,20 @@ function PaperToolbar({
   const [returnDialogOpen, setReturnDialogOpen] = useState(false)
   const [compiling, setCompiling] = useState(false)
   const [compilationPercent, setCompilationPercent] = useState(0)
+  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+  const [compileTargets, setCompileTargets] = useState<{ id: number; name: string; model: string }[]>([])
+  const [selectedTarget, setSelectedTarget] = useState<number>()
+
+  async function chooseCompileTarget() {
+    if (compiling) return
+    try {
+      const targets = await requestDiagramModel<{ id: number; name: string; model: string }[]>('/compile-targets')
+      setCompileTargets(targets)
+      setTargetDialogOpen(true)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '无法获取编译目标')
+    }
+  }
 
   const isSimulating = useSimulationStore((state) => state.isRunning)
   const progress = useSimulationStore((state) => state.progress)
@@ -205,6 +221,8 @@ function PaperToolbar({
   }
 
   async function handleCompile() {
+    if (!selectedTarget) return
+    setTargetDialogOpen(false)
     if (!graph || compiling) return
     setCompiling(true)
     setCompilationPercent(0)
@@ -217,6 +235,7 @@ function PaperToolbar({
 
       const model = await buildGraphModelDTO(graph, {
         purpose: 'compilation',
+        testRig: selectedTarget,
         userId: getUserId(ncslabContext?.user.id),
         modelId: numericModelId,
       })
@@ -322,7 +341,7 @@ function PaperToolbar({
               icon={<BuildOutlined />}
               loading={compiling}
               disabled={!graph}
-              onClick={() => void handleCompile()}
+              onClick={() => void chooseCompileTarget()}
             >
               {compiling ? `编译 ${compilationPercent}%` : '编译'}
             </AntdButton>
@@ -350,6 +369,22 @@ function PaperToolbar({
         </Space>
       </Space>
 
+      <Modal
+        title="选择编译目标设备"
+        open={targetDialogOpen}
+        onCancel={() => setTargetDialogOpen(false)}
+        onOk={() => void handleCompile()}
+        okButtonProps={{ disabled: !selectedTarget }}
+      >
+        <Select
+          aria-label="编译目标设备"
+          style={{ width: '100%' }}
+          placeholder="请选择目标设备"
+          value={selectedTarget}
+          onChange={setSelectedTarget}
+          options={compileTargets.map((target) => ({ value: target.id, label: `${target.name} (${target.model}, #${target.id})` }))}
+        />
+      </Modal>
       <Modal
         open={returnDialogOpen}
         title="未保存的更改"

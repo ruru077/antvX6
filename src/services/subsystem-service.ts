@@ -1356,13 +1356,16 @@ interface BuildGraphModelDTOOptions {
   purpose?: 'simulation' | 'compilation'
   userId: number
   modelId?: number
+  testRig?: number
 }
 
 async function buildGraphModelDTO(
   graph: Graph,
   options: BuildGraphModelDTOOptions,
 ): Promise<GraphModelDTO> {
-  const { purpose = 'simulation', userId, modelId = 0 } = options
+  const { purpose = 'simulation', userId, modelId = 0, testRig = 0 } = options
+  if (purpose === 'compilation' && (!Number.isInteger(testRig) || testRig <= 0))
+    throw new Error('请选择编译目标设备')
   const { subGraphs, modelName } = useSubGraphStore.getState()
   const { config } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, graph)
@@ -1375,7 +1378,7 @@ async function buildGraphModelDTO(
 
   return {
     userId,
-    testRig: 105, // TODO
+    testRig, // TODO
     copyNum: 0, // TODO
     modelId,
     modelName: 'name', // TODO
@@ -1416,7 +1419,7 @@ async function buildGraphModelDTO(
       packetSize: Number(config.PacketSize),
       targetPlatform: 1, // 编译目标平台，当前固定为1
       publicFlag: 0, // 模型/算法公共标志，当前固定为0
-      testRig: 105,
+      testRig,
       copyNum: 0,
       description: '',
     },

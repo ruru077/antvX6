@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   setStage: vi.fn(),
   refresh: vi.fn(),
   scroller: {},
-  graph: { getPlugin: vi.fn(), zoomToFit: vi.fn() },
+  graph: { getPlugin: vi.fn(), zoomToFit: vi.fn(), getCellCount: vi.fn(() => 1) },
 }))
 
 vi.mock('react', () => ({

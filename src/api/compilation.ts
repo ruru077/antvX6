@@ -1,6 +1,10 @@
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
-const COMPILATION_WS_URL = 'ws://localhost:8071/NCSLabLink/websocketcompile'
+// const COMPILATION_WS_URL = 'ws://localhost:8071/NCSLabLink/websocketcompile'
+// const COMPILATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketcompile'
+import { linkWsUrl } from './endpoints'
+
+const COMPILATION_WS_URL = linkWsUrl('websocketcompile')
 
 interface CompilationProgress {
   message: string
@@ -36,7 +40,7 @@ function startCompilation({
   onWarning,
 }: StartCompilationOptions): Promise<void> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(COMPILATION_WS_URL)
+    const socket = new WebSocket(linkWsUrl('websocketcompile'))
     let completed = false
 
     const fail = (error: Error) => {

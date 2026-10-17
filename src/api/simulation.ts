@@ -1,8 +1,10 @@
-import { useConfigStore } from '@/store/configStore'
+import { linkWsUrl } from './endpoints'
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
+const SIMULATION_WS_URL = linkWsUrl('websocketsimulatert')
+
 // 本地服务器版
-const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketsimulatert'
+// const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink/websocketsimulatert'
 // 0902 bugfix版 似乎没什么区别
 // const SIMULATION_WS_URL = 'wss://stencil.top/NCSLabLink0902/websocketsimulatert'
 // 本地调试版
@@ -45,11 +47,9 @@ const progressByMessage: Record<string, number> = {
 }
 
 function getSimulationWsUrl(): string {
-  const { localSolverDebugEnabled, localSolverPort } = useConfigStore.getState()
-  if (!localSolverDebugEnabled) return SIMULATION_WS_URL
-
-  const port = localSolverPort.trim() || '8071'
-  return `ws://localhost:${port}/NCSLabLink/websocketsimulatert`
+  // Production requests always use the gateway; a persisted local-debug preference must not bypass authentication.
+  // Manual local debugging: return `ws://localhost:8071/NCSLabLink/websocketsimulatert`
+  return linkWsUrl('websocketsimulatert')
 }
 
 function normalizeResults(value: unknown): SimulationResults | null {
@@ -111,7 +111,8 @@ function startSimulation({
         }
 
         if (type === 'scope_update') {
-          const results = normalizeResults(message.scopeData)
+          const payload = message.data as { scopeData?: unknown } | undefined
+          const results = normalizeResults(message.scopeData ?? payload?.scopeData)
           if (results) onResults(results)
         }
 
@@ -150,7 +151,7 @@ function startSimulation({
     }
 
     socket.onclose = (event) => {
-      if (!completed && event.code !== 1000) {
+      if (!completed) {
         reject(new Error('仿真 WebSocket 连接意外关闭'))
       }
     }
