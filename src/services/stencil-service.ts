@@ -2,6 +2,7 @@ import { Graph, Stencil } from '@antv/x6'
 import { debounce } from 'lodash-es'
 import { MIN_RESIZABLE_WIDTH, STENCIL_GROUP_PADDING } from '@/assets/constant'
 import { createSubsystemBackgroundFill } from '@/assets/x6Model'
+import { createLadderNode } from '@/ladder/blockNode'
 import { createCommonService } from '@/services/common-service'
 import {
   clearEdgeInsertionPreview,
@@ -431,6 +432,12 @@ function createStencilService() {
     libraryWithBlock.set(TEST_GROUP_NAME, [
       adaptStencilBlock(SUBSYSTEM_TEST_BLOCK),
     ])
+
+    if (import.meta.env.VITE_LAD_ENABLED === 'true') {
+      libraryWithBlock.set('LAD CONTROL', [
+        adaptStencilBlock(createLadderNode()),
+      ])
+    }
 
     // 缓存库名和 Block 列表供外部读取
     loadedLibraryNames = Array.from(libraryWithBlock.keys())

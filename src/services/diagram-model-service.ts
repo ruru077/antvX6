@@ -1,10 +1,9 @@
-import { useNcslabContextStore } from '@/services/ncslab-context-service'
-import type { InterpreterConfig } from '@/store/interpreterStore'
-import type { EntryGraphModel } from '~/types'
-
 // const MODEL_SERVER = 'https://www.stencil.top'
 // const MODEL_SERVER = 'http://localhost:8080'
 import { antvApiUrl } from '@/api/endpoints'
+import { useNcslabContextStore } from '@/services/ncslab-context-service'
+import type { InterpreterConfig } from '@/store/interpreterStore'
+import type { EntryGraphModel } from '~/types'
 
 type DiagramVisibility = 'public' | 'private'
 
@@ -52,6 +51,7 @@ async function requestDiagramModel<T>(
     headers: {
       Accept: 'application/json',
       'X-Antv-Request': '1',
+      'X-Antv-Capabilities': 'ladder-controller-v1',
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },

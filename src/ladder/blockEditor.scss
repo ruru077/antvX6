@@ -1,0 +1,7 @@
+.lad-block-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: #f4f7fb;
+  .lad-page { height: 100%; min-height: 0; }
+}

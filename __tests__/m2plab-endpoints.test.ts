@@ -8,6 +8,7 @@ describe('same-origin deployment endpoints', () => {
       vi.stubGlobal('window', { location: { origin } })
       expect(antvApiUrl('/diagram-models').toString()).toBe(`${origin}/m2plab/api/antv/diagram-models`)
       expect(linkWsUrl('websocketsimulatert')).toBe(`${origin.replace('https:', 'wss:')}/m2plab/matlab/websocketsimulatert`)
+      expect(linkWsUrl('websocketsimulate')).toBe(`${origin.replace('https:', 'wss:')}/m2plab/matlab/websocketsimulate`)
       expect(linkWsUrl('websocketcompile')).toBe(`${origin.replace('https:', 'wss:')}/m2plab/matlab/websocketcompile`)
     })
   }

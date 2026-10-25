@@ -8,6 +8,8 @@ import {
   formalLinkAttrs,
   previewLinkAttrs,
 } from '@/assets/x6Model'
+import { assertLadderBlock, LADDER_BLOCK_TYPE } from '@/ladder/block'
+import { useLadderBlockEditorStore } from '@/ladder/blockEditorStore'
 import { editAnnotationNode } from '@/services/annotation-service'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { UPDATE_BLOCK_PARAMS } from '@/services/block-param-service'
@@ -735,6 +737,25 @@ function registerNodeEditListeners(graph: Graph) {
     }
     if (String(node.getData()?.blockType ?? '').toLowerCase() === 'scope')
       return
+    if (node.getData()?.blockType === LADDER_BLOCK_TYPE) {
+      try {
+        const ladder = node.getData().ladder
+        assertLadderBlock(ladder)
+        useLadderBlockEditorStore
+          .getState()
+          .open({
+            graphId: useSubGraphStore.getState().currentGraphId,
+            nodeId: node.id,
+            name: node.attr<string>('label/text') || 'LAD Controller',
+            ladder,
+          })
+      } catch (error) {
+        getAntdMessage().error(
+          error instanceof Error ? error.message : 'LAD 数据无效',
+        )
+      }
+      return
+    }
     // 默认：打开参数设置悬浮窗口
     interactiveService.openNodeParamWindow(node)
   }
@@ -805,6 +826,9 @@ function registerHistoryListeners(graph: Graph) {
     options,
   }: EventArgs['history:change']) {
     if (!cmds?.length) return
+    if (cmds.some((cmd) => 'key' in cmd.data && cmd.data.key === 'data')) {
+      useSimulationStore.getState().clearLadderSnapshots()
+    }
 
     console.log('[undo] history:change', {
       commands: cmds.map((cmd) => ({

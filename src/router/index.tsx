@@ -8,6 +8,29 @@ const ExchangeWorkspaceRoutes = lazy(
 )
 
 const router = createBrowserRouter([
+  ...(import.meta.env.VITE_LAD_ENABLED === 'true'
+    ? [
+        ...(import.meta.env.DEV
+          ? [
+              {
+                path: '/ladder-integration',
+                hydrateFallbackElement: <></>,
+                lazy: async () => ({
+                  Component: (await import('@/ladder/LadderIntegrationPage'))
+                    .default,
+                }),
+              },
+            ]
+          : []),
+        {
+          path: '/ladder',
+          hydrateFallbackElement: <></>,
+          lazy: async () => ({
+            Component: (await import('@/ladder/LadderPage')).default,
+          }),
+        },
+      ]
+    : []),
   {
     path: '/iframe-demo',
     hydrateFallbackElement: <></>,
