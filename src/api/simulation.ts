@@ -1,4 +1,5 @@
 import { linkWsUrl } from './endpoints'
+import type { LadSnapshot } from '@/ladder/model'
 import type { GraphModelDTO } from '~/types/dto/graphModel'
 
 const SIMULATION_WS_URL = linkWsUrl('websocketsimulatert')
@@ -15,12 +16,19 @@ interface ScopeResult {
   name?: string
   width?: number
   height?: number
+  sampleHold?: boolean
   time: number[]
   data: number[] | number[][]
 }
 
 interface SimulationResults {
   scopes: ScopeResult[]
+}
+
+export interface LadderUpdate {
+  runId: string
+  time: number
+  controllers: { blockUUID: string; snapshot: LadSnapshot }[]
 }
 
 interface SimulationProgress {
@@ -32,6 +40,7 @@ interface StartSimulationOptions {
   model: GraphModelDTO
   onProgress: (progress: SimulationProgress) => void
   onResults: (results: SimulationResults) => void
+  onLadderUpdate?: (update: LadderUpdate) => void
 }
 
 const progressByMessage: Record<string, number> = {
@@ -68,16 +77,25 @@ function startSimulation({
   model,
   onProgress,
   onResults,
+  onLadderUpdate,
 }: StartSimulationOptions): Promise<SimulationResults> {
   return new Promise((resolve, reject) => {
     const simulationWsUrl = getSimulationWsUrl()
     const socket = new WebSocket(simulationWsUrl)
     let completed = false
+    let ladderRunId: string | null = null
 
     const finish = (results: SimulationResults) => {
       completed = true
       onResults(results)
       resolve(results)
+      socket.close()
+    }
+    const fail = (error: Error) => {
+      if (completed) return
+      completed = true
+      reject(error)
+      socket.close()
     }
 
     socket.onopen = () => {
@@ -93,12 +111,47 @@ function startSimulation({
     }
 
     socket.onmessage = ({ data }) => {
+      if (completed) return
       try {
         const message = JSON.parse(String(data)) as Record<string, unknown>
         const type = messageText(
           message.msg ?? message.message_type ?? message.type,
           'unknown',
         )
+
+        if (type === 'ladder_update') {
+          const update = (message.controllers ? message : message.data) as
+            | LadderUpdate
+            | undefined
+          if (
+            !update ||
+            typeof update.runId !== 'string' ||
+            !Number.isFinite(update.time) ||
+            !Array.isArray(update.controllers)
+          )
+            return
+          if (ladderRunId !== null && ladderRunId !== update.runId) return
+          if (
+            update.controllers.some(
+              (item) =>
+                !item ||
+                typeof item.blockUUID !== 'string' ||
+                !item.snapshot ||
+                !Number.isInteger(item.snapshot.scanIndex) ||
+                !Number.isFinite(item.snapshot.timeMs) ||
+                !item.snapshot.variables ||
+                !item.snapshot.trace ||
+                !item.snapshot.outputs ||
+                typeof item.snapshot.variables !== 'object' ||
+                typeof item.snapshot.trace !== 'object' ||
+                typeof item.snapshot.outputs !== 'object',
+            )
+          )
+            return
+          ladderRunId = update.runId
+          onLadderUpdate?.(update)
+          return
+        }
 
         if (type === 'error') {
           const error = new Error(
@@ -112,7 +165,9 @@ function startSimulation({
 
         if (type === 'scope_update') {
           const payload = message.data as { scopeData?: unknown } | undefined
-          const results = normalizeResults(message.scopeData ?? payload?.scopeData)
+          const results = normalizeResults(
+            message.scopeData ?? payload?.scopeData,
+          )
           if (results) onResults(results)
         }
 
@@ -147,12 +202,12 @@ function startSimulation({
     }
 
     socket.onerror = () => {
-      if (!completed) reject(new Error(`无法连接仿真服务：${simulationWsUrl}`))
+      fail(new Error(`无法连接仿真服务：${simulationWsUrl}`))
     }
 
     socket.onclose = (event) => {
       if (!completed) {
-        reject(new Error('仿真 WebSocket 连接意外关闭'))
+        fail(new Error('仿真 WebSocket 连接意外关闭'))
       }
     }
   })

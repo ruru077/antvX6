@@ -13,6 +13,8 @@ import {
   BlockParamWindow,
   SubsystemParamWindow,
 } from '@/components/NodeParamWindow'
+import { assertLadderBlock, LADDER_BLOCK_TYPE } from '@/ladder/block'
+import { useLadderBlockEditorStore } from '@/ladder/blockEditorStore'
 import { hasSubsystemMask } from '@/services/subsystem-service'
 import { focusOrRestoreFloatingWindow } from '@/store/floatingWindowStore'
 import { useGraphStore } from '@/store/graphStore'
@@ -282,6 +284,17 @@ function createInteractiveService() {
    * 注：子系统未封装时由 useGraphListener 直接进入子系统，不经过此方法
    */
   function openNodeParamWindow(node: Node) {
+    if (node.getData()?.blockType === LADDER_BLOCK_TYPE) {
+      const ladder = node.getData().ladder
+      assertLadderBlock(ladder)
+      useLadderBlockEditorStore.getState().open({
+        graphId: useSubGraphStore.getState().currentGraphId,
+        nodeId: node.id,
+        name: node.attr<string>('label/text') || 'LAD Controller',
+        ladder,
+      })
+      return
+    }
     const windowId = `node-param:${node.id}`
     if (focusOrRestoreFloatingWindow(windowId)) return
     const target: NodeParamWindowTarget = {

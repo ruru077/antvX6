@@ -6,11 +6,13 @@ import {
   RED,
   NODE_ROUTE_RESET_DISTANCE,
 } from '@/assets/constant'
+import avoidWasmUrl from '../../node_modules/libavoid-js/dist/avoid-web.wasm?url'
 import {
   repairManualRoute,
   validRoute,
   scoreFixedPaths,
 } from './routing-geometry'
+import { withRoutingTimeout } from './routing-loader'
 import {
   getRoutingSession,
   invalidateRouting,
@@ -179,20 +181,29 @@ function routeEdges(graph, edges, options = {}) {
   }
   if (!state.pending.size) return state.promise ?? Promise.resolve()
   if (!state.promise) {
-    state.promise = drainRouteQueue(graph, state).finally(() => {
-      state.promise = null
-      // A listener may enqueue in a microtask after drain's last synchronous pass.
-      if (!state.disposed && state.pending.size) return routeEdges(graph, [])
-    })
+    state.promise = drainRouteQueue(graph, state)
+      .catch((error) => {
+        // A failed loader must reject the caller, not recursively retry forever in finally.
+        state.pending.clear()
+        throw error
+      })
+      .finally(() => {
+        state.promise = null
+        // A listener may enqueue in a microtask after drain's last synchronous pass.
+        if (!state.disposed && state.pending.size) return routeEdges(graph, [])
+      })
   }
   return state.promise
 }
 async function drainRouteQueue(graph, state) {
   // Merge event bursts and wait for WASM before taking geometry snapshots.
   await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 50)
     if (typeof requestAnimationFrame === 'function')
-      requestAnimationFrame(resolve)
-    else setTimeout(resolve, 0)
+      requestAnimationFrame(() => {
+        clearTimeout(timer)
+        resolve()
+      })
   })
   const avoid = await ensureAvoidReady()
   while (!state.disposed && state.pending.size) {
@@ -615,7 +626,8 @@ function routeWithAvoidAttempt(
 }
 function ensureAvoidReady() {
   if (!avoidInitPromise) {
-    avoidInitPromise = AvoidLib.load()
+    // Vite dependency optimization relocates import.meta.url; use the bundled asset URL explicitly.
+    avoidInitPromise = withRoutingTimeout(AvoidLib.load(avoidWasmUrl))
       .then(() => AvoidLib.getInstance())
       .catch((error) => {
         avoidInitPromise = null

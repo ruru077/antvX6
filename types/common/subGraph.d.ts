@@ -12,6 +12,7 @@ interface SubGraphItem {
 }
 
 interface EntryGraphModel {
+  requiredCapabilities?: string[]
   currentGraphId: string
   rootId: 'root'
   subGraphs: Record<string, SubGraphItem>

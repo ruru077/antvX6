@@ -7,7 +7,9 @@ export function antvApiUrl(path: string): URL {
   return new URL(`/m2plab/api/antv${path}`, window.location.origin)
 }
 
-export function linkWsUrl(endpoint: 'websocketsimulatert' | 'websocketcompile'): string {
+export function linkWsUrl(
+  endpoint: 'websocketsimulatert' | 'websocketsimulate' | 'websocketcompile',
+): string {
   const url = new URL(`/m2plab/matlab/${endpoint}`, window.location.origin)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.toString()

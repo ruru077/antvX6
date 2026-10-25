@@ -1,5 +1,6 @@
 import { PREVIEW_PORT_SNAP_RADIUS, RED } from '@/assets/constant'
 import { previewLinkAttrs } from '@/assets/x6Model'
+import { LADDER_BLOCK_TYPE } from '@/ladder/block'
 import { createCommonService } from '@/services/common-service'
 import { createInteractiveService } from '@/services/interactive-service'
 import {
@@ -117,13 +118,31 @@ async function connectAvailablePorts(
     .filter(
       (port) => port.id !== null && commonService.getPortGroup(port) === 'in',
     )
-    .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
+    .sort((a, b) => {
+      const ports =
+        targetNode.getData()?.blockType === LADDER_BLOCK_TYPE
+          ? targetNode.getData().ladder.interfacePorts
+          : null
+      return ports
+        ? ports.find((p: { id: string }) => p.id === a.id).order -
+            ports.find((p: { id: string }) => p.id === b.id).order
+        : a.id!.localeCompare(b.id!, undefined, { numeric: true })
+    })
   const sourcePorts = sourceNode
     .getPorts()
     .filter(
       (port) => port.id !== null && commonService.getPortGroup(port) === 'out',
     )
-    .sort((a, b) => a.id!.localeCompare(b.id!, undefined, { numeric: true }))
+    .sort((a, b) => {
+      const ports =
+        sourceNode.getData()?.blockType === LADDER_BLOCK_TYPE
+          ? sourceNode.getData().ladder.interfacePorts
+          : null
+      return ports
+        ? ports.find((p: { id: string }) => p.id === a.id).order -
+            ports.find((p: { id: string }) => p.id === b.id).order
+        : a.id!.localeCompare(b.id!, undefined, { numeric: true })
+    })
 
   const connected: Edge[] = []
   graph.startBatch('connect-available-ports')

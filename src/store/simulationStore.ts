@@ -1,7 +1,13 @@
 import { create } from 'zustand'
 import type { SimulationProgress, SimulationResults } from '@/api/simulation'
+import type { LadderUpdate } from '@/api/simulation'
+import type { LadSnapshot } from '@/ladder/model'
 
 interface SimulationState {
+  ladderRunId: string | null
+  ladderSnapshots: Record<string, LadSnapshot>
+  setLadderUpdate: (update: LadderUpdate) => void
+  clearLadderSnapshots: () => void
   isRunning: boolean
   progress: SimulationProgress | null
   results: SimulationResults | null
@@ -16,6 +22,27 @@ interface SimulationState {
 }
 
 const useSimulationStore = create<SimulationState>((set) => ({
+  ladderRunId: null,
+  ladderSnapshots: {},
+  clearLadderSnapshots: () => set({ ladderRunId: null, ladderSnapshots: {} }),
+  setLadderUpdate: (update) =>
+    set((state) => {
+      if (state.ladderRunId !== null && state.ladderRunId !== update.runId)
+        return state
+      const snapshots: Record<string, LadSnapshot> = Object.assign(
+        Object.create(null),
+        state.ladderSnapshots,
+      )
+      for (const controller of update.controllers) {
+        if (
+          !snapshots[controller.blockUUID] ||
+          snapshots[controller.blockUUID].scanIndex <=
+            controller.snapshot.scanIndex
+        )
+          snapshots[controller.blockUUID] = controller.snapshot
+      }
+      return { ladderRunId: update.runId, ladderSnapshots: snapshots }
+    }),
   isRunning: false,
   progress: null,
   results: null,

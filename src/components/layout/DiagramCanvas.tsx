@@ -9,6 +9,7 @@ import { PanelSplitter } from '@/components/layout/PanelSplitter'
 import { PaperToolbar } from '@/components/layout/PaperToolbar'
 import { SubsystemNavBar } from '@/components/layout/SubsystemNavBar'
 import { SubsystemTabBar } from '@/components/layout/SubsystemTabBar'
+import LadderBlockEditorHost from '@/ladder/LadderBlockEditorHost'
 import { useConfigStore } from '@/store/configStore'
 import { useTouchTerminal } from '@/utils/hooks/useTouchTerminal'
 import type { RefObject } from 'react'
@@ -54,6 +55,7 @@ function DiagramCanvas({
       </div>
       {/* 选项卡导航栏：占满画布区域宽度 */}
       <SubsystemTabBar />
+      <LadderBlockEditorHost />
       <PanelSplitter
         variant="bottom"
         first={

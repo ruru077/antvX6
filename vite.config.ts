@@ -1,6 +1,8 @@
 import { defineConfig, loadEnv } from 'vite-plus'
 import { createVitePlugins } from './vite'
 import type { UserConfig } from 'vite-plus'
+import { realpathSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const baseUrl = 'http://localhost:8080' // 后端接口
 
@@ -8,6 +10,24 @@ const baseUrl = 'http://localhost:8080' // 后端接口
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname)
   const { VITE_APP_ENV } = env
+  // Isolated LAD acceptance only: never proxy a developer browser to production.
+  const localApi = env.VITE_LAD_LOCAL_API
+  const localLink = env.VITE_LAD_LOCAL_LINK
+  if (localApi) {
+    const target = new URL(localApi)
+    if (target.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname)) {
+      throw new Error('VITE_LAD_LOCAL_API must be an HTTP loopback address')
+    }
+  }
+  if (localLink) {
+    const target = new URL(localLink)
+    if (!localApi || target.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname)) {
+      throw new Error('VITE_LAD_LOCAL_LINK requires a loopback LAD API and HTTP loopback Link')
+    }
+    if (!process.env.LAD_JOINT_GATEWAY_TOKEN || process.env.LAD_JOINT_GATEWAY_TOKEN.length < 32) {
+      throw new Error('The local Link proxy requires a private server-side gateway token')
+    }
+  }
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -34,10 +54,25 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       host: true,
+      ...(localApi ? { fs: { allow: [__dirname, realpathSync(resolve(__dirname, 'node_modules'))] } } : {}),
       // 手动刷新进行文件更新配置
       // hmr: false,
       // watch: { usePolling: true },
-      proxy: {},
+      proxy: localApi ? {
+        '/m2plab/api': {
+          target: localApi,
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/m2plab/, ''),
+        },
+        ...(localLink ? {
+          '/m2plab/matlab': {
+            target: localLink,
+            ws: true,
+            changeOrigin: true,
+            headers: { 'X-Lad-Local-Token': process.env.LAD_JOINT_GATEWAY_TOKEN! },
+          },
+        } : {}),
+      } : {},
     },
 
     // 生产配置
