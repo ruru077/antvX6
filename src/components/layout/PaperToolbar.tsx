@@ -16,16 +16,20 @@ import {
   Dropdown,
   Modal,
   Space,
+  Select,
   Tooltip,
 } from 'antd'
 import { useNavigate } from 'react-router'
 import { startCompilation } from '@/api/compilation'
 import { saveModel } from '@/api/saveModel'
 import { startSimulation } from '@/api/simulation'
+import { startSoftwareSimulation } from '@/api/softwareSimulation'
 import { SAVE_MODEL_EVENT } from '@/assets/constant'
 import { Button } from '@/components/ui/button'
+import { isLocalLadderIntegration } from '@/ladder/localIntegration'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { createCommonService } from '@/services/common-service'
+import { requestDiagramModel } from '@/services/diagram-model-service'
 import {
   removeModelAutosave,
   writeModelAutosave,
@@ -69,11 +73,41 @@ function PaperToolbar({
   const markSaved = useSubGraphStore((s) => s.markSaved)
   const isDirty = useSubGraphStore((s) => s.isDirty)
   const modelName = useSubGraphStore((s) => s.modelName)
+  const hasLadder = useSubGraphStore((s) =>
+    Object.values(s.subGraphs).some((subgraph) =>
+      subgraph.graphJson.cells.some(
+        (cell) => cell.data?.blockType === 'LadderController',
+      ),
+    ),
+  )
   const ncslabContext = useNcslabContextStore((state) => state.context)
   const [saving, setSaving] = useState(false)
   const [returnDialogOpen, setReturnDialogOpen] = useState(false)
   const [compiling, setCompiling] = useState(false)
   const [compilationPercent, setCompilationPercent] = useState(0)
+  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+  const [compileTargets, setCompileTargets] = useState<
+    { id: number; name: string; model: string }[]
+  >([])
+  const [selectedTarget, setSelectedTarget] = useState<number>()
+
+  async function chooseCompileTarget() {
+    if (compiling) return
+    if (isLocalLadderIntegration()) {
+      await compileLocalSoftware()
+      return
+    }
+    try {
+      const targets =
+        await requestDiagramModel<
+          { id: number; name: string; model: string }[]
+        >('/compile-targets')
+      setCompileTargets(targets)
+      setTargetDialogOpen(true)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '无法获取编译目标')
+    }
+  }
 
   const isSimulating = useSimulationStore((state) => state.isRunning)
   const progress = useSimulationStore((state) => state.progress)
@@ -179,6 +213,7 @@ function PaperToolbar({
   async function handleRun() {
     if (!graph || isSimulating) return
     const simulation = useSimulationStore.getState()
+    simulation.clearLadderSnapshots()
     simulation.setRunning(true)
     simulation.setError(null)
     syncGraph(graph.toJSON())
@@ -193,6 +228,7 @@ function PaperToolbar({
         model,
         onProgress: simulation.setProgress,
         onResults: simulation.setResults,
+        onLadderUpdate: simulation.setLadderUpdate,
       })
       message.success('运行完成')
     } catch (error) {
@@ -204,7 +240,62 @@ function PaperToolbar({
     }
   }
 
+  async function compileLocalSoftware() {
+    if (!graph || compiling) return
+    setCompiling(true)
+    setCompilationPercent(0)
+    try {
+      syncGraph(graph.toJSON())
+      const model = await buildGraphModelDTO(graph, {
+        userId: getUserId(ncslabContext?.user.id),
+      })
+      await startCompilation({
+        model,
+        onProgress: ({ percent }) => setCompilationPercent(percent),
+        onWarning: (warning) => message.warning(warning),
+      })
+      message.success('本地软件编译完成')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '软件编译失败')
+    } finally {
+      setCompiling(false)
+    }
+  }
+
+  async function handleSoftwareRun() {
+    if (!graph || isSimulating || compiling) return
+    const simulation = useSimulationStore.getState()
+    simulation.clearLadderSnapshots()
+    simulation.setRunning(true)
+    simulation.setError(null)
+    try {
+      const numericModelId = Number(modelId)
+      if (!Number.isSafeInteger(numericModelId) || numericModelId <= 0)
+        throw new Error('请先保存父模型，再运行 C 软件仿真')
+      syncGraph(graph.toJSON())
+      const model = await buildGraphModelDTO(graph, {
+        userId: getUserId(ncslabContext?.user.id),
+        modelId: numericModelId,
+      })
+      await startSoftwareSimulation({
+        model,
+        onProgress: simulation.setProgress,
+        onResults: simulation.setResults,
+        onWarning: (warning) => message.warning(warning),
+      })
+      message.success('C 软件仿真完成')
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      simulation.setError(text)
+      message.error(text)
+    } finally {
+      simulation.setRunning(false)
+    }
+  }
+
   async function handleCompile() {
+    if (!selectedTarget) return
+    setTargetDialogOpen(false)
     if (!graph || compiling) return
     setCompiling(true)
     setCompilationPercent(0)
@@ -217,6 +308,7 @@ function PaperToolbar({
 
       const model = await buildGraphModelDTO(graph, {
         purpose: 'compilation',
+        testRig: selectedTarget,
         userId: getUserId(ncslabContext?.user.id),
         modelId: numericModelId,
       })
@@ -308,6 +400,21 @@ function PaperToolbar({
               {isSimulating ? `${progress?.percent ?? 0}%` : '运行'}
             </AntdButton>
           </Tooltip>
+          {hasLadder && !isLocalLadderIntegration() && (
+            <Tooltip
+              title="生成 C 并在服务器进行软件仿真"
+              mouseEnterDelay={0.3}
+            >
+              <AntdButton
+                size="small"
+                icon={<CodeOutlined />}
+                disabled={isSimulating || compiling}
+                onClick={() => void handleSoftwareRun()}
+              >
+                C 软件仿真
+              </AntdButton>
+            </Tooltip>
+          )}
         </Space>
 
         <Divider orientation="vertical" />
@@ -322,9 +429,13 @@ function PaperToolbar({
               icon={<BuildOutlined />}
               loading={compiling}
               disabled={!graph}
-              onClick={() => void handleCompile()}
+              onClick={() => void chooseCompileTarget()}
             >
-              {compiling ? `编译 ${compilationPercent}%` : '编译'}
+              {compiling
+                ? `编译 ${compilationPercent}%`
+                : isLocalLadderIntegration()
+                  ? '软件编译'
+                  : '编译'}
             </AntdButton>
           </Tooltip>
 
@@ -350,6 +461,25 @@ function PaperToolbar({
         </Space>
       </Space>
 
+      <Modal
+        title="选择编译目标设备"
+        open={targetDialogOpen}
+        onCancel={() => setTargetDialogOpen(false)}
+        onOk={() => void handleCompile()}
+        okButtonProps={{ disabled: !selectedTarget }}
+      >
+        <Select
+          aria-label="编译目标设备"
+          style={{ width: '100%' }}
+          placeholder="请选择目标设备"
+          value={selectedTarget}
+          onChange={setSelectedTarget}
+          options={compileTargets.map((target) => ({
+            value: target.id,
+            label: `${target.name} (${target.model}, #${target.id})`,
+          }))}
+        />
+      </Modal>
       <Modal
         open={returnDialogOpen}
         title="未保存的更改"

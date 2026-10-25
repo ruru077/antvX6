@@ -1,3 +1,4 @@
+import { antvApiUrl } from './endpoints'
 import type { Block, BlockLibrary, BlockResponse } from '~/types/vo/block'
 
 interface BlockResource {
@@ -17,7 +18,7 @@ interface BlockResources {
  */
 async function fetchBlocks(): Promise<BlockResource[]> {
   try {
-    const response = await fetch('https://www.stencil.top/antvblocks')
+    const response = await fetch(antvApiUrl('/antvblocks'), { credentials: 'same-origin' })
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -42,7 +43,7 @@ async function fetchBlocks(): Promise<BlockResource[]> {
  */
 async function fetchBlockLibrary(): Promise<BlockLibrary[]> {
   try {
-    const response = await fetch('https://www.stencil.top/library')
+    const response = await fetch(antvApiUrl('/library'), { credentials: 'same-origin' })
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }

@@ -1,3 +1,4 @@
+import type { LadderBlockData } from '../../src/ladder/block'
 /**
  * @description Graph Model DTO (Data Transfer Object)
  */
@@ -34,6 +35,7 @@ interface CompilationConfig {
  * Block 块对象
  */
 interface BlockDTO {
+  ladder?: LadderBlockData
   blockType: string
   srcBlock: string
   blockName: string

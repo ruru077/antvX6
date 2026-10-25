@@ -1,8 +1,9 @@
+// const MODEL_SERVER = 'https://www.stencil.top'
+// const MODEL_SERVER = 'http://localhost:8080'
+import { antvApiUrl } from '@/api/endpoints'
 import { useNcslabContextStore } from '@/services/ncslab-context-service'
 import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { EntryGraphModel } from '~/types'
-
-const MODEL_SERVER = 'https://www.stencil.top'
 
 type DiagramVisibility = 'public' | 'private'
 
@@ -42,13 +43,15 @@ async function requestDiagramModel<T>(
 ): Promise<T> {
   const context = useNcslabContextStore.getState().context
   if (!context) throw new Error('缺少 userId 上下文')
-  const url = new URL(path, MODEL_SERVER)
+  const url = antvApiUrl(path)
   url.searchParams.set('userId', String(context.user.id))
   const response = await fetch(url, {
     ...init,
-    credentials: 'omit',
+    credentials: 'same-origin',
     headers: {
       Accept: 'application/json',
+      'X-Antv-Request': '1',
+      'X-Antv-Capabilities': 'ladder-controller-v1',
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },

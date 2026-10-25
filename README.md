@@ -1,5 +1,24 @@
 # React + TypeScript + Vite
 
+## LAD 父模型与生产构建
+
+构建时显式设置 `VITE_LAD_ENABLED=true`，正式工作区的工具箱会显示 `LAD CONTROL`；拖入模块并双击可编辑梯形图。输入、输出都是 0/1 标量，扫描周期须为父模型固定步长的整数倍，当前支持 `ode4`。父模型运行期间内部编辑只读。
+
+“运行”使用现有 Java 仿真。含 LAD 的父模型额外提供“C 软件仿真”，通过同源 `websocketsimulate` 生成、编译并运行 C，再从受鉴权的 `simulation-results` 接口读取结果。设备“编译”仍拒绝 LAD；C 软件仿真不会显示未返回的梯形图内部监视状态。`/ladder-integration` 仅在开发构建中注册。
+
+使用项目声明的 pnpm 12.4.1 和锁文件安装；不要复用版本不同的历史 `node_modules`。锁文件固定 Vite+ 1.3.0、TypeScript 7.0.2、Node 24.22.0，以及本仓库的 `libavoid-js-0.5.0-beta.5-m2p.3.tgz`。该路由库的浏览器资源为 `dist/avoid-web.wasm`，与旧 npm 缓存包的路径不同。
+
+在独立目录进行可复现验证（Linux shell）：
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm exec tsc --noEmit
+pnpm exec vp test
+VITE_LAD_ENABLED=true pnpm exec vp build
+```
+
+PowerShell 构建时先设置 `$env:VITE_LAD_ENABLED='true'`。发布制品为 `dist/`，必须一并发布其中带哈希的 WASM 资源和 `.vite/manifest.json`；不要将开发环境的本地 API/Link 代理变量带入发布环境。
+
 ## 构建优化
 
 - 编辑器按路由加载，Scope 图表按需加载，减少首页下载量。

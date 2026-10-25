@@ -8,6 +8,7 @@ import {
   maskArrowAttrs,
   MASK_SELECTOR,
 } from '@/assets/x6Model'
+import { validateLadderModel, withLadderCapabilities } from '@/ladder/block'
 import { useInterpreterStore } from '@/store/interpreterStore'
 import type { InterpreterConfig } from '@/store/interpreterStore'
 import type { Cell, Graph, Node } from '@antv/x6'
@@ -254,6 +255,13 @@ const DEFAULT_MODEL_NAME = '实验二-系统稳态误差分析'
 // 压缩 JSON
 function zipGraphModelJson(obj: EntryGraphModel): EntryGraphModel {
   function zip(val: unknown): unknown {
+    if (
+      val &&
+      typeof val === 'object' &&
+      ((val as { kind?: string }).kind === 'ladder' ||
+        (val as { program?: { kind?: string } }).program?.kind === 'ladder')
+    )
+      return structuredClone(val)
     if (Array.isArray(val)) return val.map(zip)
     if (val !== null && typeof val === 'object') {
       return Object.fromEntries(
@@ -355,12 +363,14 @@ const useSubGraphStore = create<SubGraphStore>((set, get) => ({
 
   exportEntryGraphModel: () => {
     const { currentGraphId, subGraphs } = get()
-    return normalizeEntryGraphModel(
-      zipGraphModelJson({
-        currentGraphId,
-        rootId: ROOT_GRAPH_ID,
-        subGraphs,
-      }),
+    return withLadderCapabilities(
+      normalizeEntryGraphModel(
+        zipGraphModelJson({
+          currentGraphId,
+          rootId: ROOT_GRAPH_ID,
+          subGraphs,
+        }),
+      ),
     )
   },
   renameModel: (name) => {
@@ -550,6 +560,7 @@ function saveEntryGraphModel(graph: Graph) {
   const { syncGraph, exportEntryGraphModel } = useSubGraphStore.getState()
   syncGraph(graph.toJSON())
   const model = exportEntryGraphModel()
+  validateLadderModel(model)
   console.log(JSON.stringify(model, null, 2))
   return model
 }

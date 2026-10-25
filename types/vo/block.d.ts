@@ -1,3 +1,4 @@
+import type { LadderBlockData } from '../../src/ladder/block'
 import type { NodeMetadata } from '@antv/x6'
 
 /**
@@ -15,6 +16,7 @@ interface BlockResponse {
 
 // 业务自定义数据
 interface BlockData {
+  ladder?: LadderBlockData
   blockType: string
   title: string
   srcBlock: string
@@ -31,6 +33,7 @@ interface BlockData {
     | Record<string, string>
     | Record<string, string[]>
     | string[]
+    | LadderBlockData
     | undefined
 }
 

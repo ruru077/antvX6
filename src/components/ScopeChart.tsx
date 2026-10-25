@@ -16,6 +16,7 @@ import {
   RotateCcwIcon,
 } from 'lucide-react'
 import { useInterpreterStore } from '@/store/interpreterStore'
+import { scopeSeriesDisplay } from './scope-series'
 import type { ScopeResult } from '@/api/simulation'
 import type { ButtonProps } from 'antd'
 
@@ -83,27 +84,6 @@ function getCsvData(time: number[], signal: number[]) {
       (_, index) => `${time[index]},${signal[index]}`,
     ),
   ].join('\r\n')
-}
-
-function sampleSignal(time: number[], signal: number[], step: number) {
-  const count = Math.min(time.length, signal.length)
-  if (count <= 1) {
-    return { time: time.slice(0, count), data: signal.slice(0, count) }
-  }
-
-  const indices = [0]
-  let lastTime = time[0]
-  for (let index = 1; index < count - 1; index += 1) {
-    if (time[index] - lastTime < step - step * 1e-9) continue
-    indices.push(index)
-    lastTime = time[index]
-  }
-  indices.push(count - 1)
-
-  return {
-    time: indices.map((index) => time[index]),
-    data: indices.map((index) => signal[index]),
-  }
 }
 
 function downloadFile(data: BlobPart, type: string, fileName: string) {
@@ -193,16 +173,22 @@ function ScopeCharts({
     Number.isFinite(stopTime) &&
     stopTime > startTime
   const samplingInterval = Math.max(sampleTime, simulationStep)
-  const [stepLine, setStepLine] = useState(false)
+  const [stepLineOverride, setStepLineOverride] = useState<boolean | null>(null)
+  const stepLine =
+    sources.length > 0 &&
+    sources.every(({ scope }) => stepLineOverride ?? scope.sampleHold === true)
   const series = useMemo(
     () =>
       sources.flatMap((source) => {
         const values = getSeries(source.scope)
         return values.map((data, index) => {
-          const sampled =
-            toolbar !== false && !stepLine
-              ? sampleSignal(source.scope.time, data, samplingInterval)
-              : { time: source.scope.time, data }
+          const sampled = scopeSeriesDisplay(
+            source.scope,
+            data,
+            samplingInterval,
+            toolbar !== false,
+            stepLineOverride,
+          )
           return {
             key: `${source.key}:${index}`,
             name: source.name
@@ -214,7 +200,7 @@ function ScopeCharts({
           }
         })
       }),
-    [samplingInterval, sources, stepLine, toolbar],
+    [samplingInterval, sources, stepLineOverride, toolbar],
   )
   const chartRef = useRef<HTMLDivElement>(null)
   const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null)
@@ -395,7 +381,7 @@ function ScopeCharts({
             id: item.key,
             name: item.name,
             type: 'line',
-            step: stepLine ? 'end' : false,
+            step: item.step,
             smooth: false,
             showSymbol: item.data.length === 1,
             symbolSize: item.data.length === 1 ? 10 : 4,
@@ -470,7 +456,7 @@ function ScopeCharts({
                 size="small"
                 checked={stepLine}
                 aria-label="阶梯线"
-                onChange={setStepLine}
+                onChange={setStepLineOverride}
               />
             </div>
           </Tooltip>

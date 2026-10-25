@@ -378,6 +378,14 @@ function ExchangeDiagram({
       <main className="h-full overflow-y-auto bg-[#f0f2f5] p-6">
         {messageHolder}
         <div className="flex flex-col gap-4">
+          {import.meta.env.VITE_LAD_ENABLED === 'true' && (
+            <Card title="LAD 梯形图" styles={{ body: { paddingTop: 12 } }}>
+              <Space wrap>
+                <Button type="primary" onClick={() => navigate('/ladder')}>打开 LAD 梯形图</Button>
+                <span>常开、常闭、求反与线圈 · 顺序扫描和在线逻辑监控</span>
+              </Space>
+            </Card>
+          )}
           {currentLoadError && (
             <Alert
               showIcon

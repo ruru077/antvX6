@@ -11,6 +11,14 @@ import {
   subsystemPortGroups,
   targetMarkerAttrs,
 } from '@/assets/x6Model'
+import {
+  assertLadderBlock,
+  assertLadderSolver,
+  LADDER_BLOCK_TYPE,
+  ladderPortNumber,
+  validateLadderModel,
+} from '@/ladder/block'
+import { useLadderBlockEditorStore } from '@/ladder/blockEditorStore'
 import { getAntdMessage } from '@/services/antd-message-service'
 import { createCommonService } from '@/services/common-service'
 import {
@@ -27,6 +35,7 @@ import {
 import { snapshotToDataURL } from '@/services/snapshot-service'
 import { useGraphStore } from '@/store/graphStore'
 import { useInterpreterStore } from '@/store/interpreterStore'
+import { useSimulationStore } from '@/store/simulationStore'
 import {
   buildPaths,
   createSubGraphItem,
@@ -59,6 +68,7 @@ import type {
   SubGraphMap,
 } from '~/types'
 import type { BlockDTO, LineDTO } from '~/types/dto/graphModel'
+import '@/ladder/blockNode'
 
 const commonService = createCommonService()
 const SUBSYSTEM_IO_OFFSET = 140
@@ -180,6 +190,8 @@ function getSubPortLabel(port: PortMetadata): string {
 function getBlockLabel(node: NodeProperties): string {
   const text = node.attrs?.label?.text
   if (typeof text === 'string') return text
+  if (node.data?.blockType === LADDER_BLOCK_TYPE)
+    return node.data.title || 'LAD Controller'
   else {
     throw new Error('[getBlockLabel]unexpected')
   }
@@ -273,6 +285,9 @@ const layerHistoryStacks = new Map<
 // ─── 加载模型 ─────────────────────────────────────────────────────────────
 
 function loadEntryGraphModel(model: EntryGraphModel, graph: Graph) {
+  validateLadderModel(model)
+  useLadderBlockEditorStore.getState().close()
+  useSimulationStore.getState().clearLadderSnapshots()
   // 清除所有图层的历史栈快照（旧 Cell 引用已失效）
   layerHistoryStacks.clear()
   graph.cleanHistory()
@@ -1144,9 +1159,15 @@ function flatGraph(
 
       const dto: LineDTO = {
         fromBlockName: getBlockLabel(srcResult.block),
-        fromPortNo: srcResult.portId.replace(/\D/g, ''),
+        fromPortNo: ladderPortNumber(
+          srcResult.block.data ?? {},
+          srcResult.portId,
+        ),
         toBlockName: getBlockLabel(tgtResult.block),
-        toPortNo: tgtResult.portId.replace(/\D/g, ''),
+        toPortNo: ladderPortNumber(
+          tgtResult.block.data ?? {},
+          tgtResult.portId,
+        ),
         linePath: edgePro.id,
         fromBlockUUID: srcResult.block.id ?? '',
         toBlockUUID: tgtResult.block.id ?? '',
@@ -1207,6 +1228,8 @@ function linesToDTO(lines: LineDTO[], subGraphs: SubGraphMap): DTOResult {
       getCellFromSubGraphs(edge.toBlockUUID, subGraphs)!,
     ]
     block.forEach((b) => {
+      if (b.data?.blockType === LADDER_BLOCK_TYPE)
+        assertLadderBlock(b.data.ladder)
       blockSet.set(b.id!, {
         blockType: b.data?.blockType ?? 'error',
         srcBlock: b.data?.srcBlock ?? 'error',
@@ -1214,6 +1237,9 @@ function linesToDTO(lines: LineDTO[], subGraphs: SubGraphMap): DTOResult {
         paramValues: isEmpty(b.data?.paramValues) ? {} : b.data?.paramValues,
         blockPath: edge.linePath,
         blockUUID: b.id!,
+        ...(b.data?.blockType === LADDER_BLOCK_TYPE
+          ? { ladder: structuredClone(b.data.ladder) }
+          : {}),
       })
     })
   }
@@ -1338,6 +1364,12 @@ function syncParentSubsystemPorts(graph: Graph): boolean {
  * @param graph X6 Graph 实例，用于 remap 边索引回溯
  */
 function solve(subGraphs: SubGraphMap, graph: Graph) {
+  for (const layer of Object.values(subGraphs)) {
+    for (const cell of layer.graphJson.cells) {
+      if (cell.data?.blockType === LADDER_BLOCK_TYPE)
+        assertLadderBlock(cell.data.ladder)
+    }
+  }
   const resolvedSubGraphs = resolveSubGraphMaskParams(subGraphs)
   // 1) 平铺所有边到 remap 结果
   const linesDTO = flatGraph(resolvedSubGraphs, ROOT_GRAPH_ID, graph)
@@ -1346,6 +1378,27 @@ function solve(subGraphs: SubGraphMap, graph: Graph) {
   const validLines = filterValidLines(linesDTO, resolvedSubGraphs)
   // 3) 验证并去噪
   const { lines, blocks } = linesToDTO(validLines, resolvedSubGraphs)
+  for (const layer of Object.values(resolvedSubGraphs)) {
+    for (const cell of layer.graphJson.cells) {
+      if (cell.data?.blockType !== LADDER_BLOCK_TYPE) continue
+      if (!blocks.some((block) => block.blockUUID === cell.id)) {
+        throw new Error(
+          `LAD ${getBlockLabel(cell)} 未连接到完整的源→输出通路，请连接输入和输出后运行`,
+        )
+      }
+      const connectedInputs = new Set(
+        lines
+          .filter((line) => line.toBlockUUID === cell.id)
+          .map((line) => Number(line.toPortNo)),
+      )
+      for (const port of cell.data.ladder.interfacePorts) {
+        if (port.direction === 'input' && !connectedInputs.has(port.order))
+          throw new Error(
+            `LAD ${getBlockLabel(cell)} 输入 ${port.variable} 尚未连接`,
+          )
+      }
+    }
+  }
   return {
     lines,
     blocks,
@@ -1356,16 +1409,24 @@ interface BuildGraphModelDTOOptions {
   purpose?: 'simulation' | 'compilation'
   userId: number
   modelId?: number
+  testRig?: number
 }
 
 async function buildGraphModelDTO(
   graph: Graph,
   options: BuildGraphModelDTOOptions,
 ): Promise<GraphModelDTO> {
-  const { purpose = 'simulation', userId, modelId = 0 } = options
+  const { purpose = 'simulation', userId, modelId = 0, testRig = 0 } = options
+  if (purpose === 'compilation' && (!Number.isInteger(testRig) || testRig <= 0))
+    throw new Error('请选择编译目标设备')
   const { subGraphs, modelName } = useSubGraphStore.getState()
   const { config } = useInterpreterStore.getState()
   const { blocks, lines } = solve(subGraphs, graph)
+  assertLadderSolver(
+    blocks.flatMap((block) => (block.ladder ? [block.ladder.program] : [])),
+    config,
+    purpose,
+  )
   const solver =
     config.SimSolver === 'auto'
       ? config.Step === 'VariableStep'
@@ -1375,7 +1436,7 @@ async function buildGraphModelDTO(
 
   return {
     userId,
-    testRig: 105, // TODO
+    testRig, // TODO
     copyNum: 0, // TODO
     modelId,
     modelName: 'name', // TODO
@@ -1416,7 +1477,7 @@ async function buildGraphModelDTO(
       packetSize: Number(config.PacketSize),
       targetPlatform: 1, // 编译目标平台，当前固定为1
       publicFlag: 0, // 模型/算法公共标志，当前固定为0
-      testRig: 105,
+      testRig,
       copyNum: 0,
       description: '',
     },

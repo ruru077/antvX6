@@ -26,6 +26,7 @@ import {
 import { createStencilService } from '@/services/stencil-service'
 import { useConfigStore } from '@/store/configStore'
 import { useGraphStore } from '@/store/graphStore'
+import type { BlockResources } from '@/api/blocks'
 import type { StencilArrangeMode } from '@/store/configStore'
 import type { TextMatchOptions } from '~/types/common/text'
 import '@styles/StencilPanel.scss'
@@ -68,14 +69,19 @@ const SEARCH_RULE_ITEMS: SearchRuleItem[] = [
 const stencilService = createStencilService()
 
 // hooks ------------------------------------------------------
-function usePanelController(onReady: () => void): StencilController {
+function usePanelController(
+  onReady: () => void,
+  resources?: BlockResources,
+): StencilController {
   const graph = useGraphStore((s) => s.graph)
   const stencilContainerRef = useRef<HTMLDivElement>(null)
-  const { data: blockResources } = useRequest(fetchBlockResources, {
+  const { data: fetchedResources } = useRequest(fetchBlockResources, {
+    manual: resources !== undefined,
     cacheKey: 'version1',
     staleTime: -1,
     cacheTime: -1,
   })
+  const blockResources = resources ?? fetchedResources
   // 用户搜索词
   const [keyword, setKeyword] = useState('')
   // 当前的搜索视图模式，library 是显示库分组，results 是显示搜索结果
@@ -198,8 +204,17 @@ function usePanelController(onReady: () => void): StencilController {
 }
 
 // UI ---------------------------------------------------------
-function StencilLayout({ onReady }: { onReady: () => void }) {
-  const { actions, search, stencilContainerRef } = usePanelController(onReady)
+function StencilLayout({
+  onReady,
+  resources,
+}: {
+  onReady: () => void
+  resources?: BlockResources
+}) {
+  const { actions, search, stencilContainerRef } = usePanelController(
+    onReady,
+    resources,
+  )
   const [settingsOpen, setSettingsOpen] = useState(false)
   //TODO 参考百度贴吧的 hover悬浮效果，增加用户交互体验
   return (
