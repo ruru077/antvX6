@@ -302,14 +302,46 @@ export function insertElement(
     })
   }
 }
-export function removeElement(network: LadNetwork, selectedId: string): void {
+/** A one-branch OR is identical to its child; retain the child's IDs and state. */
+export function simplifyParallelBranches(network: LadNetwork): void {
+  const simplify = (element: LadElement): LadElement => {
+    if (element.children) element.children = element.children.map(simplify)
+    if (element.type === 'parallel' && element.children?.length === 1)
+      return element.children[0]
+    // Empty groups stay invalid: never turn an unfinished rung into a live wire.
+    return element
+  }
+  // The network root must remain a series, including when it is empty.
+  if (network.condition.children)
+    network.condition.children = network.condition.children.map(simplify)
+}
+
+export function simplifyProgramBranches(program: LadProgram): LadProgram {
+  const next = cloneProgram(program)
+  next.networks.forEach(simplifyParallelBranches)
+  return next
+}
+
+export function removeElement(
+  network: LadNetwork,
+  selectedId: string,
+  simplify = true,
+): void {
   if (network.condition.id === selectedId) {
     network.condition.children = []
     return
   }
-  visitElements(network.condition, (e) => {
-    if (e.children) e.children = e.children.filter((c) => c.id !== selectedId)
-  })
+  const remove = (element: LadElement): LadElement[] => {
+    if (element.id === selectedId) return []
+    if (element.children?.length) {
+      element.children = element.children.flatMap(remove)
+      // Remove a branch emptied by this deletion, never an unrelated empty draft.
+      if (simplify && !element.children.length) return []
+    }
+    return [element]
+  }
+  network.condition.children = network.condition.children?.flatMap(remove)
+  if (simplify) simplifyParallelBranches(network)
 }
 // Structural diagnostics only. PLC execution and conduction are always supplied by Link.
 export function validateProgram(value: unknown): LadIssue[] {

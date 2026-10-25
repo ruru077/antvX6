@@ -49,6 +49,7 @@ import {
   removeElement,
   renameVariable,
   selectionFromIssue,
+  simplifyProgramBranches,
   validateProgram,
   visitElements,
 } from './model'
@@ -174,7 +175,7 @@ export default function LadderEditor({
   const [history, setHistory] = useState<History>(() => ({
     past: [],
     present: {
-      program: cloneProgram(initialProgram ?? demoProgram()),
+      program: simplifyProgramBranches(initialProgram ?? demoProgram()),
       interfacePorts: structuredClone(initialInterfacePorts ?? []),
     },
     future: [],
@@ -300,6 +301,7 @@ export default function LadderEditor({
   }
   const edit = (next: LadProgram, rename?: { from: string; to: string }) => {
     if (locked) return
+    next = simplifyProgramBranches(next)
     if (
       functionBlocks(next).length ||
       next.networks.some(

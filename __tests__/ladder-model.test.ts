@@ -11,6 +11,9 @@ import {
   removeElement,
   renameVariable,
   selectionFromIssue,
+  simplifyProgramBranches,
+  functionalElement,
+  ladId,
   validateProgram,
   visitElements,
 } from '../src/ladder/model'
@@ -122,19 +125,78 @@ describe('LAD authoring model (not an execution engine)', () => {
     expect(findElement(network, nestedId)?.variable).toBe('StopPressed')
     removeElement(network, nestedId)
     expect(findElement(network, nestedId)).toBeUndefined()
-    expect(
-      validateProgram(program).some((issue) =>
-        issue.message.includes('两条支路'),
-      ),
-    ).toBe(true)
+    expect(validateProgram(program)).toEqual([])
+    expect(parent.children![0].id).toBe(childId)
   })
-  it('does not silently collapse an invalid one-branch parallel group', () => {
+  it('promotes the remaining branch without changing its identity or binding', () => {
     const program = demoProgram(),
       network = program.networks[0],
       parallel = network.condition.children![0]
+    const remaining = structuredClone(parallel.children![1])
     removeElement(network, parallel.children![0].id)
-    expect(parallel.type).toBe('parallel')
-    expect(validateProgram(program)[0].message).toContain('两条支路')
+    expect(network.condition.children![0]).toEqual(remaining)
+    expect(findElement(network, parallel.id)).toBeUndefined()
+    expect(validateProgram(program)).toEqual([])
+  })
+  it('keeps two branches when deleting one of three', () => {
+    const p = demoProgram(),
+      n = p.networks[0],
+      group = n.condition.children![0]
+    group.children!.push(contact('StopPressed'))
+    removeElement(n, group.children![1].id)
+    expect(n.condition.children![0].id).toBe(group.id)
+    expect(group.children!.map((e) => e.variable)).toEqual([
+      'Start',
+      'StopPressed',
+    ])
+    expect(validateProgram(p)).toEqual([])
+  })
+  it('removes a series branch emptied by deletion, retaining the other branch', () => {
+    const p = demoProgram(),
+      n = p.networks[0],
+      group = n.condition.children![0]
+    const removed = group.children![1]
+    group.children![1] = { id: ladId(), type: 'series', children: [removed] }
+    const remaining = structuredClone(group.children![0])
+    removeElement(n, removed.id)
+    expect(n.condition.children![0]).toEqual(remaining)
+    expect(validateProgram(p)).toEqual([])
+  })
+  it('repairs the reported Start -> TON -> Motor draft without changing state or ports', () => {
+    const p = demoProgram(),
+      n = p.networks[0],
+      group = n.condition.children![0]
+    p.schemaVersion = 2
+    group.children = [
+      { id: ladId(), type: 'series', children: [group.children![0]] },
+    ]
+    const timer = functionalElement('TON', p)
+    timer.presetMs = 300
+    n.condition.children = [group, timer]
+    const before = structuredClone(p),
+      repaired = simplifyProgramBranches(p)
+    expect(p).toEqual(before)
+    expect(repaired.networks[0].condition.id).toBe(n.condition.id)
+    expect(repaired.networks[0].condition.children).toEqual([
+      group.children[0],
+      timer,
+    ])
+    expect(repaired.variables).toEqual(p.variables)
+    expect(repaired.networks[0].coil).toEqual(n.coil)
+    expect(validateProgram(repaired)).toEqual([])
+    expect(simplifyProgramBranches(repaired)).toEqual(repaired)
+  })
+  it('leaves unrelated empty groups invalid instead of energizing the coil', () => {
+    const p = demoProgram(),
+      n = p.networks[0],
+      group = n.condition.children![0]
+    group.children = []
+    const empty = structuredClone(group)
+    removeElement(n, n.condition.children![1].id)
+    expect(n.condition.children).toEqual([empty])
+    expect(validateProgram(simplifyProgramBranches(p))[0].message).toContain(
+      '两条支路',
+    )
   })
   it('clearing the root reports an empty branch', () => {
     const program = demoProgram(),
