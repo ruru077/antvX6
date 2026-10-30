@@ -26,6 +26,7 @@ import { rightEdgeDragging } from '@/store/flags'
 import { SUBGRAPH_HISTORY_OPTION } from '@/store/subGraphStore'
 import { withDeviceGuard } from '@/utils/hof/withDeviceGuard'
 import { registerEdgeEditTool } from '@/utils/plugin/EdgeEditTool'
+import { registerEdgePixelSnap } from '@/utils/plugin/edgePixelSnap'
 import { registerM2PVerticesTool } from '@/utils/plugin/m2pVerticesTool'
 import { openAutoPan } from '@/utils/plugin/openAutoPan'
 import { openPinDragPaper } from '@/utils/plugin/openPinDragPaper'
@@ -65,10 +66,12 @@ function createAndSetupGraph(
   })
   openAutoPan(graph)
   const closePinDragPaper = openPinDragPaper(graph)
+  const closeEdgePixelSnap = registerEdgePixelSnap(graph)
   const dispose = graph.dispose.bind(graph)
   graph.dispose = (clean?: boolean) => {
     routingSession.dispose()
     closePinDragPaper()
+    closeEdgePixelSnap()
     dispose(clean)
   }
   return graph
